@@ -1,0 +1,10 @@
+cff-version: "1.2.0"
+message: "If you use this software, please cite it using the following reference."
+authors:
+  - family-names: "SoulCoreKit"
+    given-names: "Team"
+title: "SoulCoreKit"
+version: "1.0.0"
+date-released: "2026-07-13"
+url: "https://github.com/SoulCoreKit/SoulCoreKit"
+license: "MIT"
