@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+﻿cmake_minimum_required(VERSION 3.16)
 project(SoulCoreKit VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -10,6 +10,8 @@ set(CMAKE_AUTOMOC ON)
 option(BUILD_TESTS "Build test suite" ON)
 option(BUILD_EXAMPLES "Build examples" ON)
 option(BUILD_DOCS "Build documentation" OFF)
+option(ENABLE_WARNINGS "Enable compiler warnings" ON)
+option(ENABLE_SANITIZERS "Enable sanitizers (ASAN/UBSAN)" OFF)
 
 # Qt6 CMake 配置路径 - 用户可通过 QT6_DIR 或 CMAKE_PREFIX_PATH 指定
 # 在 CI/CD 环境中，Qt 通常通过包管理器或 install-qt-action 安装，不需要手动设置
@@ -21,15 +23,30 @@ endif()
 # 查找 Qt6 组件
 find_package(Qt6 REQUIRED COMPONENTS Core Network WebSockets Sql Widgets Xml)
 
+if(ENABLE_WARNINGS)
+    if(MSVC)
+        add_compile_options(/W4 /WX)
+    else()
+        add_compile_options(-Wall -Wextra -Wpedantic)
+    endif()
+endif()
+
+if(ENABLE_SANITIZERS)
+    if(MSVC)
+        add_compile_options(/fsanitize=address /fsanitize=undefined)
+    else()
+        add_compile_options(-fsanitize=address,undefined)
+        add_link_options(-fsanitize=address,undefined)
+    endif()
+endif()
+
 # 自动复制 Qt DLL 到可执行文件输出目录 (Windows)
 # 这样运行测试时不需要手动设置环境变量
 if(WIN32)
-    # 获取 Qt6 bin 目录路径
     get_target_property(QT6_CORE_LOCATION Qt6::Core IMPORTED_LOCATION)
     get_filename_component(QT6_BIN_DIR ${QT6_CORE_LOCATION} DIRECTORY)
     
-    # 定义复制 DLL 的函数
-    function(copy_qt_dll TARGET_NAME)
+    function(copy_qt_dll TARGET_NAME COPY_TEST_DLL)
         add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${QT6_BIN_DIR}/Qt6Core.dll"
@@ -55,20 +72,32 @@ if(WIN32)
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${QT6_BIN_DIR}/Qt6Xml.dll"
                 "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6Xml.dll"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${QT6_BIN_DIR}/Qt6Test.dll"
-                "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6Test.dll"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${QT6_BIN_DIR}/libgcc_s_seh-1.dll"
-                "$<TARGET_FILE_DIR:${TARGET_NAME}>/libgcc_s_seh-1.dll"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${QT6_BIN_DIR}/libstdc++-6.dll"
-                "$<TARGET_FILE_DIR:${TARGET_NAME}>/libstdc++-6.dll"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${QT6_BIN_DIR}/libwinpthread-1.dll"
-                "$<TARGET_FILE_DIR:${TARGET_NAME}>/libwinpthread-1.dll"
             COMMENT "Copying Qt6 DLLs to ${TARGET_NAME} output directory"
         )
+        
+        if(COPY_TEST_DLL)
+            add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${QT6_BIN_DIR}/Qt6Test.dll"
+                    "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6Test.dll"
+                COMMENT "Copying Qt6Test.dll to ${TARGET_NAME} output directory"
+            )
+        endif()
+        
+        if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+            add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${QT6_BIN_DIR}/libgcc_s_seh-1.dll"
+                    "$<TARGET_FILE_DIR:${TARGET_NAME}>/libgcc_s_seh-1.dll"
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${QT6_BIN_DIR}/libstdc++-6.dll"
+                    "$<TARGET_FILE_DIR:${TARGET_NAME}>/libstdc++-6.dll"
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${QT6_BIN_DIR}/libwinpthread-1.dll"
+                    "$<TARGET_FILE_DIR:${TARGET_NAME}>/libwinpthread-1.dll"
+                COMMENT "Copying MinGW runtime DLLs to ${TARGET_NAME} output directory"
+            )
+        endif()
     endfunction()
 endif()
 
@@ -142,8 +171,6 @@ set(SOUL_LOGGING_SOURCES
 set(SOUL_NETWORK_HEADERS
     include/soul/network/http_request.h
     include/soul/network/http_response.h
-    include/soul/network/i_interceptor.h
-    include/soul/network/retry_policy.h
     include/soul/network/http_client.h
     include/soul/network/http_api.h
     include/soul/network/web_socket.h
@@ -171,6 +198,7 @@ set(SOUL_NETWORK_HEADERS
     include/soul/network/monitor/monitor.h
     include/soul/network/pool/connection_pool.h
     include/soul/network/http/http_client_adapter.h
+    include/soul/network/http/http_interceptor.h
     include/soul/network/tcp/tcp_client_adapter.h
     include/soul/network/websocket/ws_client_adapter.h
     include/soul/network/mqtt/mqtt_client_adapter.h
@@ -295,6 +323,7 @@ set(SOUL_ASYNC_SOURCES
 set(SOUL_EVENT_HEADERS
     include/soul/event/i_event.h
     include/soul/event/event_bus.h
+    include/soul/event/typed_event_bus.h
     include/soul/event/event_priority.h
     include/soul/event/subscription.h
     include/soul/event/i_message_bus.h
@@ -397,7 +426,8 @@ add_library(soul_core STATIC
 )
 
 target_include_directories(soul_core PUBLIC
-    ${PROJECT_SOURCE_DIR}/include
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
 target_link_libraries(soul_core PUBLIC
@@ -410,7 +440,8 @@ add_library(soul_base STATIC
 )
 
 target_include_directories(soul_base PUBLIC
-    ${PROJECT_SOURCE_DIR}/include
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
 target_link_libraries(soul_base PUBLIC
@@ -426,7 +457,8 @@ add_library(soul_logging STATIC
 )
 
 target_include_directories(soul_logging PUBLIC
-    ${PROJECT_SOURCE_DIR}/include
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
 target_link_libraries(soul_logging PUBLIC
@@ -440,7 +472,8 @@ add_library(soul_network STATIC
 )
 
 target_include_directories(soul_network PUBLIC
-    ${PROJECT_SOURCE_DIR}/include
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
 target_link_libraries(soul_network PUBLIC
@@ -457,7 +490,8 @@ add_library(soul_utils STATIC
 )
 
 target_include_directories(soul_utils PUBLIC
-    ${PROJECT_SOURCE_DIR}/include
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
 target_link_libraries(soul_utils PUBLIC
@@ -473,7 +507,8 @@ add_library(soul_configuration STATIC
 )
 
 target_include_directories(soul_configuration PUBLIC
-    ${PROJECT_SOURCE_DIR}/include
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
 target_link_libraries(soul_configuration PUBLIC
@@ -489,7 +524,8 @@ add_library(soul_storage STATIC
 )
 
 target_include_directories(soul_storage PUBLIC
-    ${PROJECT_SOURCE_DIR}/include
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
 target_link_libraries(soul_storage PUBLIC
@@ -504,7 +540,8 @@ add_library(soul_async STATIC
 )
 
 target_include_directories(soul_async PUBLIC
-    ${PROJECT_SOURCE_DIR}/include
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
 target_link_libraries(soul_async PUBLIC
@@ -518,7 +555,8 @@ add_library(soul_event STATIC
 )
 
 target_include_directories(soul_event PUBLIC
-    ${PROJECT_SOURCE_DIR}/include
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
 target_link_libraries(soul_event PUBLIC
@@ -532,7 +570,8 @@ add_library(soul_auth STATIC
 )
 
 target_include_directories(soul_auth PUBLIC
-    ${PROJECT_SOURCE_DIR}/include
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
 target_link_libraries(soul_auth PUBLIC
@@ -549,7 +588,8 @@ add_library(soul_ui STATIC
 )
 
 target_include_directories(soul_ui PUBLIC
-    ${PROJECT_SOURCE_DIR}/include
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
 target_link_libraries(soul_ui PUBLIC
@@ -582,3 +622,45 @@ endif()
 if(BUILD_TESTS)
     add_subdirectory(tests)
 endif()
+
+include(GNUInstallDirs)
+
+install(TARGETS SoulCoreKit soul_core soul_base soul_logging soul_network
+                soul_utils soul_configuration soul_storage soul_async
+                soul_event soul_auth soul_ui
+        EXPORT SoulCoreKitTargets
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/soul
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+        FILES_MATCHING PATTERN "*.h"
+)
+
+install(EXPORT SoulCoreKitTargets
+        FILE SoulCoreKitTargets.cmake
+        NAMESPACE sc::
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/SoulCoreKit
+)
+
+include(CMakePackageConfigHelpers)
+
+configure_package_config_file(
+    ${PROJECT_SOURCE_DIR}/cmake/SoulCoreKitConfig.cmake.in
+    ${PROJECT_BINARY_DIR}/SoulCoreKitConfig.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/SoulCoreKit
+)
+
+write_basic_package_version_file(
+    ${PROJECT_BINARY_DIR}/SoulCoreKitConfigVersion.cmake
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+
+install(FILES ${PROJECT_BINARY_DIR}/SoulCoreKitConfig.cmake
+              ${PROJECT_BINARY_DIR}/SoulCoreKitConfigVersion.cmake
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/SoulCoreKit
+)

@@ -46,10 +46,13 @@ Result<void> FileStorage::put(const QString& key, const QString& value) {
     return {};
 }
 
-QString FileStorage::get(const QString& key, const QString& defaultValue) const {
+Result<QString> FileStorage::get(const QString& key) const {
+    if (!m_isOpen) {
+        return Error(ErrorCode::InternalError, "Storage not open");
+    }
     QFile file(getFilePath(key));
     if (!file.open(QIODevice::ReadOnly)) {
-        return defaultValue;
+        return Error(ErrorCode::NotFound, "Key not found");
     }
     return QString::fromUtf8(file.readAll());
 }
@@ -80,10 +83,13 @@ Result<void> FileStorage::putBytes(const QString& key, const QByteArray& value) 
     return {};
 }
 
-QByteArray FileStorage::getBytes(const QString& key) const {
+Result<QByteArray> FileStorage::getBytes(const QString& key) const {
+    if (!m_isOpen) {
+        return Error(ErrorCode::InternalError, "Storage not open");
+    }
     QFile file(getFilePath(key));
     if (!file.open(QIODevice::ReadOnly)) {
-        return QByteArray();
+        return Error(ErrorCode::NotFound, "Key not found");
     }
     return file.readAll();
 }

@@ -19,7 +19,7 @@ public:
 
     virtual Result<void> put(const K& key, const V& value) = 0;
     virtual Result<void> put(const K& key, const V& value, std::chrono::seconds ttl) = 0;
-    virtual Result<V> get(const K& key) const = 0;
+    virtual Result<V> get(const K& key) = 0;
     virtual bool contains(const K& key) const = 0;
     virtual Result<void> remove(const K& key) = 0;
     virtual void clear() = 0;
@@ -68,7 +68,7 @@ public:
         return {};
     }
 
-    Result<V> get(const K& key) const override {
+    Result<V> get(const K& key) override {
         std::lock_guard<std::mutex> lock(m_mutex);
 
         auto it = m_cache.find(key);
@@ -169,7 +169,7 @@ public:
 
     Result<void> put(const QString& key, const QByteArray& value) override;
     Result<void> put(const QString& key, const QByteArray& value, std::chrono::seconds ttl) override;
-    Result<QByteArray> get(const QString& key) const override;
+    Result<QByteArray> get(const QString& key) override;
     bool contains(const QString& key) const override;
     Result<void> remove(const QString& key) override;
     void clear() override;

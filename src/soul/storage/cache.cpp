@@ -52,7 +52,7 @@ Result<void> DiskCache::put(const QString& key, const QByteArray& value, std::ch
     return {};
 }
 
-Result<QByteArray> DiskCache::get(const QString& key) const {
+Result<QByteArray> DiskCache::get(const QString& key) {
     std::lock_guard<std::mutex> lock(m_mutex);
 
     QString filePath = getFilePath(key);

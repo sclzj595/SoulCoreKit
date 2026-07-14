@@ -32,11 +32,13 @@ void TestStorage::testPutAndGet() {
     auto putResult = storage.put("key", "value");
     QVERIFY(putResult.isOk());
 
-    QString value = storage.get("key");
-    QCOMPARE(value, QString("value"));
+    auto getResult = storage.get("key");
+    QVERIFY(getResult.isOk());
+    QCOMPARE(getResult.unwrap(), QString("value"));
 
-    QString defaultValue = storage.get("nonexistent", "default");
-    QCOMPARE(defaultValue, QString("default"));
+    auto missingResult = storage.get("nonexistent");
+    QVERIFY(missingResult.isErr());
+    QCOMPARE(missingResult.unwrapErr().code(), sc::ErrorCode::NotFound);
 }
 
 void TestStorage::testRemove() {
@@ -68,8 +70,12 @@ void TestStorage::testBytesOperations() {
     auto putResult = storage.putBytes("binary_key", data);
     QVERIFY(putResult.isOk());
 
-    QByteArray retrieved = storage.getBytes("binary_key");
-    QCOMPARE(retrieved, data);
+    auto getResult = storage.getBytes("binary_key");
+    QVERIFY(getResult.isOk());
+    QCOMPARE(getResult.unwrap(), data);
+
+    auto missingResult = storage.getBytes("missing_key");
+    QVERIFY(missingResult.isErr());
 }
 
 void TestStorage::testClear() {

@@ -28,11 +28,14 @@ Result<void> MemoryStorage::put(const QString& key, const QString& value) {
     return {};
 }
 
-QString MemoryStorage::get(const QString& key, const QString& defaultValue) const {
+Result<QString> MemoryStorage::get(const QString& key) const {
+    if (!m_isOpen) {
+        return Error(ErrorCode::InternalError, "Storage not open");
+    }
     if (m_stringData.contains(key)) {
         return m_stringData[key];
     }
-    return defaultValue;
+    return Error(ErrorCode::NotFound, "Key not found");
 }
 
 Result<void> MemoryStorage::remove(const QString& key) {
@@ -55,11 +58,14 @@ Result<void> MemoryStorage::putBytes(const QString& key, const QByteArray& value
     return {};
 }
 
-QByteArray MemoryStorage::getBytes(const QString& key) const {
+Result<QByteArray> MemoryStorage::getBytes(const QString& key) const {
+    if (!m_isOpen) {
+        return Error(ErrorCode::InternalError, "Storage not open");
+    }
     if (m_bytesData.contains(key)) {
         return m_bytesData[key];
     }
-    return QByteArray();
+    return Error(ErrorCode::NotFound, "Key not found");
 }
 
 std::vector<QString> MemoryStorage::keys() const {

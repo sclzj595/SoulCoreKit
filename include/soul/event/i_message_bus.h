@@ -26,69 +26,21 @@ namespace sc {
  * bus->publish("channel", std::make_shared<MyMessage>());
  * @endcode
  *
- * @see Subscription, EventPriority
+ * @see MessageSubscription, EventPriority
  */
 class IMessageBus {
 public:
-    /**
-     * @brief 虚析构函数
-     */
     virtual ~IMessageBus() = default;
 
-    /**
-     * @brief 订阅指定频道（默认优先级）
-     * @param channel 频道名称
-     * @param callback 消息回调函数
-     * @return 订阅对象
-     */
-    virtual SubscriptionPtr subscribe(const QString& channel, Subscription::Callback callback) = 0;
-
-    /**
-     * @brief 订阅指定频道（指定优先级）
-     * @param channel 频道名称
-     * @param priority 订阅优先级
-     * @param callback 消息回调函数
-     * @return 订阅对象
-     */
-    virtual SubscriptionPtr subscribe(const QString& channel, EventPriority priority, Subscription::Callback callback) = 0;
-
-    /**
-     * @brief 发布消息到指定频道
-     * @param channel 频道名称
-     * @param message 消息数据（任意类型）
-     */
+    virtual MessageSubscriptionPtr subscribe(const QString& channel, MessageSubscription::Callback callback) = 0;
+    virtual MessageSubscriptionPtr subscribe(const QString& channel, EventPriority priority, MessageSubscription::Callback callback) = 0;
     virtual void publish(const QString& channel, const std::shared_ptr<void>& message) = 0;
-
-    /**
-     * @brief 取消指定订阅
-     * @param subscription 订阅对象
-     */
-    virtual void unsubscribe(SubscriptionPtr subscription) = 0;
-
-    /**
-     * @brief 取消指定频道的所有订阅
-     * @param channel 频道名称
-     */
+    virtual void unsubscribe(MessageSubscriptionPtr subscription) = 0;
     virtual void unsubscribeAll(const QString& channel) = 0;
-
-    /**
-     * @brief 检查指定频道是否有订阅者
-     * @param channel 频道名称
-     * @return 如果有订阅者返回 true
-     */
     virtual bool hasSubscribers(const QString& channel) const = 0;
-
-    /**
-     * @brief 获取指定频道的订阅者数量
-     * @param channel 频道名称
-     * @return 订阅者数量
-     */
     virtual int subscriberCount(const QString& channel) const = 0;
 };
 
-/**
- * @brief 消息总线智能指针类型
- */
 using MessageBusPtr = std::shared_ptr<IMessageBus>;
 
 }

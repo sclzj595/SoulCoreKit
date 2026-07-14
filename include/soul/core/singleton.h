@@ -82,34 +82,24 @@ protected:
 template<typename T>
 class SharedSingleton {
 public:
-    /**
-     * @brief 获取单例实例
-     * @return 单例对象的 shared_ptr
-     */
     static std::shared_ptr<T> instance() {
-        static std::shared_ptr<T> inst = std::make_shared<T>();
+        static std::shared_ptr<T> inst;
+        if (!inst) {
+            inst = std::make_shared<T>();
+        }
         return inst;
     }
 
-    /**
-     * @brief 禁止拷贝构造
-     */
-    SharedSingleton(const SharedSingleton&) = delete;
+    static void destroy() {
+        static std::shared_ptr<T>& inst = instance();
+        inst.reset();
+    }
 
-    /**
-     * @brief 禁止赋值操作
-     */
+    SharedSingleton(const SharedSingleton&) = delete;
     SharedSingleton& operator=(const SharedSingleton&) = delete;
 
 protected:
-    /**
-     * @brief 受保护的构造函数
-     */
     SharedSingleton() = default;
-
-    /**
-     * @brief 受保护的析构函数
-     */
     ~SharedSingleton() = default;
 };
 

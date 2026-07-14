@@ -4,117 +4,105 @@
 #include <QSslConfiguration>
 #include <QEventLoop>
 #include <QTimer>
+#include <QThread>
 
 namespace sc {
 
 HttpClient::HttpClient(QObject* parent) : QObject(parent) {
     m_manager = new QNetworkAccessManager(this);
-    setupSslConfiguration();
 }
 
 HttpClient::~HttpClient() {}
 
-Result<HttpResponse> HttpClient::send(const HttpRequest& request) {
-    HttpRequest mutableRequest = request;
-    
-    for (const auto& interceptor : m_interceptors) {
-        interceptor->onRequest(mutableRequest);
-    }
+namespace {
 
-    QNetworkRequest qrequest(mutableRequest.buildUrl());
-
-    for (const auto& header : mutableRequest.headers().toStdMap()) {
-        qrequest.setRawHeader(header.first.toUtf8(), header.second.toUtf8());
-    }
-
-    QNetworkReply* reply = nullptr;
-    switch (mutableRequest.method()) {
+QNetworkReply* sendRequest(QNetworkAccessManager* manager, const QNetworkRequest& request,
+                           HttpMethod method, const QByteArray& body) {
+    switch (method) {
     case HttpMethod::Get:
-        reply = m_manager->get(qrequest);
-        break;
+        return manager->get(request);
     case HttpMethod::Post:
-        reply = m_manager->post(qrequest, mutableRequest.body());
-        break;
+        return manager->post(request, body);
     case HttpMethod::Put:
-        reply = m_manager->put(qrequest, mutableRequest.body());
-        break;
+        return manager->put(request, body);
     case HttpMethod::Delete:
-        reply = m_manager->deleteResource(qrequest);
-        break;
+        return manager->deleteResource(request);
+    case HttpMethod::Patch:
+        return manager->sendCustomRequest(request, "PATCH", body);
+    case HttpMethod::Head:
+        return manager->head(request);
+    case HttpMethod::Options:
+        return manager->sendCustomRequest(request, "OPTIONS");
     default:
-        reply = m_manager->get(qrequest);
+        return manager->get(request);
     }
-
-    QEventLoop loop;
-    QTimer::singleShot(mutableRequest.timeout(), &loop, &QEventLoop::quit);
-
-    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-
-    loop.exec();
-
-    if (reply->error() != QNetworkReply::NoError) {
-        QString errorStr = reply->errorString();
-        reply->deleteLater();
-        return Result<HttpResponse>(Error(ErrorCode::NetworkError, errorStr.toStdString()));
-    }
-
-    HttpResponse response;
-    response.setStatusCode(reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt());
-    response.setBody(reply->readAll());
-
-    QList<QNetworkReply::RawHeaderPair> headers = reply->rawHeaderPairs();
-    QMap<QString, QString> headerMap;
-    for (const auto& pair : headers) {
-        headerMap[QString::fromUtf8(pair.first)] = QString::fromUtf8(pair.second);
-    }
-    response.setHeaders(headerMap);
-
-    for (const auto& interceptor : m_interceptors) {
-        interceptor->onResponse(response);
-    }
-
-    reply->deleteLater();
-    return Result<HttpResponse>(response);
 }
 
-void HttpClient::sendAsync(const HttpRequest& request, ResponseCallback callback) {
+bool shouldRetry(QNetworkReply::NetworkError error) {
+    return error == QNetworkReply::NetworkError::ConnectionRefusedError ||
+           error == QNetworkReply::NetworkError::RemoteHostClosedError ||
+           error == QNetworkReply::NetworkError::TimeoutError ||
+           error == QNetworkReply::NetworkError::SslHandshakeFailedError ||
+           error == QNetworkReply::NetworkError::TemporaryNetworkFailureError ||
+           error == QNetworkReply::NetworkError::NetworkSessionFailedError;
+}
+
+}
+
+Result<HttpResponse> HttpClient::send(const HttpRequest& request) {
     HttpRequest mutableRequest = request;
-    
+
     for (const auto& interceptor : m_interceptors) {
         interceptor->onRequest(mutableRequest);
     }
 
-    QNetworkRequest qrequest(mutableRequest.buildUrl());
+    int retryCount = 0;
+    const int maxRetries = m_retryPolicy.maxRetries();
 
-    for (const auto& header : mutableRequest.headers().toStdMap()) {
-        qrequest.setRawHeader(header.first.toUtf8(), header.second.toUtf8());
-    }
+    while (true) {
+        QNetworkRequest qrequest(mutableRequest.buildUrl());
 
-    QNetworkReply* reply = nullptr;
-    switch (mutableRequest.method()) {
-    case HttpMethod::Get:
-        reply = m_manager->get(qrequest);
-        break;
-    case HttpMethod::Post:
-        reply = m_manager->post(qrequest, mutableRequest.body());
-        break;
-    case HttpMethod::Put:
-        reply = m_manager->put(qrequest, mutableRequest.body());
-        break;
-    case HttpMethod::Delete:
-        reply = m_manager->deleteResource(qrequest);
-        break;
-    default:
-        reply = m_manager->get(qrequest);
-    }
+        for (const auto& header : mutableRequest.headers().toStdMap()) {
+            qrequest.setRawHeader(header.first.toUtf8(), header.second.toUtf8());
+        }
 
-    std::vector<std::shared_ptr<IInterceptor>> interceptorsCopy = m_interceptors;
-    QObject::connect(reply, &QNetworkReply::finished, [reply, callback, interceptorsCopy]() {
+        QNetworkReply* reply = sendRequest(m_manager, qrequest, mutableRequest.method(), mutableRequest.body());
+
+        QEventLoop loop;
+        bool timedOut = false;
+
+        QTimer::singleShot(mutableRequest.timeout(), &loop, [&loop, &timedOut, reply]() {
+            timedOut = true;
+            reply->abort();
+            loop.quit();
+        });
+
+        QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+
+        loop.exec();
+
+        if (timedOut) {
+            reply->deleteLater();
+            if (retryCount < maxRetries && shouldRetry(QNetworkReply::TimeoutError)) {
+                retryCount++;
+                QThread::msleep(m_retryPolicy.nextDelay(retryCount));
+                continue;
+            }
+            return Result<HttpResponse>(Error(ErrorCode::Timeout, "Request timed out"));
+        }
+
         if (reply->error() != QNetworkReply::NoError) {
             QString errorStr = reply->errorString();
+            auto netError = reply->error();
             reply->deleteLater();
-            callback(Result<HttpResponse>(Error(ErrorCode::NetworkError, errorStr.toStdString())));
-            return;
+
+            if (retryCount < maxRetries && shouldRetry(netError)) {
+                retryCount++;
+                QThread::msleep(m_retryPolicy.nextDelay(retryCount));
+                continue;
+            }
+
+            return Result<HttpResponse>(Error(ErrorCode::NetworkError, errorStr.toStdString()));
         }
 
         HttpResponse response;
@@ -128,22 +116,108 @@ void HttpClient::sendAsync(const HttpRequest& request, ResponseCallback callback
         }
         response.setHeaders(headerMap);
 
-        for (const auto& interceptor : interceptorsCopy) {
+        for (const auto& interceptor : m_interceptors) {
             interceptor->onResponse(response);
         }
 
         reply->deleteLater();
-        callback(Result<HttpResponse>(response));
-    });
+        return Result<HttpResponse>(response);
+    }
 }
 
-void HttpClient::addInterceptor(std::shared_ptr<IInterceptor> interceptor) {
+void HttpClient::sendAsync(const HttpRequest& request, ResponseCallback callback) {
+    HttpRequest mutableRequest = request;
+
+    for (const auto& interceptor : m_interceptors) {
+        interceptor->onRequest(mutableRequest);
+    }
+
+    auto performRequest = [this, mutableRequest, callback](int retryCount = 0) {
+        QNetworkRequest qrequest(mutableRequest.buildUrl());
+
+        for (const auto& header : mutableRequest.headers().toStdMap()) {
+            qrequest.setRawHeader(header.first.toUtf8(), header.second.toUtf8());
+        }
+
+        QNetworkReply* reply = sendRequest(m_manager, qrequest, mutableRequest.method(), mutableRequest.body());
+
+        auto timedOut = std::make_shared<std::atomic<bool>>(false);
+        QTimer* timer = new QTimer(this);
+        timer->setSingleShot(true);
+
+        connect(timer, &QTimer::timeout, [reply, timedOut]() {
+            timedOut->store(true);
+            reply->abort();
+        });
+        timer->start(mutableRequest.timeout());
+
+        std::vector<std::shared_ptr<network::HttpInterceptor>> interceptorsCopy = m_interceptors;
+        network::RetryPolicy retryPolicyCopy = m_retryPolicy;
+        int maxRetries = retryPolicyCopy.maxRetries();
+
+        QObject::connect(reply, &QNetworkReply::finished, [this, reply, callback, interceptorsCopy,
+            retryPolicyCopy, maxRetries, retryCount, mutableRequest, timer, timedOut]() {
+            timer->deleteLater();
+
+            bool isTimedOut = timedOut->load();
+            if (isTimedOut) {
+                reply->deleteLater();
+                if (retryCount < maxRetries && shouldRetry(QNetworkReply::TimeoutError)) {
+                    QTimer::singleShot(retryPolicyCopy.nextDelay(retryCount + 1), [this, mutableRequest, callback, retryCount]() {
+                        this->sendAsync(mutableRequest, callback);
+                    });
+                    return;
+                }
+                callback(Result<HttpResponse>(Error(ErrorCode::Timeout, "Request timed out")));
+                return;
+            }
+
+            if (reply->error() != QNetworkReply::NoError) {
+                QString errorStr = reply->errorString();
+                auto netError = reply->error();
+                reply->deleteLater();
+
+                if (retryCount < maxRetries && shouldRetry(netError)) {
+                    QTimer::singleShot(retryPolicyCopy.nextDelay(retryCount + 1), [this, mutableRequest, callback, retryCount]() {
+                        this->sendAsync(mutableRequest, callback);
+                    });
+                    return;
+                }
+
+                callback(Result<HttpResponse>(Error(ErrorCode::NetworkError, errorStr.toStdString())));
+                return;
+            }
+
+            HttpResponse response;
+            response.setStatusCode(reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt());
+            response.setBody(reply->readAll());
+
+            QList<QNetworkReply::RawHeaderPair> headers = reply->rawHeaderPairs();
+            QMap<QString, QString> headerMap;
+            for (const auto& pair : headers) {
+                headerMap[QString::fromUtf8(pair.first)] = QString::fromUtf8(pair.second);
+            }
+            response.setHeaders(headerMap);
+
+            for (const auto& interceptor : interceptorsCopy) {
+                interceptor->onResponse(response);
+            }
+
+            reply->deleteLater();
+            callback(Result<HttpResponse>(response));
+        });
+    };
+
+    performRequest();
+}
+
+void HttpClient::addInterceptor(std::shared_ptr<network::HttpInterceptor> interceptor) {
     m_interceptors.push_back(interceptor);
 }
 
-void HttpClient::removeInterceptor(IInterceptor* interceptor) {
+void HttpClient::removeInterceptor(network::HttpInterceptor* interceptor) {
     auto it = std::find_if(m_interceptors.begin(), m_interceptors.end(),
-                           [interceptor](const std::shared_ptr<IInterceptor>& i) {
+                           [interceptor](const std::shared_ptr<network::HttpInterceptor>& i) {
                                return i.get() == interceptor;
                            });
     if (it != m_interceptors.end()) {
@@ -151,11 +225,11 @@ void HttpClient::removeInterceptor(IInterceptor* interceptor) {
     }
 }
 
-void HttpClient::setRetryPolicy(const RetryPolicy& policy) {
+void HttpClient::setRetryPolicy(const network::RetryPolicy& policy) {
     m_retryPolicy = policy;
 }
 
-RetryPolicy HttpClient::retryPolicy() const {
+network::RetryPolicy HttpClient::retryPolicy() const {
     return m_retryPolicy;
 }
 
@@ -165,12 +239,6 @@ void HttpClient::setTimeout(int ms) {
 
 int HttpClient::timeout() const {
     return m_timeout;
-}
-
-void HttpClient::setupSslConfiguration() {
-    QSslConfiguration config = QSslConfiguration::defaultConfiguration();
-    config.setPeerVerifyMode(QSslSocket::VerifyNone);
-    QSslConfiguration::setDefaultConfiguration(config);
 }
 
 }

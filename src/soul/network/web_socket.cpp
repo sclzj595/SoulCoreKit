@@ -1,17 +1,11 @@
 #include "soul/network/web_socket.h"
 #include <QTimer>
+#include "soul/logging/logger.h"
 
 namespace sc {
 
 WebSocket::WebSocket(QObject* parent) : QObject(parent) {
     m_socket = new QWebSocket(QString(), QWebSocketProtocol::VersionLatest, this);
-}
-
-WebSocket::~WebSocket() {}
-
-void WebSocket::connectToServer(const QUrl& url) {
-    m_url = url;
-    m_socket->open(url);
 
     connect(m_socket, &QWebSocket::connected, this, &WebSocket::onConnected);
     connect(m_socket, &QWebSocket::disconnected, this, &WebSocket::onDisconnected);
@@ -19,6 +13,13 @@ void WebSocket::connectToServer(const QUrl& url) {
     connect(m_socket, &QWebSocket::binaryMessageReceived, this, &WebSocket::onBinaryMessageReceived);
     connect(m_socket, QOverload<QAbstractSocket::SocketError>::of(&QWebSocket::errorOccurred),
             this, &WebSocket::onError);
+}
+
+WebSocket::~WebSocket() {}
+
+void WebSocket::connectToServer(const QUrl& url) {
+    m_url = url;
+    m_socket->open(url);
 }
 
 void WebSocket::disconnectFromServer() {
@@ -57,23 +58,20 @@ void WebSocket::setDisconnectedCallback(DisconnectedCallback callback) {
     m_disconnectedCallback = callback;
 }
 
-void WebSocket::setAutoReconnect(bool enabled) {
-    m_autoReconnect = enabled;
+void WebSocket::setErrorCallback(ErrorCallback callback) {
+    m_errorCallback = callback;
 }
 
-bool WebSocket::autoReconnect() const {
-    return m_autoReconnect;
+void WebSocket::setReconnectPolicy(const network::ReconnectPolicy& policy) {
+    m_reconnectPolicy = policy;
 }
 
-void WebSocket::setReconnectInterval(int ms) {
-    m_reconnectInterval = ms;
-}
-
-int WebSocket::reconnectInterval() const {
-    return m_reconnectInterval;
+network::ReconnectPolicy WebSocket::reconnectPolicy() const {
+    return m_reconnectPolicy;
 }
 
 void WebSocket::onConnected() {
+    m_reconnectPolicy.resetRetry();
     if (m_connectedCallback) {
         m_connectedCallback();
     }
@@ -83,8 +81,9 @@ void WebSocket::onDisconnected() {
     if (m_disconnectedCallback) {
         m_disconnectedCallback();
     }
-    if (m_autoReconnect) {
-        QTimer::singleShot(m_reconnectInterval, this, &WebSocket::reconnect);
+    if (m_reconnectPolicy.shouldReconnect()) {
+        m_reconnectPolicy.incrementRetry();
+        QTimer::singleShot(m_reconnectPolicy.interval.count(), this, &WebSocket::reconnect);
     }
 }
 
@@ -101,7 +100,10 @@ void WebSocket::onBinaryMessageReceived(const QByteArray& data) {
 }
 
 void WebSocket::onError(QAbstractSocket::SocketError error) {
-    Q_UNUSED(error);
+    Logger::instance().error("WebSocket error: " + QString::number(static_cast<int>(error)).toStdString(), "WebSocket");
+    if (m_errorCallback) {
+        m_errorCallback(error);
+    }
 }
 
 void WebSocket::reconnect() {
