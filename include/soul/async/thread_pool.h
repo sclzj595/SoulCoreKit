@@ -4,7 +4,6 @@
 #include <QThreadPool>
 #include <QObject>
 #include <memory>
-#include <atomic>
 
 namespace sc {
 
@@ -29,10 +28,6 @@ public:
     void releaseThread();
 
     QThreadPool* nativeThreadPool();
-
-signals:
-    void threadStarted();
-    void threadFinished();
 
 private:
     ThreadPool();

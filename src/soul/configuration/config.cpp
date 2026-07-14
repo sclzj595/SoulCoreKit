@@ -243,13 +243,13 @@ void Config::setValue(const QString& key, const QVariant& value) {
     }
 
     auto source = m_configSources.back();
-    if (value.type() == QVariant::String) {
+    if (value.typeId() == QMetaType::QString) {
         source->setString(key, value.toString());
-    } else if (value.type() == QVariant::Int || value.type() == QVariant::LongLong) {
+    } else if (value.typeId() == QMetaType::Int || value.typeId() == QMetaType::LongLong) {
         source->setInt(key, value.toInt());
-    } else if (value.type() == QVariant::Double) {
+    } else if (value.typeId() == QMetaType::Double) {
         source->setDouble(key, value.toDouble());
-    } else if (value.type() == QVariant::Bool) {
+    } else if (value.typeId() == QMetaType::Bool) {
         source->setBool(key, value.toBool());
     }
 

@@ -2,26 +2,26 @@
 
 namespace sc {
 
-Subscription::Subscription(const QString& eventType, EventPriority priority, Callback callback)
+MessageSubscription::MessageSubscription(const QString& eventType, EventPriority priority, Callback callback)
     : m_eventType(eventType), m_priority(priority), m_callback(callback), m_valid(true) {}
 
-QString Subscription::eventType() const {
+QString MessageSubscription::eventType() const {
     return m_eventType;
 }
 
-EventPriority Subscription::priority() const {
+EventPriority MessageSubscription::priority() const {
     return m_priority;
 }
 
-Subscription::Callback Subscription::callback() const {
+MessageSubscription::Callback MessageSubscription::callback() const {
     return m_callback;
 }
 
-bool Subscription::isValid() const {
+bool MessageSubscription::isValid() const {
     return m_valid;
 }
 
-void Subscription::invalidate() {
+void MessageSubscription::invalidate() {
     m_valid = false;
 }
 

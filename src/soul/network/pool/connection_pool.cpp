@@ -8,6 +8,10 @@ ConnectionPool::ConnectionPool(const Config& config)
     : QObject(nullptr), m_config(config) {
     m_cleanupTimer.setInterval(m_config.idleTimeoutMs);
     connect(&m_cleanupTimer, &QTimer::timeout, [this]() {
+        if (QThread::currentThread() != thread()) {
+            QMetaObject::invokeMethod(this, "cleanupIdleConnections", Qt::QueuedConnection);
+            return;
+        }
         cleanupIdleConnections();
     });
     m_cleanupTimer.start();
@@ -97,8 +101,8 @@ std::shared_ptr<INetwork> ConnectionPool::createConnection(const QUrl& url) {
 
 void ConnectionPool::cleanupIdleConnections() {
     std::lock_guard<std::mutex> lock(m_mutex);
-    auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::steady_clock::now().time_since_epoch()).count();
+    auto now = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count());
     
     for (auto& pair : m_pools) {
         auto& pool = pair.second;
@@ -108,7 +112,7 @@ void ConnectionPool::cleanupIdleConnections() {
             ConnectionEntry entry = pool.front();
             pool.pop();
             
-            if (!entry.inUse && (now - entry.lastUsedTime) > m_config.idleTimeoutMs) {
+            if (!entry.inUse && (now - entry.lastUsedTime) > static_cast<uint64_t>(m_config.idleTimeoutMs)) {
                 entry.connection->disconnect();
             } else {
                 temp.push(entry);

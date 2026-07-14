@@ -95,7 +95,7 @@ Result<QVariant> SqliteDatabase::executeScalar(const QString& sql) {
         return result.unwrapErr();
     }
 
-    QSqlQuery query = result.unwrap();
+    QSqlQuery query = std::move(result.unwrap());
     if (query.next()) {
         return query.value(0);
     }
@@ -108,7 +108,7 @@ Result<QVariant> SqliteDatabase::executeScalar(const QString& sql, const std::ve
         return result.unwrapErr();
     }
 
-    QSqlQuery query = result.unwrap();
+    QSqlQuery query = std::move(result.unwrap());
     if (query.next()) {
         return query.value(0);
     }

@@ -101,13 +101,14 @@ bool AuthManager::loadAuthState() {
         return false;
     }
 
-    QString token = storage.get("auth_token");
+    auto tokenResult = storage.get("auth_token");
+    QString token = tokenResult.unwrapOr("");
     if (!token.isEmpty()) {
         m_authenticated = true;
         m_userInfo.token = token;
-        m_userInfo.username = storage.get("auth_username");
-        m_userInfo.role = storage.get("auth_role");
-        m_userInfo.refreshToken = storage.get("auth_refresh_token");
+        m_userInfo.username = storage.get("auth_username").unwrapOr("");
+        m_userInfo.role = storage.get("auth_role").unwrapOr("");
+        m_userInfo.refreshToken = storage.get("auth_refresh_token").unwrapOr("");
         Session::instance().setToken(token);
     }
 

@@ -9,6 +9,7 @@
 #include <QUrl>
 #include <QTimer>
 #include <QObject>
+#include <QThread>
 #include "soul/network/core/inetwork.h"
 
 namespace sc::network {
@@ -29,6 +30,7 @@ public:
     std::shared_ptr<INetwork> acquire(const QUrl& url);
     void release(std::shared_ptr<INetwork> connection);
     void closeAll();
+    void cleanupIdleConnections();
     
     void setConfig(const Config& config);
     Config config() const;
@@ -41,7 +43,6 @@ private:
     };
     
     std::shared_ptr<INetwork> createConnection(const QUrl& url);
-    void cleanupIdleConnections();
     
     mutable std::mutex m_mutex;
     std::unordered_map<std::string, std::queue<ConnectionEntry>> m_pools;

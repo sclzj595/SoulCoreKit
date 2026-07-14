@@ -63,10 +63,9 @@ public:
     /**
      * @brief 获取字符串值
      * @param key 键（文件名）
-     * @param defaultValue 默认值
-     * @return 存储的值或默认值
+     * @return Result<QString>，成功返回 Ok(value)，失败返回 Error
      */
-    QString get(const QString& key, const QString& defaultValue = "") const override;
+    Result<QString> get(const QString& key) const override;
 
     /**
      * @brief 删除指定键（文件）
@@ -93,9 +92,9 @@ public:
     /**
      * @brief 获取二进制数据
      * @param key 键（文件名）
-     * @return 二进制数据，如果不存在返回空数组
+     * @return Result<QByteArray>，成功返回 Ok(data)，失败返回 Error
      */
-    QByteArray getBytes(const QString& key) const override;
+    Result<QByteArray> getBytes(const QString& key) const override;
 
     /**
      * @brief 获取所有键

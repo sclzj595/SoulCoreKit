@@ -79,9 +79,70 @@ target_link_libraries(test_network PRIVATE
 
 copy_qt_dll(test_network TRUE)
 
+add_executable(test_typed_event_bus
+    test_typed_event_bus.cpp
+)
+
+target_link_libraries(test_typed_event_bus PRIVATE
+    Qt6::Test
+    Qt6::Core
+    soul_event
+    soul_core
+    soul_async
+    soul_logging
+)
+
+copy_qt_dll(test_typed_event_bus TRUE)
+
+add_executable(test_cache
+    test_cache.cpp
+)
+
+target_link_libraries(test_cache PRIVATE
+    Qt6::Test
+    Qt6::Core
+    soul_storage
+    soul_core
+)
+
+copy_qt_dll(test_cache TRUE)
+
+add_executable(test_async
+    test_async.cpp
+)
+
+target_link_libraries(test_async PRIVATE
+    Qt6::Test
+    Qt6::Core
+    soul_async
+    soul_core
+)
+
+copy_qt_dll(test_async TRUE)
+
+add_executable(test_auth
+    test_auth.cpp
+)
+
+target_link_libraries(test_auth PRIVATE
+    Qt6::Test
+    Qt6::Core
+    soul_auth
+    soul_network
+    soul_storage
+    soul_base
+    soul_core
+)
+
+copy_qt_dll(test_auth TRUE)
+
 add_test(NAME test_result COMMAND test_result)
 add_test(NAME test_event_bus COMMAND test_event_bus)
 add_test(NAME test_logger COMMAND test_logger)
 add_test(NAME test_storage COMMAND test_storage)
 add_test(NAME test_http_request COMMAND test_http_request)
 add_test(NAME test_network COMMAND test_network)
+add_test(NAME test_typed_event_bus COMMAND test_typed_event_bus)
+add_test(NAME test_cache COMMAND test_cache)
+add_test(NAME test_async COMMAND test_async)
+add_test(NAME test_auth COMMAND test_auth)

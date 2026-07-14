@@ -3,7 +3,7 @@
 
 #include "soul/network/http_request.h"
 #include "soul/network/http_response.h"
-#include "soul/network/i_interceptor.h"
+#include "soul/network/http/http_interceptor.h"
 #include "soul/network/policy/retry_policy.h"
 #include "soul/core/result.h"
 #include <QNetworkAccessManager>
@@ -81,13 +81,13 @@ public:
      * @brief 添加请求拦截器
      * @param interceptor 拦截器
      */
-    void addInterceptor(std::shared_ptr<IInterceptor> interceptor);
+    void addInterceptor(std::shared_ptr<network::HttpInterceptor> interceptor);
 
     /**
      * @brief 移除请求拦截器
      * @param interceptor 拦截器指针
      */
-    void removeInterceptor(IInterceptor* interceptor);
+    void removeInterceptor(network::HttpInterceptor* interceptor);
 
     /**
      * @brief 设置重试策略
@@ -120,7 +120,7 @@ private:
     void setupSslConfiguration();
 
     QNetworkAccessManager* m_manager = nullptr;
-    std::vector<std::shared_ptr<IInterceptor>> m_interceptors;
+    std::vector<std::shared_ptr<network::HttpInterceptor>> m_interceptors;
     network::RetryPolicy m_retryPolicy;
     int m_timeout = 30000;
 };
