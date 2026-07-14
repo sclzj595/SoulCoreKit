@@ -323,4 +323,4 @@ SoulCoreKit is licensed under the [MIT License](LICENSE).
 **Project**: SoulCoreKit  
 **Version**: 1.0.0  
 **Maintainer**: SoulCoreKit Team  
-**Contact**: soulcorekit@gmail.com
+**Contact**: 2575060791@qq.com
