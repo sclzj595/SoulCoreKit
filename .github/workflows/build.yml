@@ -1,0 +1,105 @@
+name: Build
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  release:
+    types: [ published ]
+
+jobs:
+  build-windows:
+    name: Build on Windows
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.5.3'
+          host: 'windows'
+          target: 'desktop'
+          arch: 'win64_msvc2019_64'
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl.exe -DCMAKE_CXX_COMPILER=cl.exe
+
+      - name: Build
+        run: |
+          cmake --build build --config Release --parallel 4
+
+      - name: Run tests
+        working-directory: build/tests
+        run: |
+          .\test_result.exe
+          .\test_logger.exe
+          .\test_storage.exe
+          .\test_event_bus.exe
+          .\test_http_request.exe
+          .\test_network.exe
+
+  build-linux:
+    name: Build on Linux
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qt6-base-dev qt6-websockets-dev qt6-sqlite-plugin cmake build-essential
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: |
+          cmake --build build --config Release --parallel 4
+
+      - name: Run tests
+        working-directory: build/tests
+        run: |
+          ./test_result
+          ./test_logger
+          ./test_storage
+          ./test_event_bus
+          ./test_http_request
+          ./test_network
+
+  build-macos:
+    name: Build on macOS
+    runs-on: macos-13
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.5.3'
+          host: 'macos'
+          target: 'desktop'
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: |
+          cmake --build build --config Release --parallel 4
+
+      - name: Run tests
+        working-directory: build/tests
+        run: |
+          ./test_result
+          ./test_logger
+          ./test_storage
+          ./test_event_bus
+          ./test_http_request
+          ./test_network

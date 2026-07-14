@@ -1,0 +1,11 @@
+add_executable(logger_example logger_example.cpp)
+target_link_libraries(logger_example PRIVATE SoulCoreKit)
+copy_qt_dll(logger_example)
+
+add_executable(network_example network_example.cpp)
+target_link_libraries(network_example PRIVATE SoulCoreKit)
+copy_qt_dll(network_example)
+
+add_executable(soulcore_demo main.cpp)
+target_link_libraries(soulcore_demo PRIVATE SoulCoreKit)
+copy_qt_dll(soulcore_demo)
