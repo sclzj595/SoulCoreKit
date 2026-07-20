@@ -11,7 +11,7 @@ on:
 jobs:
   build-windows:
     name: Build on Windows
-    runs-on: windows-latest
+    runs-on: windows-2022  # ✅ 固定 Runner：windows-2022 同时预装 VS2022 + VC143/VC142 Toolset，避免 windows-latest 升级导致工具链漂移
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -19,15 +19,21 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.5.3'
+          version: '6.5.3'      # ✅ 固定 Qt 6.5.3 LTS
           host: 'windows'
           target: 'desktop'
-          arch: 'win64_msvc2022_64'  # ✅ 与 GitHub windows-latest runner 的 VS2022 (vc143) 工具链匹配，避免 stdext ABI 不匹配
-          modules: 'qtwebsockets'  # ✅ 只保留有效的附加模块
+          arch: 'win64_msvc2019_64'  # ✅ 固定 MSVC2019 ABI 构建的 Qt，与 VC142 Toolset ABI 一致
+          modules: 'qtwebsockets'    # ✅ 只保留有效的附加模块（不使用 --autodesktop，避免 aqt metadata 解析失败）
 
       - name: Configure CMake
         run: |
-          cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl.exe -DCMAKE_CXX_COMPILER=cl.exe
+          # 工具链对齐：VS2022 Generator + v142 Toolset（MSVC2019） + x64
+          # 这样 VS2022 Runner + VC142 Toolset + MSVC2019 ABI Qt 全链路一致
+          cmake -B build ^
+            -G "Visual Studio 17 2022" ^
+            -T v142 ^
+            -A x64 ^
+            -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
         run: |
@@ -92,7 +98,7 @@ jobs:
 
   build-macos:
     name: Build on macOS
-    runs-on: macos-latest
+    runs-on: macos-13  # ✅ 固定 macOS 13（Intel），避免 macos-latest 升级到 14/15 导致 AppleClang 版本漂移
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

@@ -60,7 +60,9 @@ std::string Time::format(Timestamp timestamp, const std::string& fmt) {
             i += 2;
         } else if (fmt[i] == 'z' && fmt.substr(i, 3) == "zzz") {
             auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(timestamp) % 1000;
-            char buf[4];
+            // buf 必须能容纳 "%03d" 最坏情况（符号位+3位数字+'\0' = 5 字节），
+            // 取 8 字节以彻底消除 GCC -Werror=format-truncation 误报。
+            char buf[8];
             std::snprintf(buf, sizeof(buf), "%03d", static_cast<int>(ms.count()));
             result += buf;
             i += 3;

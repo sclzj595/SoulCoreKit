@@ -9,6 +9,8 @@
 #include <unistd.h>
 #endif
 
+#include <QByteArray>        // QByteArray（qgetenv 返回类型，避免 incomplete type）
+#include <QCoreApplication>  // qgetenv 声明所在头文件
 #include <QtCore/qglobal.h>  // qgetenv
 
 namespace sc {
