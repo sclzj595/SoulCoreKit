@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file core/inetwork.h
  * @brief 网络接口抽象
  * @details 定义网络通信的统一接口，支持 HTTP/TCP/WebSocket 等协议
@@ -13,8 +13,10 @@
 #include <memory>
 #include <functional>
 #include <QUrl>
+#ifndef Q_MOC_RUN
 #include "soul/core/interface.h"
 #include "soul/core/result.h"
+#endif
 #include "soul/network/core/network_message.h"
 #include "soul/network/core/network_state.h"
 #include "soul/network/policy/inetwork_policy.h"

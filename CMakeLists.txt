@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(SoulCoreKit VERSION 1.4.0 LANGUAGES CXX)
+project(SoulCoreKit VERSION 1.3.0 LANGUAGES CXX)
 
 include(GenerateExportHeader)
 
@@ -210,6 +210,28 @@ set(SOUL_CORE_HEADERS
     include/soul/core/environment.h
     include/soul/core/platform.h
     include/soul/core/application.h
+)
+
+set(SOUL_DI_HEADERS
+    include/soul/di/di_global.h
+    include/soul/di/container.h
+    include/soul/di/module.h
+)
+
+set(SOUL_DI_SOURCES
+    src/soul/di/module.cpp
+)
+
+set(SOUL_PLUGIN_HEADERS
+    include/soul/plugin/plugin_global.h
+    include/soul/plugin/iplugin.h
+    include/soul/plugin/plugin_manager.h
+    include/soul/plugin/module.h
+)
+
+set(SOUL_PLUGIN_SOURCES
+    src/soul/plugin/plugin_manager.cpp
+    src/soul/plugin/module.cpp
 )
 
 set(SOUL_CORE_SOURCES
@@ -804,6 +826,49 @@ if(TARGET Qt6::Widgets)
     target_link_libraries(soul_ui PUBLIC Qt6::Widgets)
 endif()
 
+add_library(soul_di STATIC
+    ${SOUL_DI_HEADERS}
+    ${SOUL_DI_SOURCES}
+)
+
+target_include_directories(soul_di PUBLIC
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
+
+if(BUILD_SHARED_LIBS)
+    target_compile_definitions(soul_di PRIVATE SC_DI_LIBRARY)
+else()
+    target_compile_definitions(soul_di PUBLIC SC_DI_STATIC_LIB)
+endif()
+
+target_link_libraries(soul_di PUBLIC
+    Qt6::Core
+    soul_core
+)
+
+add_library(soul_plugin STATIC
+    ${SOUL_PLUGIN_HEADERS}
+    ${SOUL_PLUGIN_SOURCES}
+)
+
+target_include_directories(soul_plugin PUBLIC
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
+
+if(BUILD_SHARED_LIBS)
+    target_compile_definitions(soul_plugin PRIVATE SC_PLUGIN_LIBRARY)
+else()
+    target_compile_definitions(soul_plugin PUBLIC SC_PLUGIN_STATIC_LIB)
+endif()
+
+target_link_libraries(soul_plugin PUBLIC
+    Qt6::Core
+    soul_core
+    soul_di
+)
+
 add_library(SoulCoreKit INTERFACE)
 
 target_link_libraries(SoulCoreKit INTERFACE
@@ -821,6 +886,8 @@ target_link_libraries(SoulCoreKit INTERFACE
     soul_mq
     soul_orm
     soul_ui
+    soul_di
+    soul_plugin
 )
 
 if(BUILD_EXAMPLES)
@@ -867,7 +934,7 @@ include(GNUInstallDirs)
 
 install(TARGETS SoulCoreKit soul_core soul_data soul_base soul_logging soul_network
                 soul_utils soul_configuration soul_storage soul_async
-                soul_event soul_auth soul_mq soul_orm soul_ui
+                soul_event soul_auth soul_mq soul_orm soul_ui soul_di soul_plugin
         EXPORT SoulCoreKitTargets
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}

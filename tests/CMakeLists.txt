@@ -208,10 +208,39 @@ endif()
 
 copy_qt_dll(test_base TRUE)
 
+add_executable(test_di
+    test_di.cpp
+)
+
+target_link_libraries(test_di PRIVATE
+    Qt6::Test
+    Qt6::Core
+    soul_di
+    soul_core
+)
+
+copy_qt_dll(test_di TRUE)
+
+add_executable(test_plugin
+    test_plugin.cpp
+)
+
+target_link_libraries(test_plugin PRIVATE
+    Qt6::Test
+    Qt6::Core
+    soul_plugin
+    soul_di
+    soul_core
+)
+
+copy_qt_dll(test_plugin TRUE)
+
 add_test(NAME test_configuration COMMAND test_configuration)
 add_test(NAME test_core COMMAND test_core)
 add_test(NAME test_utils COMMAND test_utils)
 add_test(NAME test_base COMMAND test_base)
+add_test(NAME test_di COMMAND test_di)
+add_test(NAME test_plugin COMMAND test_plugin)
 
 add_test(NAME test_result COMMAND test_result)
 add_test(NAME test_event_bus COMMAND test_event_bus)

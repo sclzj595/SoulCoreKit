@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file policy/retry_policy.h
  * @brief 重试策略类
  * @details 实现重试逻辑，支持指数退避和最大重试次数
@@ -11,6 +11,7 @@
 #define SOUL_NETWORK_POLICY_RETRY_POLICY_H
 
 #include <vector>
+#include "soul/network/network_global.h"
 #include "soul/network/policy/inetwork_policy.h"
 
 namespace sc {

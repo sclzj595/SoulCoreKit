@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file policy/heartbeat_policy.h
  * @brief 心跳策略类
  * @details 管理网络连接的心跳检测和保活机制
@@ -15,7 +15,9 @@
 #include <QObject>
 #include "soul/network/network_global.h"
 #include "inetwork_policy.h"
+#ifndef Q_MOC_RUN
 #include "soul/network/core/inetwork.h"
+#endif
 
 namespace sc {
 namespace network {

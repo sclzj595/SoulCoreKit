@@ -2,7 +2,9 @@
 #define SOUL_NETWORK_SESSION_H
 
 #include "soul/network/network_global.h"
+#ifndef Q_MOC_RUN
 #include "soul/core/singleton.h"
+#endif
 #include <QString>
 #include <QMap>
 #include <memory>

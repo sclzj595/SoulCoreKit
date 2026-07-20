@@ -11,6 +11,7 @@
 #define SOUL_NETWORK_POLICY_RECONNECT_POLICY_H
 
 #include <chrono>
+#include "soul/network/network_global.h"
 #include "soul/network/policy/inetwork_policy.h"
 
 namespace sc {

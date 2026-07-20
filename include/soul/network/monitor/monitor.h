@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file monitor/monitor.h
  * @brief 网络监控类
  * @details 监控网络请求的性能指标和统计信息
@@ -14,6 +14,7 @@
 #include <mutex>
 #include <unordered_map>
 #include <QObject>
+#include "soul/network/network_global.h"
 #include "soul/network/monitor/metrics.h"
 
 namespace sc {

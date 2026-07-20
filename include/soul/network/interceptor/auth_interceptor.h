@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file interceptor/auth_interceptor.h
  * @brief 认证拦截器
  * @details 自动添加认证 Token 到请求头
@@ -10,6 +10,7 @@
 #ifndef SOUL_NETWORK_INTERCEPTOR_AUTH_INTERCEPTOR_H
 #define SOUL_NETWORK_INTERCEPTOR_AUTH_INTERCEPTOR_H
 
+#include "soul/network/network_global.h"
 #include "soul/network/interceptor/i_interceptor.h"
 #include <QString>
 

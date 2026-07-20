@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file codec/icodec.h
  * @brief 编解码器接口
  * @details 定义数据编解码的统一接口
@@ -10,7 +10,9 @@
 #ifndef SOUL_NETWORK_CODEC_ICODEC_H
 #define SOUL_NETWORK_CODEC_ICODEC_H
 
+#ifndef Q_MOC_RUN
 #include "soul/core/interface.h"
+#endif
 #include "soul/network/core/network_message.h"
 
 namespace sc {

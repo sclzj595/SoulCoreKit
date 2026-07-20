@@ -28,7 +28,9 @@
 
 | Feature | Description |
 |---------|-------------|
-| **Modular Architecture** | 12 independent modules, combine as needed, low coupling and high cohesion |
+| **Modular Architecture** | 14 independent modules, combine as needed, low coupling and high cohesion |
+| **Plugin System** | C-ABI boundary interface for dynamic library loading (DLL/SO/DYLIB), ABI version compatibility checking |
+| **Dependency Injection** | Factory function registration pattern with DCLP thread-safe `resolve()`, supports Transient/Singleton/Scoped lifetimes |
 | **Protocol-Agnostic Network** | Unified HTTP/TCP/WebSocket interface with strategy pattern and interceptor chain, using `sc::network` nested namespace |
 | **Event-Driven Architecture** | Publish-subscribe based event bus with Qt signal bridging |
 | **Async Task Framework** | Thread pool based async execution with coroutine-style programming |
@@ -79,6 +81,8 @@
 | Module | Responsibility | Core Classes | Files | Lines |
 |--------|---------------|--------------|-------|-------|
 | **soul_core** | Core infrastructure | `Result<T>`, `Error`, `IInterface`, `Singleton`, `Factory<T>` | 11 | ~200 |
+| **soul_di** | Dependency injection | `Container`, `Lifetime`, `SingletonWrapper<T>`, `Module` | 4 | ~200 |
+| **soul_plugin** | Plugin system | `IPlugin`, `PluginManager`, `PluginMetadata`, `PluginHandle`, `Module` | 6 | ~300 |
 | **soul_utils** | Utility library | JSON/File/String/Crypto/Image utilities | 10 | ~500 |
 | **soul_logging** | Logging system | `Logger`, `ISink`, `LogFormatter` | 12 | ~300 |
 | **soul_configuration** | Configuration management | `IConfiguration`, `JsonConfiguration`, `IniConfiguration` | 5 | ~200 |
@@ -278,6 +282,90 @@ auto subscription = sc::EventBus::instance().subscribe<UserLoggedInEvent>(
 sc::EventBus::instance().publish(UserLoggedInEvent{"user123"});
 ```
 
+### Dependency Injection
+
+```cpp
+#include "soul/di/container.h"
+
+// Define service interface
+class IDataSource {
+public:
+    virtual ~IDataSource() = default;
+    virtual std::string query(const std::string& sql) = 0;
+};
+
+// Concrete implementation
+class SqliteDataSource : public IDataSource {
+public:
+    std::string query(const std::string& sql) override { return "result"; }
+};
+
+// Register and resolve
+auto& container = sc::di::Container::instance();
+
+// Bind as Singleton (thread-safe, DCLP)
+container.bindSingleton<IDataSource>([]() { return new SqliteDataSource(); });
+
+// Or bind as Transient (new instance per resolve)
+container.bind<IDataSource>([]() { return new SqliteDataSource(); }, sc::di::Lifetime::Transient);
+
+// Or bind an existing instance
+auto* existing = new SqliteDataSource();
+container.bindInstance(existing);
+
+// Resolve (thread-safe)
+auto service = container.resolve<IDataSource>();
+if (service) {
+    qDebug() << "Query:" << service->query("SELECT * FROM users").c_str();
+}
+
+// Bridge existing Singleton<T> to DI container
+sc::di::registerSingleton<GlobalConfig>();
+auto config = container.resolve<GlobalConfig>();
+```
+
+### Plugin System
+
+```cpp
+#include "soul/plugin/plugin_manager.h"
+
+// Load plugin from dynamic library
+auto& pm = sc::plugin::PluginManager::instance();
+bool loaded = pm.loadPlugin("./plugins/libmyplugin.dll");
+// ABI version is automatically checked against PLUGIN_ABI_VERSION
+
+// Initialize all loaded plugins (deadlock-free)
+pm.initializeAllPlugins();
+
+// Get plugin instance
+auto plugin = pm.getPlugin("com.soulcore.plugin.myplugin");
+if (plugin) {
+    qDebug() << "Plugin:" << plugin->name().c_str();
+}
+
+// Shutdown all plugins (deadlock-free)
+pm.shutdownAllPlugins();
+
+// Plugin C-ABI interface (in the plugin .so/.dll):
+extern "C" {
+    const PluginMetadata* pluginGetMetadata() {
+        static PluginMetadata meta = {
+            "com.soulcore.plugin.myplugin",
+            "My Plugin",
+            "1.0.0",
+            "Description",
+            "Author",
+            "",
+            PLUGIN_ABI_VERSION,
+            PLUGIN_API_VERSION
+        };
+        return &meta;
+    }
+    int pluginInitialize() { return 0; }
+    int pluginShutdown() { return 0; }
+}
+```
+
 ### Logging
 
 ```cpp
@@ -319,6 +407,8 @@ SC_LOG_FATAL("Fatal message");
 
 ```
 soul_core
+    ├── soul_di
+    │       └── soul_plugin
     ├── soul_utils
     ├── soul_logging
     ├── soul_async

@@ -1,14 +1,19 @@
 #ifndef SOUL_NETWORK_HTTP_API_H
 #define SOUL_NETWORK_HTTP_API_H
 
+#include "soul/network/network_global.h"
 #include "soul/network/http_client.h"
 #include "soul/network/http_request.h"
 #include "soul/network/http_response.h"
+#ifndef Q_MOC_RUN
 #include "soul/core/result.h"
+#include "soul/core/error.h"
+#endif
 #include <functional>
 #include <memory>
 
 namespace sc {
+namespace network {
 
 /**
  * @class HttpApi
@@ -237,6 +242,7 @@ private:
     std::function<void(const Result<HttpResponse>&)> m_successCallback;
 };
 
-}
+} // namespace network
+} // namespace sc
 
 #endif

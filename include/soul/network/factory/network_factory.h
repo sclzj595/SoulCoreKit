@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file factory/network_factory.h
  * @brief 网络工厂类
  * @details 工厂模式，根据 URL 协议创建对应的网络客户端
@@ -12,7 +12,9 @@
 
 #include <memory>
 #include <QUrl>
+#ifndef Q_MOC_RUN
 #include "soul/core/singleton.h"
+#endif
 #include "soul/network/core/inetwork.h"
 #include "soul/network/http/http_client_adapter.h"
 #include "soul/network/tcp/tcp_client_adapter.h"

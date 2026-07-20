@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file codec/json_codec.h
  * @brief JSON 编解码器
  * @details 实现 JSON 数据的序列化和反序列化
@@ -10,6 +10,7 @@
 #ifndef SOUL_NETWORK_CODEC_JSON_CODEC_H
 #define SOUL_NETWORK_CODEC_JSON_CODEC_H
 
+#include "soul/network/network_global.h"
 #include "icodec.h"
 #include <QJsonDocument>
 

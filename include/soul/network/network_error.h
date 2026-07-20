@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file network_error.h
  * @brief 网络错误类
  * @details 继承 Error 基类，定义网络模块专用错误码和错误处理
@@ -12,7 +12,9 @@
 
 #include "soul/network/network_global.h"
 #include <QString>
+#ifndef Q_MOC_RUN
 #include "soul/core/error.h"
+#endif
 
 namespace sc {
 namespace network {

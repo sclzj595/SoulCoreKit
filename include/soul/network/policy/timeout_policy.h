@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file policy/timeout_policy.h
  * @brief 超时策略类
  * @details 管理网络操作的超时设置
@@ -10,6 +10,7 @@
 #ifndef SOUL_NETWORK_POLICY_TIMEOUT_POLICY_H
 #define SOUL_NETWORK_POLICY_TIMEOUT_POLICY_H
 
+#include "soul/network/network_global.h"
 #include "soul/network/policy/inetwork_policy.h"
 
 namespace sc {
