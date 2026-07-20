@@ -1,16 +1,51 @@
 #include <algorithm>
 #include <filesystem>
 
+#if defined(_WIN32)
+#include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
+
 #include "soul/plugin/plugin_manager.h"
 
 namespace sc {
 namespace plugin {
 
-bool PluginManager::loadPlugin(const std::string& path) {
+PluginManager::PluginHandle::~PluginHandle()
+{
+    if (initialized) {
+        if (libraryHandle) {
+            auto shutdown = reinterpret_cast<PluginShutdownFunc>(
+#if defined(_WIN32)
+                GetProcAddress(reinterpret_cast<HMODULE>(libraryHandle), "pluginShutdown")
+#else
+                dlsym(libraryHandle, "pluginShutdown")
+#endif
+            );
+            if (shutdown) {
+                shutdown();
+            }
+        }
+        initialized = false;
+        enabled = false;
+    }
+    if (libraryHandle) {
+#if defined(_WIN32)
+        FreeLibrary(reinterpret_cast<HMODULE>(libraryHandle));
+#else
+        dlclose(libraryHandle);
+#endif
+    }
+}
+
+bool PluginManager::loadPlugin(const std::string& path)
+{
     return loadNativePlugin(path);
 }
 
-bool PluginManager::loadNativePlugin(const std::string& path) {
+bool PluginManager::loadNativePlugin(const std::string& path)
+{
     std::lock_guard<std::mutex> lock(m_mutex);
 
 #if defined(_WIN32)
@@ -52,7 +87,6 @@ bool PluginManager::loadNativePlugin(const std::string& path) {
         return false;
     }
 
-    // 问题5修复：ABI 版本兼容性检查
     if (metadata->abiVersion != PLUGIN_ABI_VERSION) {
 #if defined(_WIN32)
         FreeLibrary(handle);
@@ -80,7 +114,6 @@ bool PluginManager::loadNativePlugin(const std::string& path) {
     handlePtr->initialized = false;
     handlePtr->enabled = false;
 
-    // 问题4修复：如果插件提供了 pluginCreate 函数，创建 IPlugin 实例
     auto createFunc = reinterpret_cast<PluginCreateFunc>(
 #if defined(_WIN32)
         GetProcAddress(handle, "pluginCreate")
@@ -92,11 +125,8 @@ bool PluginManager::loadNativePlugin(const std::string& path) {
     if (createFunc) {
         void* pluginInstance = createFunc("IPlugin");
         if (pluginInstance) {
-            // 尝试将 void* 转换为 IPlugin*
-            // 注意：这要求插件返回的对象实现了 IPlugin 接口
             handlePtr->plugin = std::shared_ptr<IPlugin>(static_cast<IPlugin*>(pluginInstance),
                 [](IPlugin* p) {
-                    // 不在这里删除，由插件的 pluginDestroy 函数管理
                 });
         }
     }
@@ -105,11 +135,11 @@ bool PluginManager::loadNativePlugin(const std::string& path) {
     return true;
 }
 
-bool PluginManager::unloadPlugin(const std::string& pluginId) {
+bool PluginManager::unloadPlugin(const std::string& pluginId)
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     auto it = m_plugins.find(pluginId);
     if (it != m_plugins.end()) {
-        // 问题6修复：unload 前确保插件已 shutdown
         if (it->second->initialized) {
             shutdownPluginLocked(pluginId);
         }
@@ -119,13 +149,14 @@ bool PluginManager::unloadPlugin(const std::string& pluginId) {
     return false;
 }
 
-// 问题3修复：拆分为加锁的公共方法和不加锁的内部方法
-bool PluginManager::initializePlugin(const std::string& pluginId) {
+bool PluginManager::initializePlugin(const std::string& pluginId)
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     return initializePluginLocked(pluginId);
 }
 
-bool PluginManager::initializePluginLocked(const std::string& pluginId) {
+bool PluginManager::initializePluginLocked(const std::string& pluginId)
+{
     auto it = m_plugins.find(pluginId);
     if (it == m_plugins.end()) {
         return false;
@@ -159,12 +190,14 @@ bool PluginManager::initializePluginLocked(const std::string& pluginId) {
     return true;
 }
 
-bool PluginManager::shutdownPlugin(const std::string& pluginId) {
+bool PluginManager::shutdownPlugin(const std::string& pluginId)
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     return shutdownPluginLocked(pluginId);
 }
 
-bool PluginManager::shutdownPluginLocked(const std::string& pluginId) {
+bool PluginManager::shutdownPluginLocked(const std::string& pluginId)
+{
     auto it = m_plugins.find(pluginId);
     if (it == m_plugins.end()) {
         return false;
@@ -193,7 +226,8 @@ bool PluginManager::shutdownPluginLocked(const std::string& pluginId) {
     return true;
 }
 
-void PluginManager::loadAllPlugins(const std::string& directory) {
+void PluginManager::loadAllPlugins(const std::string& directory)
+{
     try {
         for (const auto& entry : std::filesystem::directory_iterator(directory)) {
             if (!entry.is_regular_file()) {
@@ -219,27 +253,29 @@ void PluginManager::loadAllPlugins(const std::string& directory) {
 
             loadPlugin(entry.path().string());
         }
-    } catch (...) {
+    }
+    catch (...) {
     }
 }
 
-void PluginManager::initializeAllPlugins() {
+void PluginManager::initializeAllPlugins()
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     for (auto& pair : m_plugins) {
-        // 问题3修复：调用不加锁的内部方法，避免死锁
         initializePluginLocked(pair.first);
     }
 }
 
-void PluginManager::shutdownAllPlugins() {
+void PluginManager::shutdownAllPlugins()
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     for (auto& pair : m_plugins) {
-        // 问题3修复：调用不加锁的内部方法，避免死锁
         shutdownPluginLocked(pair.first);
     }
 }
 
-std::shared_ptr<IPlugin> PluginManager::getPlugin(const std::string& pluginId) const {
+std::shared_ptr<IPlugin> PluginManager::getPlugin(const std::string& pluginId) const
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     auto it = m_plugins.find(pluginId);
     if (it != m_plugins.end()) {
@@ -248,7 +284,8 @@ std::shared_ptr<IPlugin> PluginManager::getPlugin(const std::string& pluginId) c
     return nullptr;
 }
 
-std::vector<std::string> PluginManager::getPluginIds() const {
+std::vector<std::string> PluginManager::getPluginIds() const
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     std::vector<std::string> ids;
     ids.reserve(m_plugins.size());
@@ -258,7 +295,8 @@ std::vector<std::string> PluginManager::getPluginIds() const {
     return ids;
 }
 
-std::vector<std::shared_ptr<IPlugin>> PluginManager::getAllPlugins() const {
+std::vector<std::shared_ptr<IPlugin>> PluginManager::getAllPlugins() const
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     std::vector<std::shared_ptr<IPlugin>> plugins;
     plugins.reserve(m_plugins.size());
@@ -270,12 +308,14 @@ std::vector<std::shared_ptr<IPlugin>> PluginManager::getAllPlugins() const {
     return plugins;
 }
 
-bool PluginManager::isPluginLoaded(const std::string& pluginId) const {
+bool PluginManager::isPluginLoaded(const std::string& pluginId) const
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_plugins.find(pluginId) != m_plugins.end();
 }
 
-bool PluginManager::isPluginInitialized(const std::string& pluginId) const {
+bool PluginManager::isPluginInitialized(const std::string& pluginId) const
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     auto it = m_plugins.find(pluginId);
     if (it != m_plugins.end()) {
@@ -284,7 +324,8 @@ bool PluginManager::isPluginInitialized(const std::string& pluginId) const {
     return false;
 }
 
-int PluginManager::pluginCount() const {
+int PluginManager::pluginCount() const
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     return static_cast<int>(m_plugins.size());
 }

@@ -19,7 +19,10 @@ public:
 
 class StatefulService {
 public:
-    StatefulService() : m_counter(0) {}
+    StatefulService()
+        : m_counter(0)
+    {
+    }
     int increment() { return ++m_counter; }
     int getCounter() const { return m_counter; }
 private:
@@ -32,7 +35,10 @@ public:
     int value() const { return m_value; }
     void setValue(int v) { m_value = v; }
 private:
-    GlobalSingleton() : m_value(100) {}
+    GlobalSingleton()
+        : m_value(100)
+    {
+    }
     int m_value;
 };
 
@@ -56,15 +62,18 @@ private slots:
     void testSingletonIntegration();
 };
 
-void TestDI::initTestCase() {
+void TestDI::initTestCase()
+{
     sc::di::Module::initialize();
 }
 
-void TestDI::cleanupTestCase() {
+void TestDI::cleanupTestCase()
+{
     sc::di::Module::shutdown();
 }
 
-void TestDI::testBindAndResolveTransient() {
+void TestDI::testBindAndResolveTransient()
+{
     auto& container = sc::di::Container::instance();
     container.bind<TestService>([]() { return new ConcreteService(); }, sc::di::Lifetime::Transient);
 
@@ -78,7 +87,8 @@ void TestDI::testBindAndResolveTransient() {
     QCOMPARE(instance2->getValue(), 42);
 }
 
-void TestDI::testBindAndResolveSingleton() {
+void TestDI::testBindAndResolveSingleton()
+{
     auto& container = sc::di::Container::instance();
     container.bindSingleton<StatefulService>([]() { return new StatefulService(); });
 
@@ -96,7 +106,8 @@ void TestDI::testBindAndResolveSingleton() {
     QCOMPARE(val2, 2);
 }
 
-void TestDI::testBindInstance() {
+void TestDI::testBindInstance()
+{
     auto& container = sc::di::Container::instance();
     auto* external = new StatefulService();
 
@@ -107,7 +118,8 @@ void TestDI::testBindInstance() {
     QCOMPARE(resolved.get(), external);
 }
 
-void TestDI::testIsRegistered() {
+void TestDI::testIsRegistered()
+{
     auto& container = sc::di::Container::instance();
 
     QVERIFY(!container.isRegistered<TestService>());
@@ -116,7 +128,8 @@ void TestDI::testIsRegistered() {
     QVERIFY(container.isRegistered<TestService>());
 }
 
-void TestDI::testUnregister() {
+void TestDI::testUnregister()
+{
     auto& container = sc::di::Container::instance();
     container.bind<TestService>([]() { return new ConcreteService(); });
 
@@ -129,7 +142,8 @@ void TestDI::testUnregister() {
     QVERIFY(instance == nullptr);
 }
 
-void TestDI::testClear() {
+void TestDI::testClear()
+{
     auto& container = sc::di::Container::instance();
     container.bind<TestService>([]() { return new ConcreteService(); });
     container.bindSingleton<StatefulService>([]() { return new StatefulService(); });
@@ -143,7 +157,8 @@ void TestDI::testClear() {
     QVERIFY(!container.isRegistered<StatefulService>());
 }
 
-void TestDI::testRegistrationCount() {
+void TestDI::testRegistrationCount()
+{
     auto& container = sc::di::Container::instance();
     container.clear();
 
@@ -159,7 +174,8 @@ void TestDI::testRegistrationCount() {
     QCOMPARE(container.registrationCount(), 1);
 }
 
-void TestDI::testThreadSafety() {
+void TestDI::testThreadSafety()
+{
     auto& container = sc::di::Container::instance();
     container.bindSingleton<StatefulService>([]() { return new StatefulService(); });
 
@@ -187,7 +203,8 @@ void TestDI::testThreadSafety() {
     QCOMPARE(finalInstance->getCounter(), threadCount * iterations);
 }
 
-void TestDI::testSingletonWrapper() {
+void TestDI::testSingletonWrapper()
+{
     auto& container = sc::di::Container::instance();
     container.bindSingleton<StatefulService>([]() { return new StatefulService(); });
 
@@ -199,7 +216,8 @@ void TestDI::testSingletonWrapper() {
     QVERIFY(wrapped == resolved);
 }
 
-void TestDI::testSingletonIntegration() {
+void TestDI::testSingletonIntegration()
+{
     auto& container = sc::di::Container::instance();
 
     sc::di::registerSingleton<GlobalSingleton>();

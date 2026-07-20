@@ -7,12 +7,6 @@
 #include <unordered_map>
 #include <vector>
 
-#if defined(_WIN32)
-#include <windows.h>
-#else
-#include <dlfcn.h>
-#endif
-
 #include "../core/singleton.h"
 #include "iplugin.h"
 
@@ -29,31 +23,7 @@ public:
         bool initialized = false;
         bool enabled = false;
 
-        ~PluginHandle() {
-            if (initialized) {
-                if (libraryHandle) {
-                    auto shutdown = reinterpret_cast<PluginShutdownFunc>(
-#if defined(_WIN32)
-                        GetProcAddress(reinterpret_cast<HMODULE>(libraryHandle), "pluginShutdown")
-#else
-                        dlsym(libraryHandle, "pluginShutdown")
-#endif
-                    );
-                    if (shutdown) {
-                        shutdown();
-                    }
-                }
-                initialized = false;
-                enabled = false;
-            }
-            if (libraryHandle) {
-#if defined(_WIN32)
-                FreeLibrary(reinterpret_cast<HMODULE>(libraryHandle));
-#else
-                dlclose(libraryHandle);
-#endif
-            }
-        }
+        ~PluginHandle();
     };
 
     bool loadPlugin(const std::string& path);

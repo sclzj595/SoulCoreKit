@@ -33,13 +33,15 @@ class SC_DI_EXPORT Container {
 public:
     using Creator = std::function<void*(const std::unordered_map<std::type_index, void*>&)>;
 
-    static Container& instance() {
+    static Container& instance()
+    {
         static Container inst;
         return inst;
     }
 
     template<typename T>
-    void bind(std::function<T*()> creator, Lifetime lifetime = Lifetime::Transient) {
+    void bind(std::function<T*()> creator, Lifetime lifetime = Lifetime::Transient)
+    {
         std::lock_guard<std::recursive_mutex> lock(m_mutex);
         auto typeIdx = std::type_index(typeid(T));
         auto& info = m_registrations[typeIdx];
@@ -54,7 +56,8 @@ public:
     }
 
     template<typename T>
-    void bindInstance(T* instance) {
+    void bindInstance(T* instance)
+    {
         std::lock_guard<std::recursive_mutex> lock(m_mutex);
         auto typeIdx = std::type_index(typeid(T));
         auto& info = m_registrations[typeIdx];
@@ -67,7 +70,8 @@ public:
     }
 
     template<typename T>
-    void bindSingleton(std::function<T*()> creator) {
+    void bindSingleton(std::function<T*()> creator)
+    {
         std::lock_guard<std::recursive_mutex> lock(m_mutex);
         auto typeIdx = std::type_index(typeid(T));
         auto& info = m_registrations[typeIdx];
@@ -82,25 +86,21 @@ public:
     }
 
     template<typename T>
-    std::shared_ptr<T> resolve() {
+    std::shared_ptr<T> resolve()
+    {
         auto typeIdx = std::type_index(typeid(T));
 
-        // DCLP 第一步：无锁快速路径检查
-        // 注意：此快速路径假设注册阶段和解析阶段分离，即不在多线程中同时 bind 和 resolve
         auto regIt = m_registrations.find(typeIdx);
         if (regIt == m_registrations.end()) {
             return nullptr;
         }
 
-        if (regIt->second.initFlag && 
+        if (regIt->second.initFlag &&
             regIt->second.initFlag->load(std::memory_order_acquire) &&
             regIt->second.singletonInstance) {
-            // 单例已初始化，返回空删除器的 shared_ptr
-            // 由容器的 clear()/unregister() 统一管理单例生命周期
             return std::shared_ptr<T>(static_cast<T*>(regIt->second.singletonInstance), [](T*) {});
         }
 
-        // DCLP 第二步：加锁
         std::lock_guard<std::recursive_mutex> lock(m_mutex);
         auto it = m_registrations.find(typeIdx);
         if (it == m_registrations.end()) {
@@ -109,7 +109,6 @@ public:
 
         auto& info = it->second;
 
-        // DCLP 第三步：锁内二次检查
         if (info.lifetime == Lifetime::Singleton) {
             if (info.initialized && info.singletonInstance) {
                 return std::shared_ptr<T>(static_cast<T*>(info.singletonInstance), [](T*) {});
@@ -119,7 +118,6 @@ public:
                 return nullptr;
             }
 
-            // recursive_mutex 允许 creator 内部递归调用 resolve()
             void* instance = info.creator(m_resolvedInstances);
             if (!instance) {
                 return nullptr;
@@ -129,12 +127,10 @@ public:
             info.initialized = true;
             m_resolvedInstances[typeIdx] = instance;
 
-            // DCLP 第四步：更新原子标志（release 语义确保实例写入对其他线程可见）
             if (info.initFlag) {
                 info.initFlag->store(true, std::memory_order_release);
             }
 
-            // 返回空删除器的 shared_ptr，由容器管理生命周期
             return std::shared_ptr<T>(static_cast<T*>(instance), [](T*) {});
         }
 
@@ -153,19 +149,21 @@ public:
     }
 
     template<typename T>
-    bool isRegistered() const {
+    bool isRegistered() const
+    {
         std::lock_guard<std::recursive_mutex> lock(m_mutex);
         return m_registrations.find(std::type_index(typeid(T))) != m_registrations.end();
     }
 
     template<typename T>
-    void unregister() {
+    void unregister()
+    {
         std::lock_guard<std::recursive_mutex> lock(m_mutex);
         auto typeIdx = std::type_index(typeid(T));
         auto it = m_registrations.find(typeIdx);
         if (it != m_registrations.end()) {
-            if (it->second.lifetime == Lifetime::Singleton && 
-                it->second.initialized && 
+            if (it->second.lifetime == Lifetime::Singleton &&
+                it->second.initialized &&
                 it->second.singletonInstance) {
                 delete static_cast<T*>(it->second.singletonInstance);
             }
@@ -174,7 +172,8 @@ public:
         }
     }
 
-    void clear() {
+    void clear()
+    {
         std::lock_guard<std::recursive_mutex> lock(m_mutex);
         for (auto& pair : m_registrations) {
             if (pair.second.lifetime == Lifetime::Singleton &&
@@ -187,7 +186,8 @@ public:
         m_resolvedInstances.clear();
     }
 
-    size_t registrationCount() const {
+    size_t registrationCount() const
+    {
         std::lock_guard<std::recursive_mutex> lock(m_mutex);
         return m_registrations.size();
     }
@@ -206,7 +206,8 @@ private:
 
 template<typename T>
 struct SingletonWrapper {
-    static std::shared_ptr<T> get() {
+    static std::shared_ptr<T> get()
+    {
         return Container::instance().resolve<T>();
     }
 };

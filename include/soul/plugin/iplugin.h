@@ -1,14 +1,9 @@
 #ifndef SOUL_PLUGIN_IPLUGIN_H
 #define SOUL_PLUGIN_IPLUGIN_H
 
-#include <memory>
 #include <string>
 
 #include "plugin_global.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 struct SC_PLUGIN_EXPORT PluginMetadata {
     const char* id;
@@ -21,14 +16,18 @@ struct SC_PLUGIN_EXPORT PluginMetadata {
     int apiVersion;
 };
 
+#define PLUGIN_ABI_VERSION 1
+#define PLUGIN_API_VERSION 1
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef int (*PluginInitializeFunc)(void);
 typedef int (*PluginShutdownFunc)(void);
 typedef const PluginMetadata* (*PluginGetMetadataFunc)(void);
 typedef void* (*PluginCreateFunc)(const char* type);
 typedef void (*PluginDestroyFunc)(void* instance);
-
-#define PLUGIN_ABI_VERSION 1
-#define PLUGIN_API_VERSION 1
 
 #ifdef __cplusplus
 }

@@ -1,7 +1,4 @@
-#include <QFile>
-#include <QTemporaryDir>
-#include <QtTest>
-#include <QTextStream>
+#include <QTest>
 
 #include "soul/plugin/iplugin.h"
 #include "soul/plugin/module.h"
@@ -28,15 +25,18 @@ private slots:
     void testShutdownAllPlugins();
 };
 
-void TestPlugin::initTestCase() {
+void TestPlugin::initTestCase()
+{
     sc::plugin::Module::initialize();
 }
 
-void TestPlugin::cleanupTestCase() {
+void TestPlugin::cleanupTestCase()
+{
     sc::plugin::Module::shutdown();
 }
 
-void TestPlugin::testPluginMetadataStructure() {
+void TestPlugin::testPluginMetadataStructure()
+{
     sc::plugin::PluginMetadata metadata;
     metadata.id = "com.soulcore.plugin.test";
     metadata.name = "Test Plugin";
@@ -54,65 +54,76 @@ void TestPlugin::testPluginMetadataStructure() {
     QCOMPARE(metadata.apiVersion, PLUGIN_API_VERSION);
 }
 
-void TestPlugin::testPluginAbiVersion() {
+void TestPlugin::testPluginAbiVersion()
+{
     QVERIFY(PLUGIN_ABI_VERSION > 0);
     QVERIFY(PLUGIN_API_VERSION > 0);
 }
 
-void TestPlugin::testPluginManagerSingleton() {
+void TestPlugin::testPluginManagerSingleton()
+{
     auto& pm1 = sc::plugin::PluginManager::instance();
     auto& pm2 = sc::plugin::PluginManager::instance();
     QVERIFY(&pm1 == &pm2);
 }
 
-void TestPlugin::testLoadNonExistentPlugin() {
+void TestPlugin::testLoadNonExistentPlugin()
+{
     auto& pm = sc::plugin::PluginManager::instance();
     bool result = pm.loadPlugin("/nonexistent/path/plugin.dll");
     QVERIFY(!result);
     QCOMPARE(pm.pluginCount(), 0);
 }
 
-void TestPlugin::testPluginCount() {
+void TestPlugin::testPluginCount()
+{
     auto& pm = sc::plugin::PluginManager::instance();
     int initialCount = pm.pluginCount();
     QVERIFY(initialCount >= 0);
 }
 
-void TestPlugin::testGetPluginIdsEmpty() {
+void TestPlugin::testGetPluginIdsEmpty()
+{
     auto& pm = sc::plugin::PluginManager::instance();
     auto ids = pm.getPluginIds();
     QVERIFY(ids.size() == static_cast<size_t>(pm.pluginCount()));
 }
 
-void TestPlugin::testIsPluginLoaded() {
+void TestPlugin::testIsPluginLoaded()
+{
     auto& pm = sc::plugin::PluginManager::instance();
     QVERIFY(!pm.isPluginLoaded("nonexistent.plugin.id"));
 }
 
-void TestPlugin::testIsPluginInitialized() {
+void TestPlugin::testIsPluginInitialized()
+{
     auto& pm = sc::plugin::PluginManager::instance();
     QVERIFY(!pm.isPluginInitialized("nonexistent.plugin.id"));
 }
 
-void TestPlugin::testInitializePluginLocked() {
+void TestPlugin::testInitializePluginLocked()
+{
     auto& pm = sc::plugin::PluginManager::instance();
     bool result = pm.initializePlugin("nonexistent.plugin.id");
     QVERIFY(!result);
 }
 
-void TestPlugin::testShutdownPluginLocked() {
+void TestPlugin::testShutdownPluginLocked()
+{
     auto& pm = sc::plugin::PluginManager::instance();
     bool result = pm.shutdownPlugin("nonexistent.plugin.id");
     QVERIFY(!result);
 }
 
-void TestPlugin::testInitializeAllPlugins() {
+void TestPlugin::testInitializeAllPlugins()
+{
     auto& pm = sc::plugin::PluginManager::instance();
     pm.initializeAllPlugins();
     QVERIFY(true);
 }
 
-void TestPlugin::testShutdownAllPlugins() {
+void TestPlugin::testShutdownAllPlugins()
+{
     auto& pm = sc::plugin::PluginManager::instance();
     pm.shutdownAllPlugins();
     QVERIFY(true);
