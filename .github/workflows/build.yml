@@ -23,7 +23,7 @@ jobs:
           host: 'windows'
           target: 'desktop'
           arch: 'win64_msvc2019_64'
-          modules: 'qtwebsockets qtsql qtxml'
+          modules: 'qtwebsockets'  # ✅ 只保留有效的附加模块
 
       - name: Configure CMake
         run: |
@@ -61,7 +61,7 @@ jobs:
           host: 'linux'
           target: 'desktop'
           arch: 'gcc_64'
-          modules: 'qtwebsockets qtsql qtxml'
+          modules: 'qtwebsockets'  # ✅ 只保留有效的附加模块
 
       - name: Install build dependencies
         run: |
@@ -101,10 +101,10 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.5.3'
-          host: 'macos'
+          host: 'mac'  # ✅ 从 'macos' 改为 'mac'
           target: 'desktop'
           arch: 'clang_64'
-          modules: 'qtwebsockets qtsql qtxml'
+          modules: 'qtwebsockets'  # ✅ 只保留有效的附加模块
 
       - name: Configure CMake
         run: |
