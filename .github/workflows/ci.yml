@@ -19,6 +19,7 @@ jobs:
           host: 'linux'
           target: 'desktop'
           arch: 'gcc_64'
+          modules: 'qtwebsockets qtsql qtxml'
 
       - name: Install build dependencies
         run: |
@@ -76,6 +77,7 @@ jobs:
           host: 'windows'
           target: 'desktop'
           arch: 'win64_msvc2019_64'
+          modules: 'qtwebsockets qtsql qtxml'
 
       - name: Configure
         run: |
@@ -106,6 +108,7 @@ jobs:
           host: 'macos'
           target: 'desktop'
           arch: 'clang_64'
+          modules: 'qtwebsockets qtsql qtxml'
 
       - name: Configure
         run: |
