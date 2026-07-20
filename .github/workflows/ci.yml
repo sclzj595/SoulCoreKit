@@ -16,10 +16,9 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.5.3'
-          host: 'linux'
           target: 'desktop'
           arch: 'gcc_64'
-          modules: 'qtwebsockets qtsql qtxml'
+          modules: 'qtwebsockets'
 
       - name: Install build dependencies
         run: |
@@ -74,10 +73,9 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.5.3'
-          host: 'windows'
           target: 'desktop'
           arch: 'win64_msvc2019_64'
-          modules: 'qtwebsockets qtsql qtxml'
+          modules: 'qtwebsockets'
 
       - name: Configure
         run: |
@@ -105,10 +103,9 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.5.3'
-          host: 'macos'
           target: 'desktop'
           arch: 'clang_64'
-          modules: 'qtwebsockets qtsql qtxml'
+          modules: 'qtwebsockets'
 
       - name: Configure
         run: |
