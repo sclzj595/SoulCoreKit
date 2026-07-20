@@ -1,6 +1,9 @@
 #include "soul/core/time.h"
 
 #include <iostream>
+#ifdef _WIN32
+#include <ctime>
+#endif
 
 namespace sc {
 
@@ -15,7 +18,12 @@ std::string Time::nowString(const std::string& fmt) {
 std::string Time::format(Timestamp timestamp, const std::string& fmt) {
     auto tp = std::chrono::system_clock::time_point(timestamp);
     std::time_t tt = std::chrono::system_clock::to_time_t(tp);
-    std::tm tm = *std::localtime(&tt);
+    std::tm tm;
+#ifdef _WIN32
+    localtime_s(&tm, &tt);
+#else
+    localtime_r(&tt, &tm);
+#endif
     
     std::string result;
     size_t i = 0;
@@ -77,7 +85,12 @@ std::string Time::toLocalTime(Timestamp timestamp) {
 std::string Time::toUtcTime(Timestamp timestamp) {
     auto tp = std::chrono::system_clock::time_point(timestamp);
     std::time_t tt = std::chrono::system_clock::to_time_t(tp);
-    std::tm tm = *std::gmtime(&tt);
+    std::tm tm;
+#ifdef _WIN32
+    gmtime_s(&tm, &tt);
+#else
+    gmtime_r(&tt, &tm);
+#endif
     char buf[20];
     std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &tm);
     return std::string(buf);

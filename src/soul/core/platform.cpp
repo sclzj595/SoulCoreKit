@@ -1,8 +1,10 @@
 #include "soul/core/platform.h"
 
+#include <QOperatingSystemVersion>
+#include <string>
+
 #ifdef _WIN32
 #include <windows.h>
-#include <versionhelpers.h>
 #elif __APPLE__
 #include <sys/utsname.h>
 #elif __linux__
@@ -36,20 +38,17 @@ std::string Platform::osName() {
 }
 
 std::string Platform::osVersion() {
+    // 使用 Qt 跨平台 API 替换已废弃的 GetVersionEx
+    const auto version = QOperatingSystemVersion::current();
 #ifdef _WIN32
-    if (IsWindows10OrGreater()) {
-        OSVERSIONINFOEX info;
-        ZeroMemory(&info, sizeof(info));
-        info.dwOSVersionInfoSize = sizeof(info);
-        GetVersionEx(reinterpret_cast<OSVERSIONINFO*>(&info));
-        if (info.dwBuildNumber >= 22000) return "11";
+    // Windows 11 内部版本号 >= 22000
+    if (version.majorVersion() >= 10) {
+        if (version.microVersion() >= 22000) return "11";
         return "10";
     }
-    return "Unknown";
+    return std::to_string(version.majorVersion()) + "." + std::to_string(version.minorVersion());
 #elif __APPLE__
-    utsname info;
-    uname(&info);
-    return std::string(info.release);
+    return std::to_string(version.majorVersion()) + "." + std::to_string(version.minorVersion());
 #elif __linux__
     utsname info;
     uname(&info);

@@ -22,7 +22,7 @@ jobs:
           version: '6.5.3'
           host: 'windows'
           target: 'desktop'
-          arch: 'win64_msvc2019_64'
+          arch: 'win64_msvc2022_64'  # ✅ 与 GitHub windows-latest runner 的 VS2022 (vc143) 工具链匹配，避免 stdext ABI 不匹配
           modules: 'qtwebsockets'  # ✅ 只保留有效的附加模块
 
       - name: Configure CMake

@@ -128,75 +128,77 @@ endif()
 
 # 自动复制 Qt DLL 到可执行文件输出目录 (Windows)
 # 这样运行测试时不需要手动设置环境变量
+# 注意：函数定义在 if(WIN32) 之外，确保所有平台都能解析 copy_qt_dll() 调用。
+# 在 Linux/macOS 上函数体为空操作（no-op），避免 "Unknown CMake command" 错误。
 if(WIN32)
     get_target_property(QT6_CORE_LOCATION Qt6::Core IMPORTED_LOCATION)
     get_filename_component(QT6_BIN_DIR ${QT6_CORE_LOCATION} DIRECTORY)
-    
-    function(copy_qt_dll TARGET_NAME COPY_TEST_DLL)
-        add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${QT6_BIN_DIR}/Qt6Core.dll"
-                "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6Core.dll"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${QT6_BIN_DIR}/Qt6Core5Compat.dll"
-                "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6Core5Compat.dll"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${QT6_BIN_DIR}/Qt6Network.dll"
-                "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6Network.dll"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${QT6_BIN_DIR}/Qt6Sql.dll"
-                "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6Sql.dll"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${QT6_BIN_DIR}/Qt6Widgets.dll"
-                "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6Widgets.dll"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${QT6_BIN_DIR}/Qt6Gui.dll"
-                "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6Gui.dll"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${QT6_BIN_DIR}/Qt6WebSockets.dll"
-                "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6WebSockets.dll"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${QT6_BIN_DIR}/Qt6Xml.dll"
-                "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6Xml.dll"
-            COMMENT "Copying Qt6 DLLs to ${TARGET_NAME} output directory"
-        )
-        
-        if(COPY_TEST_DLL)
-            add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${QT6_BIN_DIR}/Qt6Test.dll"
-                    "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6Test.dll"
-                COMMENT "Copying Qt6Test.dll to ${TARGET_NAME} output directory"
-            )
-        endif()
-        
-        if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-            add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${QT6_BIN_DIR}/libgcc_s_seh-1.dll"
-                    "$<TARGET_FILE_DIR:${TARGET_NAME}>/libgcc_s_seh-1.dll"
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${QT6_BIN_DIR}/libstdc++-6.dll"
-                    "$<TARGET_FILE_DIR:${TARGET_NAME}>/libstdc++-6.dll"
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${QT6_BIN_DIR}/libwinpthread-1.dll"
-                    "$<TARGET_FILE_DIR:${TARGET_NAME}>/libwinpthread-1.dll"
-                COMMENT "Copying MinGW runtime DLLs to ${TARGET_NAME} output directory"
-            )
-        endif()
-        
-        get_filename_component(QT6_PLUGINS_DIR ${QT6_CORE_LOCATION} DIRECTORY)
-        set(QT6_PLUGINS_DIR "${QT6_PLUGINS_DIR}/../plugins")
-        add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E make_directory
-                "$<TARGET_FILE_DIR:${TARGET_NAME}>/sqldrivers"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${QT6_PLUGINS_DIR}/sqldrivers/qsqlite.dll"
-                "$<TARGET_FILE_DIR:${TARGET_NAME}>/sqldrivers/qsqlite.dll"
-            COMMENT "Copying Qt6 SQL drivers to ${TARGET_NAME} output directory"
-        )
-    endfunction()
 endif()
+
+function(copy_qt_dll TARGET_NAME COPY_TEST_DLL)
+    if(NOT WIN32)
+        return()
+    endif()
+
+    add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${QT6_BIN_DIR}/Qt6Core.dll"
+            "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6Core.dll"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${QT6_BIN_DIR}/Qt6Network.dll"
+            "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6Network.dll"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${QT6_BIN_DIR}/Qt6Sql.dll"
+            "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6Sql.dll"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${QT6_BIN_DIR}/Qt6Widgets.dll"
+            "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6Widgets.dll"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${QT6_BIN_DIR}/Qt6Gui.dll"
+            "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6Gui.dll"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${QT6_BIN_DIR}/Qt6WebSockets.dll"
+            "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6WebSockets.dll"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${QT6_BIN_DIR}/Qt6Xml.dll"
+            "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6Xml.dll"
+        COMMENT "Copying Qt6 DLLs to ${TARGET_NAME} output directory"
+    )
+
+    if(COPY_TEST_DLL)
+        add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${QT6_BIN_DIR}/Qt6Test.dll"
+                "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6Test.dll"
+            COMMENT "Copying Qt6Test.dll to ${TARGET_NAME} output directory"
+        )
+    endif()
+
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${QT6_BIN_DIR}/libgcc_s_seh-1.dll"
+                "$<TARGET_FILE_DIR:${TARGET_NAME}>/libgcc_s_seh-1.dll"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${QT6_BIN_DIR}/libstdc++-6.dll"
+                "$<TARGET_FILE_DIR:${TARGET_NAME}>/libstdc++-6.dll"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${QT6_BIN_DIR}/libwinpthread-1.dll"
+                "$<TARGET_FILE_DIR:${TARGET_NAME}>/libwinpthread-1.dll"
+            COMMENT "Copying MinGW runtime DLLs to ${TARGET_NAME} output directory"
+        )
+    endif()
+
+    set(QT6_PLUGINS_DIR "${QT6_BIN_DIR}/../plugins")
+    add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+            "$<TARGET_FILE_DIR:${TARGET_NAME}>/sqldrivers"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${QT6_PLUGINS_DIR}/sqldrivers/qsqlite.dll"
+            "$<TARGET_FILE_DIR:${TARGET_NAME}>/sqldrivers/qsqlite.dll"
+        COMMENT "Copying Qt6 SQL drivers to ${TARGET_NAME} output directory"
+    )
+endfunction()
 
 set(SOUL_CORE_HEADERS
     include/soul/core/result.h

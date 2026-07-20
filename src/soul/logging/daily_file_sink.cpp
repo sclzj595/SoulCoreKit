@@ -5,6 +5,19 @@
 
 namespace sc {
 
+namespace {
+// 跨平台安全打开文件（追加模式），规避 MSVC fopen C4996 警告
+FILE* openAppendFile(const char* path) {
+    FILE* f = nullptr;
+#ifdef _WIN32
+    fopen_s(&f, path, "a");
+#else
+    f = std::fopen(path, "a");
+#endif
+    return f;
+}
+}  // namespace
+
 DailyFileSink::DailyFileSink(const std::string& basePath)
     : m_basePath(basePath), m_formatter(std::make_unique<DefaultLogFormatter>()) {}
 
@@ -33,7 +46,7 @@ void DailyFileSink::checkAndRotate(const std::string& timestamp) {
 
         std::filesystem::create_directories(std::filesystem::path(m_basePath).parent_path());
         std::string filePath = m_basePath + "." + date;
-        m_file = fopen(filePath.c_str(), "a");
+        m_file = openAppendFile(filePath.c_str());
         m_currentDate = date;
     }
 }

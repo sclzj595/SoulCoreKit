@@ -74,7 +74,7 @@ jobs:
         with:
           version: '6.5.3'
           target: 'desktop'
-          arch: 'win64_msvc2019_64'
+          arch: 'win64_msvc2022_64'  # ✅ 与 GitHub windows-latest runner 的 VS2022 (vc143) 工具链匹配
           modules: 'qtwebsockets'
 
       - name: Configure
