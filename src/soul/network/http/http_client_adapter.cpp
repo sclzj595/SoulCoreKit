@@ -2,7 +2,8 @@
 #include "soul/network/http_response.h"
 #include "soul/network/http_request.h"
 
-namespace sc::network {
+namespace sc {
+namespace network {
 
 HttpClientAdapter::HttpClientAdapter(QObject* parent)
     : NetworkAdapterBase(parent), m_client(std::make_unique<HttpClient>()) {}
@@ -10,6 +11,7 @@ HttpClientAdapter::HttpClientAdapter(QObject* parent)
 HttpClientAdapter::~HttpClientAdapter() = default;
 
 void HttpClientAdapter::doConnect(const QUrl& url) {
+    Q_UNUSED(url);
     updateState(NetworkState::Connected);
     emit connected();
 }
@@ -68,4 +70,5 @@ NetworkMessage HttpClientAdapter::convertToNetworkMessage(const HttpResponse& re
     return msg;
 }
 
-}
+} // namespace network
+} // namespace sc

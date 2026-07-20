@@ -1,10 +1,14 @@
 #include "soul/async/thread_pool.h"
+#include "soul/core/singleton.h"
 
 namespace sc {
 
 ThreadPool::ThreadPool()
     : m_threadPool(std::make_unique<QThreadPool>()) {
     m_threadPool->setMaxThreadCount(QThread::idealThreadCount());
+    SingletonRegistry::instance().registerShutdown([this]() {
+        m_threadPool->waitForDone();
+    });
 }
 
 ThreadPool& ThreadPool::instance() {

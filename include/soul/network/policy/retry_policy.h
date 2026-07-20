@@ -1,10 +1,20 @@
+﻿/**
+ * @file policy/retry_policy.h
+ * @brief 重试策略类
+ * @details 实现重试逻辑，支持指数退避和最大重试次数
+ * @author SoulCoreKit Team
+ * @date 2026-07-20
+ * @version 1.0.0
+ * @copyright MIT License
+ */
 #ifndef SOUL_NETWORK_POLICY_RETRY_POLICY_H
 #define SOUL_NETWORK_POLICY_RETRY_POLICY_H
 
 #include <vector>
 #include "soul/network/policy/inetwork_policy.h"
 
-namespace sc::network {
+namespace sc {
+namespace network {
 
 enum class RetryStrategy {
     FixedInterval,
@@ -12,7 +22,7 @@ enum class RetryStrategy {
     LinearBackoff,
 };
 
-class RetryPolicy : public INetworkPolicy {
+class SC_NETWORK_EXPORT RetryPolicy : public INetworkPolicy {
 public:
     RetryPolicy();
     RetryPolicy(int maxRetries, RetryStrategy strategy = RetryStrategy::ExponentialBackoff);
@@ -28,7 +38,7 @@ public:
     void apply(NetworkMessage& message) override;
 
     std::string interfaceName() const override {
-        return "sc::network::RetryPolicy";
+        return "RetryPolicy";
     }
 
 private:
@@ -37,6 +47,7 @@ private:
     int m_baseDelay = 1000;
 };
 
-}
+} // namespace network
+} // namespace sc
 
 #endif

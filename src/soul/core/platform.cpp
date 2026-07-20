@@ -41,7 +41,7 @@ std::string Platform::osVersion() {
         OSVERSIONINFOEX info;
         ZeroMemory(&info, sizeof(info));
         info.dwOSVersionInfoSize = sizeof(info);
-        GetVersionEx((OSVERSIONINFO*)&info);
+        GetVersionEx(reinterpret_cast<OSVERSIONINFO*>(&info));
         if (info.dwBuildNumber >= 22000) return "11";
         return "10";
     }

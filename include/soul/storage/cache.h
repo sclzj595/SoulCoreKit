@@ -50,9 +50,10 @@ public:
         auto it = m_cache.find(key);
         if (it != m_cache.end()) {
             m_list.erase(it->second.listIt);
+            m_currentSize -= it->second.entry.value.size();
         }
 
-        if (m_cache.size() >= m_maxSize) {
+        if (m_currentSize >= m_maxSize && m_maxSize > 0) {
             evict();
         }
 
@@ -64,6 +65,7 @@ public:
             entry.hasTtl = true;
         }
         m_cache[key] = {entry, listIt};
+        m_currentSize += value.size();
 
         return {};
     }
@@ -78,6 +80,9 @@ public:
 
         const CacheEntry& entry = it->second.entry;
         if (entry.hasTtl && std::chrono::steady_clock::now() > entry.expiry) {
+            m_list.erase(it->second.listIt);
+            m_currentSize -= entry.value.size();
+            m_cache.erase(it);
             return Error(ErrorCode::NotFound, "Cache key expired");
         }
 
@@ -109,6 +114,7 @@ public:
             return Error(ErrorCode::NotFound, "Cache key not found");
         }
 
+        m_currentSize -= it->second.entry.value.size();
         m_list.erase(it->second.listIt);
         m_cache.erase(it);
         return {};
@@ -118,11 +124,12 @@ public:
         std::lock_guard<std::mutex> lock(m_mutex);
         m_cache.clear();
         m_list.clear();
+        m_currentSize = 0;
     }
 
     size_t size() const override {
         std::lock_guard<std::mutex> lock(m_mutex);
-        return m_cache.size();
+        return m_currentSize;
     }
 
     size_t maxSize() const override {
@@ -138,6 +145,7 @@ private:
             if (it != m_cache.end()) {
                 const CacheEntry& entry = it->second.entry;
                 if (!entry.hasTtl || std::chrono::steady_clock::now() > entry.expiry) {
+                    m_currentSize -= entry.value.size();
                     m_cache.erase(it);
                     m_list.pop_back();
                     return;
@@ -152,6 +160,7 @@ private:
 
     mutable std::mutex m_mutex;
     size_t m_maxSize;
+    size_t m_currentSize = 0;
 
     struct CacheNode {
         CacheEntry entry;
@@ -178,11 +187,17 @@ public:
 
 private:
     QString getFilePath(const QString& key) const;
+    QString getTtlFilePath(const QString& key) const;
     bool isExpired(const QString& key) const;
+    void evict();
 
     QString m_cacheDir;
     size_t m_maxSize;
+    size_t m_currentSize = 0;
     mutable std::mutex m_mutex;
+
+    std::unordered_map<QString, size_t> m_entrySizes;
+    std::list<QString> m_lruList;
 };
 
 }

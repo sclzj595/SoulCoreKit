@@ -1,4 +1,4 @@
-name: Build
+﻿name: Build
 
 on:
   push:
@@ -41,6 +41,10 @@ jobs:
           .\test_event_bus.exe
           .\test_http_request.exe
           .\test_network.exe
+          .\test_async.exe
+          .\test_auth.exe
+          .\test_cache.exe
+          .\test_typed_event_bus.exe
 
   build-linux:
     name: Build on Linux
@@ -71,6 +75,10 @@ jobs:
           ./test_event_bus
           ./test_http_request
           ./test_network
+          ./test_async
+          ./test_auth
+          ./test_cache
+          ./test_typed_event_bus
 
   build-macos:
     name: Build on macOS
@@ -103,3 +111,7 @@ jobs:
           ./test_event_bus
           ./test_http_request
           ./test_network
+          ./test_async
+          ./test_auth
+          ./test_cache
+          ./test_typed_event_bus

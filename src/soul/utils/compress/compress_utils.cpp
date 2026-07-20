@@ -34,7 +34,7 @@ bool CompressUtils::decompressFile(const QString& sourcePath, const QString& des
 }
 
 bool CompressUtils::isGzip(const QByteArray& data) {
-    return data.size() >= 2 && data[0] == 0x1f && data[1] == 0x8b;
+    return data.size() >= 2 && static_cast<unsigned char>(data[0]) == 0x1f && static_cast<unsigned char>(data[1]) == 0x8b;
 }
 
 bool CompressUtils::isZlib(const QByteArray& data) {

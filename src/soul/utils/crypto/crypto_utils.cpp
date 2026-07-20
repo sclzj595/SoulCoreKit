@@ -5,7 +5,9 @@
 #include <QRandomGenerator>
 #include <QUrl>
 
-namespace sc::utils::crypto {
+namespace sc {
+namespace utils {
+namespace crypto {
 
 QByteArray md5(const QByteArray& data) {
     return QCryptographicHash::hash(data, QCryptographicHash::Md5);
@@ -24,6 +26,7 @@ QByteArray md5File(const QString& filePath) {
 QString md5Hex(const QByteArray& data) {
     return md5(data).toHex();
 }
+
 
 QByteArray sha1(const QByteArray& data) {
     return QCryptographicHash::hash(data, QCryptographicHash::Sha1);
@@ -107,4 +110,6 @@ QString generateRandomString(int length) {
     return result;
 }
 
-}
+} // namespace crypto
+} // namespace utils
+} // namespace sc

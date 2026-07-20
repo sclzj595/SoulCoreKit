@@ -1,6 +1,7 @@
 #include "soul/network/tcp/tcp_client_adapter.h"
 
-namespace sc::network {
+namespace sc {
+namespace network {
 
 TcpClientAdapter::TcpClientAdapter(QObject* parent)
     : NetworkAdapterBase(parent), m_client(std::make_unique<TcpClient>()) {
@@ -69,4 +70,5 @@ void TcpClientAdapter::onDataReceived(const QByteArray& data) {
     emit received(msg);
 }
 
-}
+} // namespace network
+} // namespace sc

@@ -1,10 +1,20 @@
+﻿/**
+ * @file codec/icodec.h
+ * @brief 编解码器接口
+ * @details 定义数据编解码的统一接口
+ * @author SoulCoreKit Team
+ * @date 2026-07-20
+ * @version 1.0.0
+ * @copyright MIT License
+ */
 #ifndef SOUL_NETWORK_CODEC_ICODEC_H
 #define SOUL_NETWORK_CODEC_ICODEC_H
 
 #include "soul/core/interface.h"
 #include "soul/network/core/network_message.h"
 
-namespace sc::network {
+namespace sc {
+namespace network {
 
 class ICodec : public IInterface {
 public:
@@ -15,6 +25,7 @@ public:
     virtual QString contentType() const = 0;
 };
 
-}
+} // namespace network
+} // namespace sc
 
 #endif

@@ -1,7 +1,8 @@
 #include "soul/network/interceptor/logging_interceptor.h"
 #include "soul/logging/log_macros.h"
 
-namespace sc::network {
+namespace sc {
+namespace network {
 
 void LoggingInterceptor::onRequest(NetworkMessage& request) {
     QString api = request.api.isEmpty() ? "unknown" : request.api;
@@ -18,4 +19,5 @@ void LoggingInterceptor::onResponse(NetworkMessage& response) {
               .arg(api).arg(statusCode).arg(payloadSize).arg(duration).toStdString());
 }
 
-}
+} // namespace network
+} // namespace sc

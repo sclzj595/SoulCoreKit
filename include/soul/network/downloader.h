@@ -1,3 +1,12 @@
+﻿/**
+ * @file downloader.h
+ * @brief 文件下载器类
+ * @details 封装 HTTP 文件下载功能，支持断点续传和进度回调
+ * @author SoulCoreKit Team
+ * @date 2026-07-20
+ * @version 1.0.0
+ * @copyright MIT License
+ */
 #ifndef SOUL_NETWORK_DOWNLOADER_H
 #define SOUL_NETWORK_DOWNLOADER_H
 
@@ -7,10 +16,12 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <functional>
+#include "soul/network/network_global.h"
 
 namespace sc {
+namespace network {
 
-class Downloader : public QObject {
+class SC_NETWORK_EXPORT Downloader : public QObject {
     Q_OBJECT
 public:
     using ProgressCallback = std::function<void(qint64 downloaded, qint64 total)>;
@@ -61,6 +72,7 @@ private:
     CompleteCallback m_completeCallback;
 };
 
-}
+} // namespace network
+} // namespace sc
 
 #endif

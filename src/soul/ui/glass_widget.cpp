@@ -5,6 +5,7 @@
 #include <QGraphicsPixmapItem>
 
 namespace sc {
+namespace ui {
 
 GlassWidget::GlassWidget(QWidget* parent)
     : QWidget(parent),
@@ -94,4 +95,5 @@ void GlassWidget::updateBackground() {
     scene.render(&painter);
 }
 
-}
+} // namespace ui
+} // namespace sc

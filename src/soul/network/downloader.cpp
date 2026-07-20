@@ -3,6 +3,7 @@
 #include <QDir>
 
 namespace sc {
+namespace network {
 
 Downloader::Downloader(QObject* parent) : QObject(parent) {
     m_manager = new QNetworkAccessManager(this);
@@ -180,4 +181,5 @@ qint64 Downloader::getExistingFileSize(const QString& path) {
     return 0;
 }
 
-}
+} // namespace network
+} // namespace sc

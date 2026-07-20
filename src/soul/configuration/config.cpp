@@ -258,4 +258,28 @@ void Config::setValue(const QString& key, const QVariant& value) {
     }
 }
 
+
+void Config::setEnvPrefix(const QString& prefix) {
+    m_envPrefix = prefix;
+}
+
+QString Config::envPrefix() const {
+    return m_envPrefix;
+}
+
+QVariantMap Config::getGroup(const QString& group) const {
+    Q_UNUSED(group);
+    return QVariantMap();
+}
+
+QVariantMap Config::getAll() const {
+    return QVariantMap();
+}
+
+bool Config::validate(const ConfigSchema& schema, QString* errorMsg) const {
+    Q_UNUSED(schema);
+    Q_UNUSED(errorMsg);
+    return true;
+}
+
 }

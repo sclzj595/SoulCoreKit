@@ -183,7 +183,9 @@ public:
             if (result.isOk()) {
                 const HttpResponse& response = result.unwrap();
                 if (response.isSuccess()) {
-                    if (m_jsonCallback) {
+                    if (m_successCallback) {
+                        m_successCallback(result);
+                    } else if (m_jsonCallback) {
                         m_jsonCallback(response.json());
                     }
                 } else {
@@ -232,6 +234,7 @@ private:
     HttpRequest m_request;
     std::function<void(const QJsonDocument&)> m_jsonCallback;
     std::function<void(const Error&)> m_failureCallback;
+    std::function<void(const Result<HttpResponse>&)> m_successCallback;
 };
 
 }

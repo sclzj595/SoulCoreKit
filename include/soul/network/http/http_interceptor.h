@@ -1,24 +1,16 @@
 #ifndef SOUL_NETWORK_HTTP_HTTP_INTERCEPTOR_H
 #define SOUL_NETWORK_HTTP_HTTP_INTERCEPTOR_H
 
-#include "soul/core/interface.h"
+#include "soul/network/interceptor/i_interceptor.h"
 #include "soul/network/http_request.h"
 #include "soul/network/http_response.h"
 
-namespace sc::network {
+namespace sc {
+namespace network {
 
-class HttpInterceptor : public IInterface {
-public:
-    ~HttpInterceptor() override = default;
+using HttpInterceptor = IInterceptor<HttpRequest, HttpResponse>;
 
-    virtual void onRequest(HttpRequest& request) = 0;
-    virtual void onResponse(HttpResponse& response) = 0;
-
-    std::string interfaceName() const override {
-        return "sc::network::HttpInterceptor";
-    }
-};
-
-}
+} // namespace network
+} // namespace sc
 
 #endif

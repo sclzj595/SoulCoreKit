@@ -1,6 +1,7 @@
 #include "soul/network/core/network_adapter_base.h"
 
-namespace sc::network {
+namespace sc {
+namespace network {
 
 NetworkAdapterBase::NetworkAdapterBase(QObject* parent)
     : NetworkBase(parent) {}
@@ -88,4 +89,5 @@ void NetworkAdapterBase::applyResponseInterceptors(NetworkMessage& message) {
     }
 }
 
-}
+} // namespace network
+} // namespace sc

@@ -1,23 +1,26 @@
+/**
+ * @file http_response.h
+ * @brief HTTP 响应类
+ * @details 封装 HTTP 响应的状态码、响应体、响应头和错误信息，提供 JSON 和文本解析
+ * @author SoulCoreKit Team
+ * @date 2026-07-20
+ * @version 1.0.0
+ * @copyright MIT License
+ */
+
 #ifndef SOUL_NETWORK_HTTP_RESPONSE_H
 #define SOUL_NETWORK_HTTP_RESPONSE_H
 
+#include "soul/network/network_global.h"
 #include <QMap>
 #include <QByteArray>
 #include <QJsonDocument>
 #include <QNetworkReply>
 
 namespace sc {
+namespace network {
 
-/**
- * @class HttpResponse
- * @brief HTTP 响应封装类
- *
- * HttpResponse 封装了 HTTP 响应的所有信息，包括状态码、响应体、响应头、
- * JSON 解析和错误信息。
- *
- * @see HttpClient, HttpRequest
- */
-class HttpResponse {
+class SC_NETWORK_EXPORT HttpResponse {
 public:
     /**
      * @brief 默认构造函数
@@ -111,6 +114,7 @@ private:
     QString m_errorString;
 };
 
-}
+} // namespace network
+} // namespace sc
 
 #endif

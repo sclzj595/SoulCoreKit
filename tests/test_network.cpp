@@ -5,11 +5,14 @@
 #include "soul/network/factory/network_factory.h"
 #include "soul/network/policy/timeout_policy.h"
 #include "soul/network/policy/retry_policy.h"
+#include "soul/network/policy/reconnect_policy.h"
+#include "soul/network/policy/heartbeat_policy.h"
 #include "soul/network/interceptor/logging_interceptor.h"
 #include "soul/network/interceptor/auth_interceptor.h"
 #include "soul/network/http/http_client_adapter.h"
 #include "soul/network/tcp/tcp_client_adapter.h"
 #include "soul/network/websocket/ws_client_adapter.h"
+#include "soul/network/pool/connection_pool.h"
 
 class TestNetwork : public QObject {
     Q_OBJECT
@@ -23,6 +26,9 @@ private slots:
     void testCreateUnknownProtocol();
     void testTimeoutPolicy();
     void testRetryPolicy();
+    void testRetryPolicyNextDelay();
+    void testReconnectPolicy();
+    void testHeartbeatPolicy();
     void testLoggingInterceptor();
     void testAuthInterceptor();
     void testHttpClientAdapterState();
@@ -30,6 +36,9 @@ private slots:
     void testHttpClientAdapterPolicy();
     void testTcpClientAdapterState();
     void testWsClientAdapterMessageType();
+    void testWsClientAdapterWithPolicy();
+    void testConnectionPool();
+    void testConnectionPoolMaxConnections();
 };
 
 void TestNetwork::testNetworkMessageFields() {
@@ -44,7 +53,7 @@ void TestNetwork::testNetworkMessageFields() {
     QCOMPARE(msg.payload, QByteArray("test payload"));
     QCOMPARE(msg.statusCode, 200);
     QCOMPARE(msg.message, QString("Success"));
-    QCOMPARE(msg.duration, (qint64)100);
+    QCOMPARE(msg.duration, static_cast<qint64>(100));
 }
 
 void TestNetwork::testMetadataStorage() {
@@ -140,13 +149,15 @@ void TestNetwork::testHttpClientAdapterState() {
 
 void TestNetwork::testHttpClientAdapterInterceptors() {
     sc::network::HttpClientAdapter adapter;
-    auto loggingInterceptor = std::make_shared<sc::network::LoggingInterceptor>();
-    auto authInterceptor = std::make_shared<sc::network::AuthInterceptor>("token");
+    auto authInterceptor = std::make_shared<sc::network::AuthInterceptor>("test-token");
     
-    adapter.addInterceptor(loggingInterceptor);
     adapter.addInterceptor(authInterceptor);
     
-    QVERIFY(true);
+    sc::network::NetworkMessage msg;
+    msg.api = "/api/test";
+    
+    auto result = adapter.send(msg);
+    QVERIFY(result.isOk());
 }
 
 void TestNetwork::testHttpClientAdapterPolicy() {
@@ -155,7 +166,11 @@ void TestNetwork::testHttpClientAdapterPolicy() {
     
     adapter.setPolicy(timeoutPolicy);
     
-    QVERIFY(true);
+    sc::network::NetworkMessage msg;
+    msg.api = "/api/test";
+    
+    auto result = adapter.send(msg);
+    QVERIFY(result.isOk());
 }
 
 void TestNetwork::testTcpClientAdapterState() {
@@ -182,6 +197,83 @@ void TestNetwork::testWsClientAdapterMessageType() {
     result = adapter.send(binaryMsg);
     QVERIFY(result.isOk());
     QCOMPARE(result.unwrap().metadata["messageType"].toString(), QString("binary"));
+}
+
+void TestNetwork::testRetryPolicyNextDelay() {
+    sc::network::RetryPolicy policy(5, sc::network::RetryStrategy::ExponentialBackoff);
+    policy.setBaseDelay(1000);
+    
+    int delay1 = policy.nextDelay(0);
+    int delay2 = policy.nextDelay(1);
+    int delay3 = policy.nextDelay(2);
+    
+    QVERIFY(delay1 > 0);
+    QVERIFY(delay2 >= delay1);
+    QVERIFY(delay3 >= delay2);
+}
+
+void TestNetwork::testReconnectPolicy() {
+    sc::network::ReconnectPolicy policy(true, std::chrono::milliseconds(5000), 3);
+    sc::network::NetworkMessage msg;
+    
+    policy.apply(msg);
+    
+    QVERIFY(msg.metadata.contains("reconnectInterval"));
+    QVERIFY(msg.metadata.contains("maxRetries"));
+    QCOMPARE(msg.metadata["reconnectInterval"].toInt(), 5000);
+    QCOMPARE(msg.metadata["maxRetries"].toInt(), 3);
+}
+
+void TestNetwork::testHeartbeatPolicy() {
+    sc::network::HeartbeatPolicy policy(10000, 30000);
+    sc::network::NetworkMessage msg;
+    
+    policy.apply(msg);
+    
+    QVERIFY(msg.metadata.contains("heartbeatInterval"));
+    QVERIFY(msg.metadata.contains("heartbeatTimeout"));
+    QCOMPARE(msg.metadata["heartbeatInterval"].toInt(), 10000);
+    QCOMPARE(msg.metadata["heartbeatTimeout"].toInt(), 30000);
+}
+
+void TestNetwork::testWsClientAdapterWithPolicy() {
+    sc::network::WsClientAdapter adapter;
+    auto heartbeatPolicy = std::make_shared<sc::network::HeartbeatPolicy>(5000, 15000);
+    
+    adapter.setPolicy(heartbeatPolicy);
+    
+    sc::network::NetworkMessage msg;
+    msg.payload = "ping";
+    
+    auto result = adapter.send(msg);
+    QVERIFY(result.isOk());
+}
+
+void TestNetwork::testConnectionPool() {
+    sc::network::ConnectionPool::Config config;
+    config.maxConnections = 10;
+    config.minConnections = 2;
+    sc::network::ConnectionPool pool(config);
+    
+    auto conn = pool.acquire(QUrl("http://localhost"));
+    QVERIFY(conn != nullptr);
+    
+    pool.release(conn);
+}
+
+void TestNetwork::testConnectionPoolMaxConnections() {
+    sc::network::ConnectionPool::Config config;
+    config.maxConnections = 5;
+    sc::network::ConnectionPool pool(config);
+    
+    QCOMPARE(pool.config().maxConnections, 5);
+    
+    for (int i = 0; i < 5; ++i) {
+        auto conn = pool.acquire(QUrl("http://localhost"));
+        QVERIFY(conn != nullptr);
+    }
+    
+    pool.closeAll();
 }
 
 QTEST_MAIN(TestNetwork)

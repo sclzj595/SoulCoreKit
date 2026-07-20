@@ -5,15 +5,20 @@
 #include <vector>
 #include <functional>
 #include <QUrl>
+#include "soul/network/network_global.h"
 #include "soul/network/core/inetwork.h"
 #include "soul/network/core/network_base.h"
 #include "soul/network/core/network_state.h"
+#include "soul/network/core/network_message.h"
 #include "soul/network/policy/inetwork_policy.h"
 #include "soul/network/interceptor/i_interceptor.h"
 
-namespace sc::network {
+namespace sc {
+namespace network {
 
-class NetworkAdapterBase : public NetworkBase, public INetwork {
+using NetworkInterceptor = IInterceptor<NetworkMessage, NetworkMessage>;
+
+class SC_NETWORK_EXPORT NetworkAdapterBase : public NetworkBase, public INetwork {
     Q_OBJECT
 public:
     explicit NetworkAdapterBase(QObject* parent = nullptr);
@@ -29,7 +34,7 @@ public:
     NetworkState state() const override;
 
     void setPolicy(std::shared_ptr<INetworkPolicy> policy) override;
-    void addInterceptor(std::shared_ptr<IInterceptor> interceptor) override;
+    void addInterceptor(std::shared_ptr<NetworkInterceptor> interceptor) override;
 
 protected:
     void updateState(NetworkState newState);
@@ -46,9 +51,10 @@ protected:
 private:
     NetworkState m_state = NetworkState::Created;
     std::shared_ptr<INetworkPolicy> m_policy;
-    std::vector<std::shared_ptr<IInterceptor>> m_interceptors;
+    std::vector<std::shared_ptr<NetworkInterceptor>> m_interceptors;
 };
 
-}
+} // namespace network
+} // namespace sc
 
 #endif

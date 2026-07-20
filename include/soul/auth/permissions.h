@@ -103,3 +103,12 @@ bool checkAll(const UserType& user, const QStringList& permissions) {
     for (const QString& permission : permissions) {
         if (!check(user, permission)) {
             return false;
+        }
+    }
+    return true;
+}
+
+} // namespace Permissions
+} // namespace sc
+
+#endif // SOUL_AUTH_PERMISSIONS_H

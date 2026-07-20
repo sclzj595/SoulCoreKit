@@ -29,7 +29,7 @@
 | Feature | Description |
 |---------|-------------|
 | **Modular Architecture** | 12 independent modules, combine as needed, low coupling and high cohesion |
-| **Protocol-Agnostic Network** | Unified HTTP/TCP/WebSocket interface with strategy pattern and interceptor chain |
+| **Protocol-Agnostic Network** | Unified HTTP/TCP/WebSocket interface with strategy pattern and interceptor chain, using `sc::network` nested namespace |
 | **Event-Driven Architecture** | Publish-subscribe based event bus with Qt signal bridging |
 | **Async Task Framework** | Thread pool based async execution with coroutine-style programming |
 | **Unified Error Handling** | `Result<T>` pattern for type-safe error propagation |
@@ -84,7 +84,7 @@
 | **soul_configuration** | Configuration management | `IConfiguration`, `JsonConfiguration`, `IniConfiguration` | 5 | ~200 |
 | **soul_async** | Async execution | `ThreadPool`, `TaskRunner`, `Future`, `Promise` | 8 | ~300 |
 | **soul_event** | Event bus | `EventBus`, `Subscription`, `QtSignalAdapter` | 6 | ~200 |
-| **soul_network** | Network communication | `INetwork`, `NetworkFactory`, policies/interceptors/adapters | 22 | ~800 |
+| **soul_network** | Network communication | `HttpClient`, `WebSocket`, `TcpClient`, `NetworkFactory`, policies/interceptors/adapters | 45+ | ~1200 |
 | **soul_storage** | Data storage | `IStorage`, `SqliteDatabase`, `Cache`, `Repository` | 9 | ~300 |
 | **soul_auth** | Authentication | `AuthManager`, `TokenManager`, `Permission` | 6 | ~200 |
 | **soul_ui** | User interface | 30+ UI components, Theme, Style, Animation | 40 | ~1200 |
@@ -143,36 +143,96 @@ target_link_libraries(MyApp PRIVATE SoulCoreKit)
 
 ## Usage Examples
 
-### Network Module
+### Network Module (HTTP Client)
 
 ```cpp
-#include "soul/network/soul_network.h"
+#include "soul/network/http_client.h"
+#include "soul/network/http_request.h"
+#include "soul/network/http_response.h"
 
-// Create network instances for different protocols
-auto http = sc::network::NetworkFactory::instance().create(QUrl("http://api.example.com"));
-auto tcp = sc::network::NetworkFactory::instance().create(QUrl("tcp://localhost:8080"));
-auto ws = sc::network::NetworkFactory::instance().create(QUrl("ws://localhost:8080"));
+// Create HTTP client
+sc::network::HttpClient client;
+client.setTimeout(30000);
+client.setRetryPolicy(sc::network::RetryPolicy(3));
 
-// Configure interceptors and policies
-http->addInterceptor(std::make_shared<sc::network::LoggingInterceptor>());
-http->setPolicy(std::make_shared<sc::network::RetryPolicy>(3));
+// Add interceptors
+client.addInterceptor(std::make_shared<sc::network::LoggingInterceptor>());
+client.addInterceptor(std::make_shared<sc::network::AuthInterceptor>());
 
-// Send message synchronously
-sc::network::NetworkMessage msg;
-msg.api = "/api/users";
-msg.payload = "{\"name\":\"test\"}";
-auto result = http->send(msg);
+// Build request
+sc::network::HttpRequest request(sc::network::HttpMethod::Get, QUrl("https://api.example.com/users"));
+request.addHeader("Accept", "application/json")
+       .addParam("page", 1)
+       .addParam("limit", 10);
 
+// Send synchronous request
+auto result = client.send(request);
 if (result.isOk()) {
-    qDebug() << result.unwrap().payload;
+    auto response = result.unwrap();
+    qDebug() << "Status:" << response.statusCode();
+    qDebug() << "Body:" << response.text();
+} else {
+    qDebug() << "Error:" << result.unwrapErr().message();
 }
 
-// Send message asynchronously
-http->sendAsync(msg, [](const sc::Result<sc::network::NetworkMessage>& result) {
+// Send asynchronous request
+client.sendAsync(request, [](const sc::Result<sc::network::HttpResponse>& result) {
     if (result.isOk()) {
-        qDebug() << result.unwrap().payload;
+        auto response = result.unwrap();
+        qDebug() << "Async Status:" << response.statusCode();
     }
 });
+```
+
+### Network Module (WebSocket)
+
+```cpp
+#include "soul/network/web_socket.h"
+#include "soul/network/policy/reconnect_policy.h"
+
+// Create WebSocket client with reconnect policy
+sc::network::WebSocket ws;
+ws.setReconnectPolicy(sc::network::ReconnectPolicy(true, std::chrono::seconds(5), 10));
+
+// Set callbacks
+ws.setMessageCallback([](const QString& message) {
+    qDebug() << "Received:" << message;
+});
+
+ws.setConnectedCallback([]() {
+    qDebug() << "Connected!";
+});
+
+ws.setDisconnectedCallback([]() {
+    qDebug() << "Disconnected!";
+});
+
+// Connect and send
+ws.connectToServer(QUrl("ws://localhost:8080"));
+ws.sendTextMessage("Hello World");
+```
+
+### Network Module (HTTP API)
+
+```cpp
+#include "soul/network/http_api.h"
+
+// Create API client
+auto client = std::make_shared<sc::network::HttpClient>();
+sc::network::HttpApi<void> api(client);
+
+// Chain API call
+api.get("/api/users")
+   .param("page", 1)
+   .param("limit", 10)
+   .header("Authorization", "Bearer token")
+   .onSuccess([](const QJsonDocument& data) {
+       qDebug() << "Users:" << data.toJson();
+   })
+   .onFailure([](const sc::Error& error) {
+       qDebug() << "API Error:" << error.message().c_str();
+   })
+   .execute();
 ```
 
 ### Error Handling
@@ -253,6 +313,7 @@ SC_LOG_FATAL("Fatal message");
 | `BUILD_TESTS` | Build test suite | ON |
 | `BUILD_EXAMPLES` | Build examples | ON |
 | `BUILD_DOCS` | Build documentation | OFF |
+| `BUILD_SHARED_LIBS` | Build shared libraries | OFF |
 
 ### Module Dependencies
 
@@ -303,6 +364,7 @@ Contributions are welcome! Please follow these guidelines:
 - Use `clang-format` for automatic formatting
 - Write unit tests for new features
 - Document public APIs with Doxygen
+- Use `sc::network` nested namespace for network module code
 
 ---
 
@@ -321,6 +383,6 @@ SoulCoreKit is licensed under the [MIT License](LICENSE).
 ---
 
 **Project**: SoulCoreKit  
-**Version**: 1.0.0  
+**Version**: 1.2.0 (Network Module Refactored)  
 **Maintainer**: SoulCoreKit Team  
-**Contact**: 2575060791@qq.com
+**Contact**: soulcorekit@gmail.com

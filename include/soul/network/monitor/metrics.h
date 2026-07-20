@@ -1,16 +1,29 @@
+﻿/**
+ * @file monitor/metrics.h
+ * @brief 网络指标类
+ * @details 定义网络性能指标的数据结构
+ * @author SoulCoreKit Team
+ * @date 2026-07-20
+ * @version 1.0.0
+ * @copyright MIT License
+ */
 #ifndef SOUL_NETWORK_MONITOR_METRICS_H
 #define SOUL_NETWORK_MONITOR_METRICS_H
 
+#include "soul/network/network_global.h"
+#include <cstdint>
 #include <atomic>
 #include <chrono>
 #include <mutex>
 #include <string>
+#include <memory>
 #include <unordered_map>
 #include <QDateTime>
 
-namespace sc::network {
+namespace sc {
+namespace network {
 
-struct MetricData {
+struct SC_NETWORK_EXPORT MetricData {
     int64_t qps{0};
     int64_t totalRequests{0};
     int64_t successRequests{0};
@@ -27,7 +40,7 @@ struct MetricData {
     void reset();
 };
 
-class Metrics : public std::enable_shared_from_this<Metrics> {
+class SC_NETWORK_EXPORT Metrics : public std::enable_shared_from_this<Metrics> {
 public:
     Metrics();
     
@@ -56,6 +69,7 @@ private:
     int64_t m_qpsCount{0};
 };
 
-}
+} // namespace network
+} // namespace sc
 
 #endif

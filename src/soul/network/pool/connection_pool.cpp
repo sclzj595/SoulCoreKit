@@ -2,7 +2,8 @@
 #include "soul/network/factory/network_factory.h"
 #include <chrono>
 
-namespace sc::network {
+namespace sc {
+namespace network {
 
 ConnectionPool::ConnectionPool(const Config& config)
     : QObject(nullptr), m_config(config) {
@@ -126,4 +127,5 @@ void ConnectionPool::cleanupIdleConnections() {
     }
 }
 
-}
+} // namespace network
+} // namespace sc

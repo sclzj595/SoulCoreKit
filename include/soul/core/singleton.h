@@ -2,97 +2,96 @@
 #define SOUL_CORE_SINGLETON_H
 
 #include <memory>
+#include <mutex>
+#include <vector>
+#include <functional>
+#include <algorithm>
 
 namespace sc {
 
-/**
- * @class Singleton
- * @brief 线程安全的单例模板
- *
- * 使用 Meyer's Singleton 模式实现线程安全的单例。
- * C++11 及以上保证静态局部变量初始化的线程安全性。
- *
- * 使用方式：
- * @code
- * class MyClass : public Singleton<MyClass> {
- *     friend class Singleton<MyClass>;
- * private:
- *     MyClass() = default;
- * };
- *
- * MyClass::instance().doSomething();
- * @endcode
- *
- * @tparam T 单例类型
- */
 template<typename T>
 class Singleton {
 public:
-    /**
-     * @brief 获取单例实例
-     * @return 单例对象的引用
-     */
     static T& instance() {
         static T inst;
         return inst;
     }
 
-    /**
-     * @brief 禁止拷贝构造
-     */
     Singleton(const Singleton&) = delete;
-
-    /**
-     * @brief 禁止赋值操作
-     */
     Singleton& operator=(const Singleton&) = delete;
 
 protected:
-    /**
-     * @brief 受保护的构造函数
-     */
     Singleton() = default;
-
-    /**
-     * @brief 受保护的析构函数
-     */
     ~Singleton() = default;
 };
 
-/**
- * @class SharedSingleton
- * @brief 线程安全的共享指针单例模板
- *
- * 与 Singleton 类似，但返回 std::shared_ptr<T>，适用于需要共享所有权的场景。
- *
- * 使用方式：
- * @code
- * class MyClass : public SharedSingleton<MyClass> {
- *     friend class SharedSingleton<MyClass>;
- * private:
- *     MyClass() = default;
- * };
- *
- * auto instance = MyClass::instance();
- * @endcode
- *
- * @tparam T 单例类型
- * @see Singleton
- */
+class SingletonRegistry {
+public:
+    static SingletonRegistry& instance() {
+        static SingletonRegistry inst;
+        return inst;
+    }
+
+    void registerShutdown(std::function<void()> shutdownFn) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_shutdownFns.push_back(std::move(shutdownFn));
+    }
+
+    void shutdownAll() {
+        std::vector<std::function<void()>> fns;
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            fns.swap(m_shutdownFns);
+        }
+        std::reverse(fns.begin(), fns.end());
+        for (auto& fn : fns) {
+            if (fn) fn();
+        }
+    }
+
+private:
+    SingletonRegistry() = default;
+    ~SingletonRegistry() = default;
+
+    std::mutex m_mutex;
+    std::vector<std::function<void()>> m_shutdownFns;
+};
+
 template<typename T>
 class SharedSingleton {
 public:
     static std::shared_ptr<T> instance() {
-        static std::shared_ptr<T> inst;
-        if (!inst) {
-            inst = std::make_shared<T>();
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (!m_instance) {
+            m_instance = std::make_shared<T>();
+            m_initialized = false;
         }
-        return inst;
+        return m_instance;
+    }
+
+    static void init() {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (m_instance && !m_initialized) {
+            m_instance->init();
+            m_initialized = true;
+            SingletonRegistry::instance().registerShutdown([]() {
+                destroy();
+            });
+        }
     }
 
     static void destroy() {
-        static std::shared_ptr<T>& inst = instance();
-        inst.reset();
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (m_instance) {
+            m_instance->shutdown();
+            m_instance.reset();
+            m_initialized = false;
+        }
+    }
+
+    static bool isInitialized() {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_initialized;
     }
 
     SharedSingleton(const SharedSingleton&) = delete;
@@ -101,7 +100,21 @@ public:
 protected:
     SharedSingleton() = default;
     ~SharedSingleton() = default;
+
+private:
+    static std::shared_ptr<T> m_instance;
+    static std::mutex m_mutex;
+    static bool m_initialized;
 };
+
+template<typename T>
+std::shared_ptr<T> SharedSingleton<T>::m_instance = nullptr;
+
+template<typename T>
+std::mutex SharedSingleton<T>::m_mutex;
+
+template<typename T>
+bool SharedSingleton<T>::m_initialized = false;
 
 }
 

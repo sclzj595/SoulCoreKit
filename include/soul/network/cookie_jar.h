@@ -1,3 +1,12 @@
+﻿/**
+ * @file cookie_jar.h
+ * @brief Cookie 管理类
+ * @details 继承 QNetworkCookieJar，提供 Cookie 的持久化和管理
+ * @author SoulCoreKit Team
+ * @date 2026-07-20
+ * @version 1.0.0
+ * @copyright MIT License
+ */
 #ifndef SOUL_NETWORK_COOKIE_JAR_H
 #define SOUL_NETWORK_COOKIE_JAR_H
 
@@ -6,10 +15,12 @@
 #include <QString>
 #include <QDateTime>
 #include <memory>
+#include "soul/network/network_global.h"
 
 namespace sc {
+namespace network {
 
-class CookieJar : public QNetworkCookieJar {
+class SC_NETWORK_EXPORT CookieJar : public QNetworkCookieJar {
     Q_OBJECT
 public:
     explicit CookieJar(QObject* parent = nullptr);
@@ -31,6 +42,7 @@ private:
     QString m_persistPath;
 };
 
-}
+} // namespace network
+} // namespace sc
 
 #endif

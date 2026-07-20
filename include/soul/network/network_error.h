@@ -1,10 +1,21 @@
+﻿/**
+ * @file network_error.h
+ * @brief 网络错误类
+ * @details 继承 Error 基类，定义网络模块专用错误码和错误处理
+ * @author SoulCoreKit Team
+ * @date 2026-07-20
+ * @version 1.0.0
+ * @copyright MIT License
+ */
 #ifndef SOUL_NETWORK_NETWORK_ERROR_H
 #define SOUL_NETWORK_NETWORK_ERROR_H
 
+#include "soul/network/network_global.h"
 #include <QString>
 #include "soul/core/error.h"
 
 namespace sc {
+namespace network {
 
 enum class NetworkErrorCode {
     Unknown = 1000,
@@ -21,10 +32,10 @@ enum class NetworkErrorCode {
     NotImplemented = 1011
 };
 
-class NetworkError : public Error {
+class SC_NETWORK_EXPORT NetworkError : public Error {
 public:
     NetworkError(NetworkErrorCode code, const QString& message);
-    NetworkError(NetworkErrorCode code, const QString& message, std::unique_ptr<Error> cause);
+    NetworkError(NetworkErrorCode code, const QString& message, std::shared_ptr<Error> cause);
 
     NetworkErrorCode networkCode() const;
     int httpStatusCode() const;
@@ -35,6 +46,7 @@ private:
     int m_httpStatusCode = 0;
 };
 
-}
+} // namespace network
+} // namespace sc
 
 #endif

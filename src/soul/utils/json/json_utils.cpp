@@ -1,7 +1,9 @@
 #include "soul/utils/json/json_utils.h"
 #include <QFile>
 
-namespace sc::utils::json {
+namespace sc {
+namespace utils {
+namespace json {
 
 QJsonDocument fromFile(const QString& filePath) {
     QFile file(filePath);
@@ -75,4 +77,6 @@ QString toCompactString(const QJsonDocument& doc) {
     return QString::fromUtf8(doc.toJson(QJsonDocument::Compact));
 }
 
-}
+} // namespace json
+} // namespace utils
+} // namespace sc

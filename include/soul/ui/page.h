@@ -3,9 +3,11 @@
 
 #include <QWidget>
 #include <QString>
-#include "soul/base/base_widget.h"
+#include "soul/ui/base_widget.h"
 
 namespace sc {
+
+using ui::BaseWidget;
 
 /**
  * @class Page

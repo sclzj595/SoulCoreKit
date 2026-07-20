@@ -1,3 +1,12 @@
+﻿/**
+ * @file uploader.h
+ * @brief 文件上传器类
+ * @details 封装 HTTP 文件上传功能，支持多文件上传和进度回调
+ * @author SoulCoreKit Team
+ * @date 2026-07-20
+ * @version 1.0.0
+ * @copyright MIT License
+ */
 #ifndef SOUL_NETWORK_UPLOADER_H
 #define SOUL_NETWORK_UPLOADER_H
 
@@ -7,10 +16,12 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <functional>
+#include "soul/network/network_global.h"
 
 namespace sc {
+namespace network {
 
-class Uploader : public QObject {
+class SC_NETWORK_EXPORT Uploader : public QObject {
     Q_OBJECT
 public:
     using ProgressCallback = std::function<void(qint64 uploaded, qint64 total)>;
@@ -66,6 +77,7 @@ private:
     CompleteCallback m_completeCallback;
 };
 
-}
+} // namespace network
+} // namespace sc
 
 #endif

@@ -4,7 +4,8 @@
 #include <variant>
 #include <string>
 #include <optional>
-#include <stdexcept>
+#include <cassert>
+#include <cstdlib>
 #include <functional>
 
 #include "soul/core/error.h"
@@ -27,12 +28,16 @@ public:
     bool isErr() const { return m_isErr; }
 
     Error& unwrapErr() {
-        if (!m_isErr) throw std::runtime_error("Result is Ok");
+        if (!m_isErr) {
+            std::abort();
+        }
         return m_error;
     }
 
     const Error& unwrapErr() const {
-        if (!m_isErr) throw std::runtime_error("Result is Ok");
+        if (!m_isErr) {
+            std::abort();
+        }
         return m_error;
     }
 
@@ -75,22 +80,30 @@ public:
     bool isErr() const { return std::holds_alternative<Error>(m_data); }
 
     T& unwrap() {
-        if (isErr()) throw std::runtime_error("Result is Err");
+        if (!isOk()) {
+            std::abort();
+        }
         return std::get<T>(m_data);
     }
 
     const T& unwrap() const {
-        if (isErr()) throw std::runtime_error("Result is Err");
+        if (!isOk()) {
+            std::abort();
+        }
         return std::get<T>(m_data);
     }
 
     Error& unwrapErr() {
-        if (isOk()) throw std::runtime_error("Result is Ok");
+        if (!isErr()) {
+            std::abort();
+        }
         return std::get<Error>(m_data);
     }
 
     const Error& unwrapErr() const {
-        if (isOk()) throw std::runtime_error("Result is Ok");
+        if (!isErr()) {
+            std::abort();
+        }
         return std::get<Error>(m_data);
     }
 

@@ -13,6 +13,7 @@ Result<void> IniConfiguration::load(const QString& filePath) {
 }
 
 Result<void> IniConfiguration::save(const QString& filePath) {
+    Q_UNUSED(filePath);
     if (m_settings) {
         m_settings->sync();
     }

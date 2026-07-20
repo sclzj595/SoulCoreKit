@@ -1,6 +1,7 @@
 #include "soul/network/interceptor/auth_interceptor.h"
 
-namespace sc::network {
+namespace sc {
+namespace network {
 
 AuthInterceptor::AuthInterceptor() {}
 
@@ -25,4 +26,5 @@ QString AuthInterceptor::token() const {
     return m_token;
 }
 
-}
+} // namespace network
+} // namespace sc

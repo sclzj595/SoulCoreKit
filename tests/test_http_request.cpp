@@ -15,15 +15,15 @@ private slots:
 };
 
 void TestHttpRequest::testUrlBuilding() {
-    sc::HttpRequest request(sc::HttpMethod::Get, QUrl("https://api.example.com/users"));
-    
-    QCOMPARE(request.method(), sc::HttpMethod::Get);
+    sc::network::HttpRequest request(sc::network::HttpMethod::Get, QUrl("https://api.example.com/users"));
+
+    QCOMPARE(request.method(), sc::network::HttpMethod::Get);
     QCOMPARE(request.url().toString(), QString("https://api.example.com/users"));
 }
 
 void TestHttpRequest::testQueryParams() {
-    sc::HttpRequest request(sc::HttpMethod::Get, QUrl("https://api.example.com/users"));
-    
+    sc::network::HttpRequest request(sc::network::HttpMethod::Get, QUrl("https://api.example.com/users"));
+
     request.addParam("page", "1");
     request.addParam("limit", "10");
     request.addParam("sort", "name");
@@ -36,8 +36,8 @@ void TestHttpRequest::testQueryParams() {
 }
 
 void TestHttpRequest::testHeaders() {
-    sc::HttpRequest request;
-    
+    sc::network::HttpRequest request;
+
     request.addHeader("Authorization", "Bearer token");
     request.addHeader("Content-Type", "application/json");
 
@@ -48,7 +48,7 @@ void TestHttpRequest::testHeaders() {
 }
 
 void TestHttpRequest::testJsonBody() {
-    sc::HttpRequest request(sc::HttpMethod::Post, QUrl("https://api.example.com/users"));
+    sc::network::HttpRequest request(sc::network::HttpMethod::Post, QUrl("https://api.example.com/users"));
     
     QJsonObject json;
     json["name"] = "John";

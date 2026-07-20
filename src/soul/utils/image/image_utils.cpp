@@ -38,9 +38,9 @@ QImage ImageUtils::toSepia(const QImage& image) {
             int r = qRed(line[x]);
             int g = qGreen(line[x]);
             int b = qBlue(line[x]);
-            int tr = qMin(255, (int)(0.393 * r + 0.769 * g + 0.189 * b));
-            int tg = qMin(255, (int)(0.349 * r + 0.686 * g + 0.168 * b));
-            int tb = qMin(255, (int)(0.272 * r + 0.534 * g + 0.131 * b));
+            int tr = qMin(255, static_cast<int>(0.393 * r + 0.769 * g + 0.189 * b));
+            int tg = qMin(255, static_cast<int>(0.349 * r + 0.686 * g + 0.168 * b));
+            int tb = qMin(255, static_cast<int>(0.272 * r + 0.534 * g + 0.131 * b));
             line[x] = qRgb(tr, tg, tb);
         }
     }
@@ -104,4 +104,4 @@ QColor ImageUtils::averageColor(const QImage& image) {
     return QColor(r / count, g / count, b / count);
 }
 
-}
+} // namespace sc
