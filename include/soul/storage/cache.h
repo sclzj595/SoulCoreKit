@@ -3,12 +3,23 @@
 
 #include <QString>
 #include <QByteArray>
+#include <QHash>
 #include <unordered_map>
 #include <list>
 #include <mutex>
 #include <chrono>
 #include "soul/core/interface.h"
 #include "soul/core/result.h"
+
+// std::hash<QString> 特化：使 std::unordered_map<QString, ...> 能在 GCC/Clang 下编译
+namespace std {
+template<>
+struct hash<QString> {
+    size_t operator()(const QString& s) const noexcept {
+        return qHash(s);
+    }
+};
+} // namespace std
 
 namespace sc {
 
