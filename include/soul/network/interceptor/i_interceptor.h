@@ -1,9 +1,7 @@
 #ifndef SOUL_NETWORK_INTERCEPTOR_I_INTERCEPTOR_H
 #define SOUL_NETWORK_INTERCEPTOR_I_INTERCEPTOR_H
 
-#ifndef Q_MOC_RUN
 #include "soul/core/interface.h"
-#endif
 
 namespace sc {
 namespace network {

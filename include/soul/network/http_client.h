@@ -16,9 +16,7 @@
 #include "soul/network/http_response.h"
 #include "soul/network/http/http_interceptor.h"
 #include "soul/network/policy/retry_policy.h"
-#ifndef Q_MOC_RUN
 #include "soul/core/result.h"
-#endif
 #include <QNetworkAccessManager>
 #include <memory>
 #include <functional>

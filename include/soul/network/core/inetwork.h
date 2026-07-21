@@ -13,10 +13,8 @@
 #include <memory>
 #include <functional>
 #include <QUrl>
-#ifndef Q_MOC_RUN
 #include "soul/core/interface.h"
 #include "soul/core/result.h"
-#endif
 #include "soul/network/core/network_message.h"
 #include "soul/network/core/network_state.h"
 #include "soul/network/policy/inetwork_policy.h"

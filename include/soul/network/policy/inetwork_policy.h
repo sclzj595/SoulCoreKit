@@ -10,9 +10,7 @@
 #ifndef SOUL_NETWORK_POLICY_INETWORK_POLICY_H
 #define SOUL_NETWORK_POLICY_INETWORK_POLICY_H
 
-#ifndef Q_MOC_RUN
 #include "soul/core/interface.h"
-#endif
 #include "soul/network/core/network_message.h"
 
 namespace sc {

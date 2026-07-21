@@ -20,9 +20,7 @@
 #include <QObject>
 #include <QThread>
 #include <cstdint>
-#ifndef Q_MOC_RUN
 #include "soul/network/core/inetwork.h"
-#endif
 
 namespace sc {
 namespace network {

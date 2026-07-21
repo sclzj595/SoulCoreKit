@@ -5,10 +5,8 @@
 #include "soul/network/http_client.h"
 #include "soul/network/http_request.h"
 #include "soul/network/http_response.h"
-#ifndef Q_MOC_RUN
 #include "soul/core/result.h"
 #include "soul/core/error.h"
-#endif
 #include <functional>
 #include <memory>
 

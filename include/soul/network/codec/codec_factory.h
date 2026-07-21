@@ -12,9 +12,7 @@
 
 #include <memory>
 #include <QString>
-#ifndef Q_MOC_RUN
 #include "soul/core/singleton.h"
-#endif
 #include "icodec.h"
 
 namespace sc {

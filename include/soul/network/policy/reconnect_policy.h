@@ -1,4 +1,4 @@
-﻿﻿/**
+/**
  * @file policy/reconnect_policy.h
  * @brief 重连策略类
  * @details 管理 WebSocket/TCP 连接断开后的自动重连逻辑

@@ -15,9 +15,7 @@
 #include <QObject>
 #include "soul/network/network_global.h"
 #include "inetwork_policy.h"
-#ifndef Q_MOC_RUN
 #include "soul/network/core/inetwork.h"
-#endif
 
 namespace sc {
 namespace network {

@@ -10,9 +10,7 @@
 #ifndef SOUL_NETWORK_CODEC_ICODEC_H
 #define SOUL_NETWORK_CODEC_ICODEC_H
 
-#ifndef Q_MOC_RUN
 #include "soul/core/interface.h"
-#endif
 #include "soul/network/core/network_message.h"
 
 namespace sc {

@@ -12,9 +12,7 @@
 
 #include "soul/network/network_global.h"
 #include <QString>
-#ifndef Q_MOC_RUN
 #include "soul/core/error.h"
-#endif
 
 namespace sc {
 namespace network {

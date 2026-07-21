@@ -12,9 +12,7 @@
 
 #include <memory>
 #include <QUrl>
-#ifndef Q_MOC_RUN
 #include "soul/core/singleton.h"
-#endif
 #include "soul/network/core/inetwork.h"
 #include "soul/network/http/http_client_adapter.h"
 #include "soul/network/tcp/tcp_client_adapter.h"
