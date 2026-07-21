@@ -1,0 +1,142 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  build-ubuntu:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.5.3'
+          host: 'linux'
+          target: 'desktop'
+          arch: 'gcc_64'
+          modules: 'qtwebsockets'
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            g++ \
+            lcov \
+            libssl-dev
+
+      - name: Configure
+        run: |
+          cmake -S . -B build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTS=ON \
+            -DENABLE_WARNINGS=ON \
+            -DENABLE_LTO=ON
+
+      - name: Build
+        run: cmake --build build -j$(nproc)
+
+      - name: Run tests
+        run: |
+          cd build
+          ctest --output-on-failure
+
+      - name: Build with coverage
+        run: |
+          cmake -S . -B build-coverage \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DBUILD_TESTS=ON \
+            -DENABLE_COVERAGE=ON
+          cmake --build build-coverage -j$(nproc)
+
+      - name: Generate coverage report
+        run: |
+          cd build-coverage
+          ctest
+          lcov --directory . --capture --output-file coverage.info
+          lcov --remove coverage.info '/usr/*' '*build-coverage/*' '*test*' --output-file coverage.info.cleaned
+          genhtml -o coverage_report coverage.info.cleaned
+
+  build-windows:
+    runs-on: windows-2019  # ✅ 固定 MSVC2019 环境：windows-2019 预装完整 VS2019 + VC142 Toolset
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.5.3'   # ✅ 固定 Qt 6.5.3 LTS
+          target: 'desktop'
+          arch: 'win64_msvc2019_64'  # ✅ 固定 MSVC2019 ABI Qt，与 windows-2019 工具链完全一致
+          modules: 'qtwebsockets'    # ✅ 不使用 --autodesktop，避免 aqt metadata 解析失败
+
+      - name: Configure
+        run: |
+          # ✅ 纯 MSVC2019 工具链：VS2019 生成器 + x64，与 Qt MSVC2019 ABI 完全匹配
+          cmake -S . -B build `
+            -G "Visual Studio 16 2019" `
+            -A x64 `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DBUILD_TESTS=ON `
+            -DENABLE_WARNINGS=ON
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Run tests
+        run: |
+          cd build
+          ctest -C Release --output-on-failure
+
+  build-macos:
+    runs-on: macos-13  # ✅ 固定 macOS 13（Intel），避免 macos-latest 升级导致 AppleClang 版本漂移
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.5.3'
+          host: 'mac'
+          target: 'desktop'
+          arch: 'clang_64'
+          modules: 'qtwebsockets'
+
+      - name: Configure
+        run: |
+          cmake -S . -B build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTS=ON \
+            -DENABLE_WARNINGS=ON \
+            -DENABLE_LTO=ON
+
+      - name: Build
+        run: cmake --build build -j$(sysctl -n hw.ncpu)
+
+      - name: Run tests
+        run: |
+          cd build
+          ctest --output-on-failure
+
+  format-check:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format-14
+
+      - name: Check formatting
+        run: |
+          find . \( -name "*.cpp" -o -name "*.h" \) -not -path "./build/*" -not -path "./.git/*" | xargs clang-format-14 --dry-run --Werror

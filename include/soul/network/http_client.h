@@ -1,6 +1,17 @@
+/**
+ * @file http_client.h
+ * @brief HTTP 客户端类
+ * @details 封装 Qt 的 QNetworkAccessManager，提供同步/异步 HTTP 请求、拦截器支持和重试策略
+ * @author SoulCoreKit Team
+ * @date 2026-07-20
+ * @version 1.0.0
+ * @copyright MIT License
+ */
+
 #ifndef SOUL_NETWORK_HTTP_CLIENT_H
 #define SOUL_NETWORK_HTTP_CLIENT_H
 
+#include "soul/network/network_global.h"
 #include "soul/network/http_request.h"
 #include "soul/network/http_response.h"
 #include "soul/network/http/http_interceptor.h"
@@ -12,6 +23,7 @@
 #include <vector>
 
 namespace sc {
+namespace network {
 
 /**
  * @class HttpClient
@@ -44,7 +56,7 @@ namespace sc {
  *
  * @see HttpRequest, HttpResponse, IInterceptor, RetryPolicy
  */
-class HttpClient : public QObject {
+class SC_NETWORK_EXPORT HttpClient : public QObject {
     Q_OBJECT
 public:
     /**
@@ -67,6 +79,11 @@ public:
      * @brief 发送同步 HTTP 请求
      * @param request HTTP 请求
      * @return 包含响应的 Result
+     * 
+     * @warning 此方法会阻塞调用线程直到请求完成或超时。
+     *          强烈建议在工作线程中调用，不要在 GUI 线程（主线程）中使用，
+     *          否则会导致界面冻结。
+     *          推荐使用 sendAsync() 方法进行异步请求。
      */
     Result<HttpResponse> send(const HttpRequest& request);
 
@@ -78,28 +95,36 @@ public:
     void sendAsync(const HttpRequest& request, ResponseCallback callback);
 
     /**
+     * @brief 发送异步 HTTP 请求（带重试计数）
+     * @param request HTTP 请求
+     * @param callback 响应回调函数
+     * @param retryCount 当前重试次数
+     */
+    void sendAsync(const HttpRequest& request, ResponseCallback callback, int retryCount);
+
+    /**
      * @brief 添加请求拦截器
      * @param interceptor 拦截器
      */
-    void addInterceptor(std::shared_ptr<network::HttpInterceptor> interceptor);
+    void addInterceptor(std::shared_ptr<HttpInterceptor> interceptor);
 
     /**
      * @brief 移除请求拦截器
      * @param interceptor 拦截器指针
      */
-    void removeInterceptor(network::HttpInterceptor* interceptor);
+    void removeInterceptor(HttpInterceptor* interceptor);
 
     /**
      * @brief 设置重试策略
      * @param policy 重试策略
      */
-    void setRetryPolicy(const network::RetryPolicy& policy);
+    void setRetryPolicy(const RetryPolicy& policy);
 
     /**
      * @brief 获取重试策略
      * @return 当前重试策略
      */
-    network::RetryPolicy retryPolicy() const;
+    RetryPolicy retryPolicy() const;
 
     /**
      * @brief 设置超时时间
@@ -120,11 +145,12 @@ private:
     void setupSslConfiguration();
 
     QNetworkAccessManager* m_manager = nullptr;
-    std::vector<std::shared_ptr<network::HttpInterceptor>> m_interceptors;
-    network::RetryPolicy m_retryPolicy;
+    std::vector<std::shared_ptr<HttpInterceptor>> m_interceptors;
+    RetryPolicy m_retryPolicy;
     int m_timeout = 30000;
 };
 
-}
+} // namespace network
+} // namespace sc
 
 #endif

@@ -5,13 +5,20 @@
 #include <cstring>
 #ifdef _WIN32
 #include <windows.h>
+#else
+#include <unistd.h>
 #endif
+
+#include <QByteArray>        // QByteArray（qgetenv 返回类型，避免 incomplete type）
+#include <QCoreApplication>  // qgetenv 声明所在头文件
+#include <QtCore/qglobal.h>  // qgetenv
 
 namespace sc {
 
 std::string Environment::get(const std::string& key, const std::string& defaultValue) {
-    const char* value = std::getenv(key.c_str());
-    return value ? std::string(value) : defaultValue;
+    // 使用 Qt 的 qgetenv 跨平台获取环境变量，规避 MSVC C4996 警告
+    QByteArray value = qgetenv(key.c_str());
+    return value.isNull() ? defaultValue : std::string(value.constData(), static_cast<size_t>(value.size()));
 }
 
 void Environment::set(const std::string& key, const std::string& value) {
@@ -23,7 +30,7 @@ void Environment::set(const std::string& key, const std::string& value) {
 }
 
 bool Environment::contains(const std::string& key) {
-    return std::getenv(key.c_str()) != nullptr;
+    return !qgetenv(key.c_str()).isNull();
 }
 
 std::string Environment::getExecutablePath() {

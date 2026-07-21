@@ -86,38 +86,21 @@ private:
  */
 class IEventBus : public IInterface {
 public:
-    /**
-     * @brief 事件处理函数类型
-     * @param data 事件数据（字符串格式）
-     */
     using Handler = std::function<void(const std::string&)>;
 
-    /**
-     * @brief 虚析构函数
-     */
     ~IEventBus() override = default;
 
-    /**
-     * @brief 订阅指定主题
-     * @param topic 事件主题
-     * @param handler 事件处理函数
-     * @return 订阅对象
-     */
     virtual Subscription subscribe(const std::string& topic, const Handler& handler) = 0;
 
-    /**
-     * @brief 发布事件到指定主题
-     * @param topic 事件主题
-     * @param data 事件数据
-     */
     virtual void publish(const std::string& topic, const std::string& data) = 0;
 
-    /**
-     * @brief 获取指定主题的订阅者数量
-     * @param topic 事件主题
-     * @return 订阅者数量
-     */
+    virtual void publishAsync(const std::string& topic, const std::string& data) = 0;
+
     virtual size_t subscriberCount(const std::string& topic) const = 0;
+
+    std::string interfaceName() const override {
+        return "IEventBus";
+    }
 };
 
 /**
@@ -175,17 +158,10 @@ public:
      */
     void publish(const std::string& topic, const std::string& data) override;
 
-    /**
-     * @brief 获取指定主题的订阅者数量
-     * @param topic 事件主题
-     * @return 订阅者数量
-     */
+    void publishAsync(const std::string& topic, const std::string& data) override;
+
     size_t subscriberCount(const std::string& topic) const override;
 
-    /**
-     * @brief 获取接口名称
-     * @return 接口名称 "IEventBus"
-     */
     std::string interfaceName() const override { return "IEventBus"; }
 
 private:

@@ -1,3 +1,12 @@
+/**
+ * @file factory/network_factory.h
+ * @brief 网络工厂类
+ * @details 工厂模式，根据 URL 协议创建对应的网络客户端
+ * @author SoulCoreKit Team
+ * @date 2026-07-20
+ * @version 1.0.0
+ * @copyright MIT License
+ */
 #ifndef SOUL_NETWORK_FACTORY_NETWORK_FACTORY_H
 #define SOUL_NETWORK_FACTORY_NETWORK_FACTORY_H
 
@@ -13,7 +22,8 @@
 #include "soul/network/serial/serial_port_adapter.h"
 #include "soul/network/namedpipe/named_pipe_adapter.h"
 
-namespace sc::network {
+namespace sc {
+namespace network {
 
 class NetworkFactory : public Singleton<NetworkFactory> {
 public:
@@ -30,52 +40,16 @@ public:
         NamedPipe
     };
 
-    std::shared_ptr<INetwork> create(const QUrl& url) {
-        Protocol protocol = detectProtocol(url);
-        return create(protocol);
-    }
-
-    std::shared_ptr<INetwork> create(Protocol protocol) {
-        switch (protocol) {
-        case Protocol::HTTP:
-        case Protocol::HTTPS:
-            return std::make_shared<HttpClientAdapter>();
-        case Protocol::TCP:
-            return std::make_shared<TcpClientAdapter>();
-        case Protocol::WebSocket:
-        case Protocol::WSS:
-            return std::make_shared<WsClientAdapter>();
-        case Protocol::MQTT:
-        case Protocol::MQTTS:
-            return std::make_shared<MqttClientAdapter>();
-        case Protocol::Bluetooth:
-            return std::make_shared<BluetoothClientAdapter>();
-        case Protocol::SerialPort:
-            return std::make_shared<SerialPortAdapter>();
-        case Protocol::NamedPipe:
-            return std::make_shared<NamedPipeAdapter>();
-        default:
-            return std::make_shared<HttpClientAdapter>();
-        }
-    }
+    std::shared_ptr<INetwork> create(const QUrl& url);
+    std::shared_ptr<INetwork> create(Protocol protocol);
+    Protocol detectProtocol(const QUrl& url);
+    std::string protocolToString(Protocol protocol) const;
 
 private:
-    Protocol detectProtocol(const QUrl& url) {
-        QString scheme = url.scheme().toLower();
-        if (scheme == "http") return Protocol::HTTP;
-        if (scheme == "https") return Protocol::HTTPS;
-        if (scheme == "tcp") return Protocol::TCP;
-        if (scheme == "ws") return Protocol::WebSocket;
-        if (scheme == "wss") return Protocol::WSS;
-        if (scheme == "mqtt") return Protocol::MQTT;
-        if (scheme == "mqtts") return Protocol::MQTTS;
-        if (scheme == "bluetooth") return Protocol::Bluetooth;
-        if (scheme == "serial") return Protocol::SerialPort;
-        if (scheme == "pipe") return Protocol::NamedPipe;
-        return Protocol::HTTP;
-    }
+    void registerDefaultProtocols();
 };
 
-}
+} // namespace network
+} // namespace sc
 
 #endif
