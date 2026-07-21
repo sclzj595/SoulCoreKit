@@ -127,6 +127,7 @@ bool PluginManager::loadNativePlugin(const std::string& path)
         if (pluginInstance) {
             handlePtr->plugin = std::shared_ptr<IPlugin>(static_cast<IPlugin*>(pluginInstance),
                 [](IPlugin* p) {
+                    (void)p;
                 });
         }
     }
