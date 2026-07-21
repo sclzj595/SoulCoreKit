@@ -11,7 +11,7 @@ on:
 jobs:
   build-windows:
     name: Build on Windows
-    runs-on: windows-2022  # ✅ 固定 Runner：windows-2022 同时预装 VS2022 + VC143/VC142 Toolset，避免 windows-latest 升级导致工具链漂移
+    runs-on: windows-2019  # ✅ 固定 MSVC2019 环境：windows-2019 预装完整 VS2019 + VC142 Toolset，不依赖 VS2022
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -22,36 +22,27 @@ jobs:
           version: '6.5.3'      # ✅ 固定 Qt 6.5.3 LTS
           host: 'windows'
           target: 'desktop'
-          arch: 'win64_msvc2019_64'  # ✅ 固定 MSVC2019 ABI 构建的 Qt，与 VC142 Toolset ABI 一致
+          arch: 'win64_msvc2019_64'  # ✅ 固定 MSVC2019 ABI 构建的 Qt，与 windows-2019 工具链完全一致
           modules: 'qtwebsockets'    # ✅ 只保留有效的附加模块（不使用 --autodesktop，避免 aqt metadata 解析失败）
 
       - name: Configure CMake
         run: |
-          # 工具链对齐：VS2022 Generator + v142 Toolset（MSVC2019） + x64
-          # 这样 VS2022 Runner + VC142 Toolset + MSVC2019 ABI Qt 全链路一致
-          cmake -B build ^
-            -G "Visual Studio 17 2022" ^
-            -T v142 ^
-            -A x64 ^
-            -DCMAKE_BUILD_TYPE=Release
+          # ✅ 纯 MSVC2019 工具链：VS2019 生成器 + x64，与 Qt MSVC2019 ABI 完全匹配
+          cmake -B build `
+            -G "Visual Studio 16 2019" `
+            -A x64 `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DBUILD_TESTS=ON `
+            -DENABLE_WARNINGS=ON
 
       - name: Build
         run: |
           cmake --build build --config Release --parallel 4
 
       - name: Run tests
-        working-directory: build/tests
         run: |
-          .\test_result.exe
-          .\test_logger.exe
-          .\test_storage.exe
-          .\test_event_bus.exe
-          .\test_http_request.exe
-          .\test_network.exe
-          .\test_async.exe
-          .\test_auth.exe
-          .\test_cache.exe
-          .\test_typed_event_bus.exe
+          cd build
+          ctest -C Release --output-on-failure
 
   build-linux:
     name: Build on Linux
@@ -67,38 +58,34 @@ jobs:
           host: 'linux'
           target: 'desktop'
           arch: 'gcc_64'
-          modules: 'qtwebsockets'  # ✅ 只保留有效的附加模块
+          modules: 'qtwebsockets'
 
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake build-essential libssl-dev
+          sudo apt-get install -y cmake ninja-build build-essential libssl-dev
 
       - name: Configure CMake
         run: |
-          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake -B build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTS=ON \
+            -DENABLE_WARNINGS=ON \
+            -DENABLE_LTO=ON
 
       - name: Build
         run: |
-          cmake --build build --config Release --parallel 4
+          cmake --build build -j$(nproc)
 
       - name: Run tests
-        working-directory: build/tests
         run: |
-          ./test_result
-          ./test_logger
-          ./test_storage
-          ./test_event_bus
-          ./test_http_request
-          ./test_network
-          ./test_async
-          ./test_auth
-          ./test_cache
-          ./test_typed_event_bus
+          cd build
+          ctest --output-on-failure
 
   build-macos:
     name: Build on macOS
-    runs-on: macos-13  # ✅ 固定 macOS 13（Intel），避免 macos-latest 升级到 14/15 导致 AppleClang 版本漂移
+    runs-on: macos-13  # ✅ 固定 macOS 13（Intel），避免 macos-latest 升级导致 AppleClang 版本漂移
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -107,29 +94,25 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.5.3'
-          host: 'mac'  # ✅ 从 'macos' 改为 'mac'
+          host: 'mac'
           target: 'desktop'
           arch: 'clang_64'
-          modules: 'qtwebsockets'  # ✅ 只保留有效的附加模块
+          modules: 'qtwebsockets'
 
       - name: Configure CMake
         run: |
-          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake -B build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTS=ON \
+            -DENABLE_WARNINGS=ON \
+            -DENABLE_LTO=ON
 
       - name: Build
         run: |
-          cmake --build build --config Release --parallel 4
+          cmake --build build -j$(sysctl -n hw.ncpu)
 
       - name: Run tests
-        working-directory: build/tests
         run: |
-          ./test_result
-          ./test_logger
-          ./test_storage
-          ./test_event_bus
-          ./test_http_request
-          ./test_network
-          ./test_async
-          ./test_auth
-          ./test_cache
-          ./test_typed_event_bus
+          cd build
+          ctest --output-on-failure

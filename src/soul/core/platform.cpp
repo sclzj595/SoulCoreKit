@@ -38,16 +38,15 @@ std::string Platform::osName() {
 }
 
 std::string Platform::osVersion() {
-    // 使用 Qt 跨平台 API 替换已废弃的 GetVersionEx
-    const auto version = QOperatingSystemVersion::current();
 #ifdef _WIN32
-    // Windows 11 内部版本号 >= 22000
+    const auto version = QOperatingSystemVersion::current();
     if (version.majorVersion() >= 10) {
         if (version.microVersion() >= 22000) return "11";
         return "10";
     }
     return std::to_string(version.majorVersion()) + "." + std::to_string(version.minorVersion());
 #elif __APPLE__
+    const auto version = QOperatingSystemVersion::current();
     return std::to_string(version.majorVersion()) + "." + std::to_string(version.minorVersion());
 #elif __linux__
     utsname info;
