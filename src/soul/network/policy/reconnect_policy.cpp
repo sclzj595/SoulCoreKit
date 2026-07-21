@@ -12,6 +12,9 @@ void ReconnectPolicy::setEnabled(bool enabled) { m_enabled = enabled; }
 std::chrono::milliseconds ReconnectPolicy::baseInterval() const { return m_baseInterval; }
 void ReconnectPolicy::setBaseInterval(std::chrono::milliseconds interval) { m_baseInterval = interval; }
 
+std::chrono::milliseconds ReconnectPolicy::maxInterval() const { return m_maxInterval; }
+void ReconnectPolicy::setMaxInterval(std::chrono::milliseconds interval) { m_maxInterval = interval; }
+
 int ReconnectPolicy::maxRetries() const { return m_maxRetries; }
 void ReconnectPolicy::setMaxRetries(int maxRetries) { m_maxRetries = maxRetries; }
 
