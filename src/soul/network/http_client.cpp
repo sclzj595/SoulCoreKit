@@ -5,14 +5,10 @@
 #include <QEventLoop>
 #include <QTimer>
 #include <QThread>
+#include "soul/logging/logger.h"
 
 namespace sc {
-
-HttpClient::HttpClient(QObject* parent) : QObject(parent) {
-    m_manager = new QNetworkAccessManager(this);
-}
-
-HttpClient::~HttpClient() {}
+namespace network {
 
 namespace {
 
@@ -47,9 +43,44 @@ bool shouldRetry(QNetworkReply::NetworkError error) {
            error == QNetworkReply::NetworkError::NetworkSessionFailedError;
 }
 
+HttpResponse buildResponse(QNetworkReply* reply) {
+    HttpResponse response;
+    response.setStatusCode(reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt());
+    response.setBody(reply->readAll());
+
+    QList<QNetworkReply::RawHeaderPair> headers = reply->rawHeaderPairs();
+    QMap<QString, QString> headerMap;
+    for (const auto& pair : headers) {
+        headerMap[QString::fromUtf8(pair.first)] = QString::fromUtf8(pair.second);
+    }
+    response.setHeaders(headerMap);
+
+    return response;
+}
+
+}
+
+HttpClient::HttpClient(QObject* parent) : QObject(parent) {
+    m_manager = new QNetworkAccessManager(this);
+    setupSslConfiguration();
+}
+
+HttpClient::~HttpClient() {}
+
+void HttpClient::setupSslConfiguration() {
+    QSslConfiguration config = QSslConfiguration::defaultConfiguration();
+    config.setProtocol(QSsl::TlsV1_2OrLater);
+    config.setPeerVerifyMode(QSslSocket::VerifyPeer);
+    config.setPeerVerifyDepth(4);
+    QSslConfiguration::setDefaultConfiguration(config);
 }
 
 Result<HttpResponse> HttpClient::send(const HttpRequest& request) {
+#ifdef QT_DEBUG
+    if (QThread::currentThread() == qApp->thread()) {
+        Logger::instance().warn("HttpClient::send() is called in GUI thread, consider using sendAsync()", "HttpClient");
+    }
+#endif
     HttpRequest mutableRequest = request;
 
     for (const auto& interceptor : m_interceptors) {
@@ -105,16 +136,7 @@ Result<HttpResponse> HttpClient::send(const HttpRequest& request) {
             return Result<HttpResponse>(Error(ErrorCode::NetworkError, errorStr.toStdString()));
         }
 
-        HttpResponse response;
-        response.setStatusCode(reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt());
-        response.setBody(reply->readAll());
-
-        QList<QNetworkReply::RawHeaderPair> headers = reply->rawHeaderPairs();
-        QMap<QString, QString> headerMap;
-        for (const auto& pair : headers) {
-            headerMap[QString::fromUtf8(pair.first)] = QString::fromUtf8(pair.second);
-        }
-        response.setHeaders(headerMap);
+        HttpResponse response = buildResponse(reply);
 
         for (const auto& interceptor : m_interceptors) {
             interceptor->onResponse(response);
@@ -126,13 +148,22 @@ Result<HttpResponse> HttpClient::send(const HttpRequest& request) {
 }
 
 void HttpClient::sendAsync(const HttpRequest& request, ResponseCallback callback) {
+    sendAsync(request, callback, 0);
+}
+
+void HttpClient::sendAsync(const HttpRequest& request, ResponseCallback callback, int retryCount) {
     HttpRequest mutableRequest = request;
 
     for (const auto& interceptor : m_interceptors) {
         interceptor->onRequest(mutableRequest);
     }
 
-    auto performRequest = [this, mutableRequest, callback](int retryCount = 0) {
+    std::vector<std::shared_ptr<HttpInterceptor>> interceptorsCopy = m_interceptors;
+    RetryPolicy retryPolicyCopy = m_retryPolicy;
+    int maxRetries = retryPolicyCopy.maxRetries();
+
+    auto performRequest = [this, mutableRequest, callback, interceptorsCopy,
+                          retryPolicyCopy, maxRetries, retryCount]() {
         QNetworkRequest qrequest(mutableRequest.buildUrl());
 
         for (const auto& header : mutableRequest.headers().toStdMap()) {
@@ -151,10 +182,6 @@ void HttpClient::sendAsync(const HttpRequest& request, ResponseCallback callback
         });
         timer->start(mutableRequest.timeout());
 
-        std::vector<std::shared_ptr<network::HttpInterceptor>> interceptorsCopy = m_interceptors;
-        network::RetryPolicy retryPolicyCopy = m_retryPolicy;
-        int maxRetries = retryPolicyCopy.maxRetries();
-
         QObject::connect(reply, &QNetworkReply::finished, [this, reply, callback, interceptorsCopy,
             retryPolicyCopy, maxRetries, retryCount, mutableRequest, timer, timedOut]() {
             timer->deleteLater();
@@ -164,7 +191,7 @@ void HttpClient::sendAsync(const HttpRequest& request, ResponseCallback callback
                 reply->deleteLater();
                 if (retryCount < maxRetries && shouldRetry(QNetworkReply::TimeoutError)) {
                     QTimer::singleShot(retryPolicyCopy.nextDelay(retryCount + 1), [this, mutableRequest, callback, retryCount]() {
-                        this->sendAsync(mutableRequest, callback);
+                        this->sendAsync(mutableRequest, callback, retryCount + 1);
                     });
                     return;
                 }
@@ -179,7 +206,7 @@ void HttpClient::sendAsync(const HttpRequest& request, ResponseCallback callback
 
                 if (retryCount < maxRetries && shouldRetry(netError)) {
                     QTimer::singleShot(retryPolicyCopy.nextDelay(retryCount + 1), [this, mutableRequest, callback, retryCount]() {
-                        this->sendAsync(mutableRequest, callback);
+                        this->sendAsync(mutableRequest, callback, retryCount + 1);
                     });
                     return;
                 }
@@ -188,16 +215,7 @@ void HttpClient::sendAsync(const HttpRequest& request, ResponseCallback callback
                 return;
             }
 
-            HttpResponse response;
-            response.setStatusCode(reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt());
-            response.setBody(reply->readAll());
-
-            QList<QNetworkReply::RawHeaderPair> headers = reply->rawHeaderPairs();
-            QMap<QString, QString> headerMap;
-            for (const auto& pair : headers) {
-                headerMap[QString::fromUtf8(pair.first)] = QString::fromUtf8(pair.second);
-            }
-            response.setHeaders(headerMap);
+            HttpResponse response = buildResponse(reply);
 
             for (const auto& interceptor : interceptorsCopy) {
                 interceptor->onResponse(response);
@@ -211,13 +229,13 @@ void HttpClient::sendAsync(const HttpRequest& request, ResponseCallback callback
     performRequest();
 }
 
-void HttpClient::addInterceptor(std::shared_ptr<network::HttpInterceptor> interceptor) {
+void HttpClient::addInterceptor(std::shared_ptr<HttpInterceptor> interceptor) {
     m_interceptors.push_back(interceptor);
 }
 
-void HttpClient::removeInterceptor(network::HttpInterceptor* interceptor) {
+void HttpClient::removeInterceptor(HttpInterceptor* interceptor) {
     auto it = std::find_if(m_interceptors.begin(), m_interceptors.end(),
-                           [interceptor](const std::shared_ptr<network::HttpInterceptor>& i) {
+                           [interceptor](const std::shared_ptr<HttpInterceptor>& i) {
                                return i.get() == interceptor;
                            });
     if (it != m_interceptors.end()) {
@@ -225,11 +243,11 @@ void HttpClient::removeInterceptor(network::HttpInterceptor* interceptor) {
     }
 }
 
-void HttpClient::setRetryPolicy(const network::RetryPolicy& policy) {
+void HttpClient::setRetryPolicy(const RetryPolicy& policy) {
     m_retryPolicy = policy;
 }
 
-network::RetryPolicy HttpClient::retryPolicy() const {
+RetryPolicy HttpClient::retryPolicy() const {
     return m_retryPolicy;
 }
 
@@ -241,4 +259,5 @@ int HttpClient::timeout() const {
     return m_timeout;
 }
 
-}
+} // namespace network
+} // namespace sc

@@ -43,7 +43,6 @@ void Avatar::paintEvent(QPaintEvent* event) {
     painter.setRenderHint(QPainter::Antialiasing);
 
     const Style& s = Theme::instance().style();
-    int radius = m_size / 2;
 
     if (!m_pixmap.isNull()) {
         QPixmap scaled = m_pixmap.scaled(m_size, m_size, Qt::KeepAspectRatio, Qt::SmoothTransformation);

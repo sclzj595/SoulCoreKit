@@ -4,6 +4,7 @@
 #include <QDataStream>
 
 namespace sc {
+namespace network {
 
 CookieJar::CookieJar(QObject* parent) : QNetworkCookieJar(parent) {}
 
@@ -88,4 +89,5 @@ bool CookieJar::setCookiesFromUrl(const QList<QNetworkCookie>& cookies, const QU
     return QNetworkCookieJar::setCookiesFromUrl(cookies, url);
 }
 
-}
+} // namespace network
+} // namespace sc

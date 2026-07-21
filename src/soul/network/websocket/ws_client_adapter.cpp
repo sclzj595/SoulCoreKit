@@ -1,6 +1,7 @@
 #include "soul/network/websocket/ws_client_adapter.h"
 
-namespace sc::network {
+namespace sc {
+namespace network {
 
 WsClientAdapter::WsClientAdapter(QObject* parent)
     : NetworkAdapterBase(parent), m_client(std::make_unique<WebSocket>()) {
@@ -84,4 +85,5 @@ void WsClientAdapter::onBinaryMessageReceived(const QByteArray& data) {
     emit received(msg);
 }
 
-}
+} // namespace network
+} // namespace sc

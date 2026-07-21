@@ -1,6 +1,7 @@
 #include "soul/network/http_response.h"
 
 namespace sc {
+namespace network {
 
 HttpResponse::HttpResponse() {}
 
@@ -36,4 +37,5 @@ void HttpResponse::setError(QNetworkReply::NetworkError error, const QString& er
 QNetworkReply::NetworkError HttpResponse::networkError() const { return m_networkError; }
 QString HttpResponse::errorString() const { return m_errorString; }
 
-}
+} // namespace network
+} // namespace sc

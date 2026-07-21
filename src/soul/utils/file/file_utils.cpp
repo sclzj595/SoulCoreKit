@@ -3,7 +3,9 @@
 #include <QFileInfo>
 #include <QDir>
 
-namespace sc::utils::file {
+namespace sc {
+namespace utils {
+namespace file {
 
 bool exists(const QString& path) {
     return QFile::exists(path);
@@ -18,6 +20,7 @@ bool isDirectory(const QString& path) {
     QFileInfo info(path);
     return info.isDir();
 }
+
 
 bool createDirectory(const QString& path) {
     return QDir().mkdir(path);
@@ -110,4 +113,6 @@ qint64 fileSize(const QString& filePath) {
     return info.size();
 }
 
-}
+} // namespace file
+} // namespace utils
+} // namespace sc

@@ -30,6 +30,7 @@ void TabBar::paintEvent(QPaintEvent* event) {
 }
 
 void TabBar::paintTab(QPainter* painter, int index, const QRect& rect) const {
+    Q_UNUSED(painter);
     Q_UNUSED(index);
     Q_UNUSED(rect);
 }

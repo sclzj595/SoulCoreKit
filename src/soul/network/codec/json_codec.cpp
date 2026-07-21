@@ -2,7 +2,8 @@
 #include <QJsonObject>
 #include <QJsonArray>
 
-namespace sc::network {
+namespace sc {
+namespace network {
 
 QByteArray JsonCodec::encode(const NetworkMessage& message) {
     QJsonObject obj;
@@ -55,7 +56,8 @@ bool JsonCodec::isCompact() const {
 }
 
 std::string JsonCodec::interfaceName() const {
-    return "sc::network::JsonCodec";
+    return "JsonCodec";
 }
 
-}
+} // namespace network
+} // namespace sc

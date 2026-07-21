@@ -4,17 +4,21 @@
 #include <QObject>
 #include <QTcpSocket>
 #include <functional>
+#include "soul/network/network_global.h"
 #include "soul/network/policy/reconnect_policy.h"
+#include "soul/network/core/connection_state_machine.h"
 
 namespace sc {
+namespace network {
 
-class TcpClient : public QObject {
+class SC_NETWORK_EXPORT TcpClient : public QObject {
     Q_OBJECT
 public:
     using DataCallback = std::function<void(const QByteArray& data)>;
     using ConnectedCallback = std::function<void()>;
     using DisconnectedCallback = std::function<void()>;
     using ErrorCallback = std::function<void(QAbstractSocket::SocketError error)>;
+    using StateChangedCallback = std::function<void(ConnectionState oldState, ConnectionState newState)>;
 
     explicit TcpClient(QObject* parent = nullptr);
     ~TcpClient();
@@ -23,14 +27,16 @@ public:
     void disconnectFromHost();
     void send(const QByteArray& data);
     bool isConnected() const;
+    ConnectionState state() const;
 
     void setDataCallback(DataCallback callback);
     void setConnectedCallback(ConnectedCallback callback);
     void setDisconnectedCallback(DisconnectedCallback callback);
     void setErrorCallback(ErrorCallback callback);
+    void setStateChangedCallback(StateChangedCallback callback);
 
-    void setReconnectPolicy(const network::ReconnectPolicy& policy);
-    network::ReconnectPolicy reconnectPolicy() const;
+    void setReconnectPolicy(const ReconnectPolicy& policy);
+    ReconnectPolicy reconnectPolicy() const;
 
 private slots:
     void onConnected();
@@ -49,9 +55,11 @@ private:
     DisconnectedCallback m_disconnectedCallback;
     ErrorCallback m_errorCallback;
 
-    network::ReconnectPolicy m_reconnectPolicy;
+    ReconnectPolicy m_reconnectPolicy;
+    ConnectionStateMachine m_stateMachine;
 };
 
-}
+} // namespace network
+} // namespace sc
 
 #endif

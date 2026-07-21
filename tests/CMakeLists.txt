@@ -127,14 +127,120 @@ add_executable(test_auth
 target_link_libraries(test_auth PRIVATE
     Qt6::Test
     Qt6::Core
+    Qt6::Network
+    Qt6::Sql
     soul_auth
     soul_network
     soul_storage
+    soul_utils
     soul_base
+    soul_configuration
+    soul_logging
     soul_core
 )
 
 copy_qt_dll(test_auth TRUE)
+
+add_executable(test_configuration
+    test_configuration.cpp
+)
+
+target_link_libraries(test_configuration PRIVATE
+    Qt6::Test
+    Qt6::Core
+    soul_configuration
+    soul_core
+)
+
+copy_qt_dll(test_configuration TRUE)
+
+add_executable(test_core
+    test_core.cpp
+)
+
+target_link_libraries(test_core PRIVATE
+    Qt6::Test
+    Qt6::Core
+    soul_core
+)
+
+copy_qt_dll(test_core TRUE)
+
+add_executable(test_utils
+    test_utils.cpp
+)
+
+target_link_libraries(test_utils PRIVATE
+    Qt6::Test
+    Qt6::Core
+    Qt6::Network
+    Qt6::Xml
+    soul_utils
+    soul_core
+)
+
+copy_qt_dll(test_utils TRUE)
+
+add_executable(test_base
+    test_base.cpp
+)
+
+target_link_libraries(test_base PRIVATE
+    Qt6::Test
+    Qt6::Core
+    Qt6::Network
+    Qt6::Sql
+    soul_base
+    soul_auth
+    soul_network
+    soul_storage
+    soul_utils
+    soul_configuration
+    soul_logging
+    soul_core
+    soul_data
+    soul_ui
+)
+
+if(TARGET Qt6::Widgets)
+    target_link_libraries(test_base PRIVATE Qt6::Widgets)
+endif()
+
+copy_qt_dll(test_base TRUE)
+
+add_executable(test_di
+    test_di.cpp
+)
+
+target_link_libraries(test_di PRIVATE
+    Qt6::Test
+    Qt6::Core
+    soul_di
+    soul_core
+)
+
+copy_qt_dll(test_di TRUE)
+
+add_executable(test_plugin
+    test_plugin.cpp
+)
+
+target_link_libraries(test_plugin PRIVATE
+    Qt6::Test
+    Qt6::Core
+    soul_plugin
+    soul_di
+    soul_core
+)
+
+copy_qt_dll(test_plugin TRUE)
+
+add_test(NAME test_configuration COMMAND test_configuration)
+add_test(NAME test_core COMMAND test_core)
+add_test(NAME test_utils COMMAND test_utils)
+add_test(NAME test_base COMMAND test_base)
+add_test(NAME test_di COMMAND test_di)
+add_test(NAME test_plugin COMMAND test_plugin)
 
 add_test(NAME test_result COMMAND test_result)
 add_test(NAME test_event_bus COMMAND test_event_bus)

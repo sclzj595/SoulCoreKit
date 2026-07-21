@@ -11,7 +11,7 @@ namespace sc {
  * @brief 日志记录结构体，包含一条日志的所有信息
  *
  * LogRecord 封装了一条日志记录的完整信息，包括级别、模块、操作、
- * 消息、时间戳、文件和行号。
+ * 消息、时间戳、文件、行号、线程ID和进程ID。
  */
 struct LogRecord {
     LogLevel level;       ///< 日志级别
@@ -21,6 +21,8 @@ struct LogRecord {
     std::string timestamp; ///< 时间戳字符串
     std::string file;     ///< 源文件路径
     int line = 0;         ///< 源文件行号
+    std::string threadId; ///< 线程ID
+    std::string processId; ///< 进程ID
 };
 
 }

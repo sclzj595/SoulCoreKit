@@ -1,7 +1,8 @@
 #include "soul/network/policy/heartbeat_policy.h"
 #include "soul/core/result.h"
 
-namespace sc::network {
+namespace sc {
+namespace network {
 
 HeartbeatPolicy::HeartbeatPolicy(int intervalMs, int timeoutMs)
     : QObject(nullptr), m_interval(intervalMs), m_timeout(timeoutMs) {
@@ -79,4 +80,5 @@ void HeartbeatPolicy::onResponse() {
     m_timeoutTimer.stop();
 }
 
-}
+} // namespace network
+} // namespace sc

@@ -1,11 +1,11 @@
-#include "soul/base/base_dialog.h"
-#include <QVBoxLayout>
-#include <QHBoxLayout>
+#include "soul/ui/base_dialog.h"
 #include <QLabel>
 #include <QPushButton>
 #include <QSpacerItem>
+#include "soul/ui/theme.h"
 
 namespace sc {
+namespace ui {
 
 BaseDialog::BaseDialog(QWidget* parent) : QDialog(parent) {
     connect(&Theme::instance(), &Theme::themeChanged, this, &BaseDialog::onThemeChanged);
@@ -19,6 +19,7 @@ void BaseDialog::setDialogTitle(const QString& title) {
         titleLabel->setText(title);
     }
 }
+
 
 void BaseDialog::addButton(const QString& text, std::function<void()> callback) {
     if (!m_buttonLayout) {
@@ -99,4 +100,5 @@ void BaseDialog::onThemeChanged() {
     applyTheme();
 }
 
-}
+} // namespace ui
+} // namespace sc

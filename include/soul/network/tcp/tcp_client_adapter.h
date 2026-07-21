@@ -1,3 +1,12 @@
+﻿/**
+ * @file tcp/tcp_client_adapter.h
+ * @brief TCP 客户端适配器
+ * @details TCP 协议的适配器实现
+ * @author SoulCoreKit Team
+ * @date 2026-07-20
+ * @version 1.0.0
+ * @copyright MIT License
+ */
 #ifndef SOUL_NETWORK_TCP_TCP_CLIENT_ADAPTER_H
 #define SOUL_NETWORK_TCP_TCP_CLIENT_ADAPTER_H
 
@@ -5,9 +14,10 @@
 #include "soul/network/core/network_adapter_base.h"
 #include "soul/network/tcp_client.h"
 
-namespace sc::network {
+namespace sc {
+namespace network {
 
-class TcpClientAdapter : public NetworkAdapterBase {
+class SC_NETWORK_EXPORT TcpClientAdapter : public NetworkAdapterBase {
     Q_OBJECT
 public:
     explicit TcpClientAdapter(QObject* parent = nullptr);
@@ -29,6 +39,7 @@ private:
     quint32 m_sequence = 0;
 };
 
-}
+} // namespace network
+} // namespace sc
 
 #endif

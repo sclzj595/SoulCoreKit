@@ -5,6 +5,8 @@
 #include <QJsonObject>
 #include <functional>
 #include <memory>
+#include <QMutex>
+#include <QMutexLocker>
 #include "soul/core/result.h"
 #include "soul/core/error.h"
 #include "soul/base/base_manager.h"
@@ -74,6 +76,17 @@ public:
      * @brief 认证状态改变回调类型
      */
     using AuthStateCallback = std::function<void(bool authenticated)>;
+
+    /**
+     * @brief 用户登录验证回调类型
+     */
+    using LoginValidator = std::function<Result<UserInfo>(const QString& username, const QString& password)>;
+
+    /**
+     * @brief 设置登录验证回调
+     * @param validator 验证回调函数
+     */
+    void setLoginValidator(LoginValidator validator);
 
     /**
      * @brief 用户登录
@@ -165,9 +178,11 @@ private:
     AuthManager();
     ~AuthManager() = default;
 
+    mutable QMutex m_mutex;
     UserInfo m_userInfo;
     bool m_authenticated = false;
     AuthStateCallback m_authStateCallback;
+    LoginValidator m_loginValidator;
 
     void notifyAuthStateChanged(bool authenticated);
 };

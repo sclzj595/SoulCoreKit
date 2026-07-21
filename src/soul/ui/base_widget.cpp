@@ -1,6 +1,8 @@
-#include "soul/base/base_widget.h"
+#include "soul/ui/base_widget.h"
+#include "soul/ui/theme.h"
 
 namespace sc {
+namespace ui {
 
 BaseWidget::BaseWidget(QWidget* parent) : QWidget(parent) {
     connectThemeChanged();
@@ -20,6 +22,7 @@ void BaseWidget::applyTheme() {
     ));
 }
 
+
 void BaseWidget::connectThemeChanged() {
     connect(&Theme::instance(), &Theme::themeChanged, this, &BaseWidget::onThemeChanged);
 }
@@ -28,4 +31,5 @@ void BaseWidget::onThemeChanged() {
     applyTheme();
 }
 
-}
+} // namespace ui
+} // namespace sc

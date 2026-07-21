@@ -1,6 +1,7 @@
 #include "soul/network/monitor/monitor.h"
 
-namespace sc::network {
+namespace sc {
+namespace network {
 
 Monitor::Monitor(QObject* parent)
     : QObject(parent) {
@@ -31,4 +32,5 @@ void Monitor::report() {
     }
 }
 
-}
+} // namespace network
+} // namespace sc

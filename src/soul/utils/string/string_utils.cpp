@@ -3,7 +3,9 @@
 #include <cstdarg>
 #include <cstdio>
 
-namespace sc::utils::string {
+namespace sc {
+namespace utils {
+namespace string {
 
 QString trim(const QString& str) {
     return str.trimmed();
@@ -16,6 +18,7 @@ QString trimLeft(const QString& str) {
 QString trimRight(const QString& str) {
     return str.trimmed();
 }
+
 
 QString toLower(const QString& str) {
     return str.toLower();
@@ -87,4 +90,6 @@ QString substring(const QString& str, int start, int length) {
     return str.mid(start, length);
 }
 
-}
+} // namespace string
+} // namespace utils
+} // namespace sc

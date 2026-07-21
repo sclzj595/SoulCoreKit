@@ -2,6 +2,7 @@
 #include <QUrlQuery>
 
 namespace sc {
+namespace network {
 
 HttpRequest::HttpRequest() {}
 
@@ -77,4 +78,5 @@ HttpRequest& HttpRequest::setTimeout(int ms) {
 
 int HttpRequest::timeout() const { return m_timeout; }
 
-}
+} // namespace network
+} // namespace sc

@@ -1,12 +1,24 @@
+/**
+ * @file interceptor/auth_interceptor.h
+ * @brief 认证拦截器
+ * @details 自动添加认证 Token 到请求头
+ * @author SoulCoreKit Team
+ * @date 2026-07-20
+ * @version 1.0.0
+ * @copyright MIT License
+ */
 #ifndef SOUL_NETWORK_INTERCEPTOR_AUTH_INTERCEPTOR_H
 #define SOUL_NETWORK_INTERCEPTOR_AUTH_INTERCEPTOR_H
 
+#include "soul/network/network_global.h"
 #include "soul/network/interceptor/i_interceptor.h"
+#include "soul/network/core/network_message.h"
 #include <QString>
 
-namespace sc::network {
+namespace sc {
+namespace network {
 
-class AuthInterceptor : public IInterceptor {
+class SC_NETWORK_EXPORT AuthInterceptor : public IInterceptor<NetworkMessage, NetworkMessage> {
 public:
     AuthInterceptor();
     explicit AuthInterceptor(const QString& token);
@@ -20,13 +32,14 @@ public:
     QString token() const;
 
     std::string interfaceName() const override {
-        return "sc::network::AuthInterceptor";
+        return "AuthInterceptor";
     }
 
 private:
     QString m_token;
 };
 
-}
+} // namespace network
+} // namespace sc
 
 #endif

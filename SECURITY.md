@@ -1,4 +1,4 @@
-# Security Policy
+﻿﻿# Security Policy
 
 ## Supported Versions
 
@@ -6,7 +6,7 @@ Currently, only the latest version of SoulCoreKit is supported with security upd
 
 | Version | Supported |
 |---------|-----------|
-| 1.0.x   | ✅ Yes    |
+| 1.1.x   | ✅ Yes    |
 
 ## Reporting a Vulnerability
 

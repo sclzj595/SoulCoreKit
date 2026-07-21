@@ -2,7 +2,8 @@
 #include "soul/core/result.h"
 #include "soul/network/network_error.h"
 
-namespace sc::network {
+namespace sc {
+namespace network {
 
 SerialPortAdapter::SerialPortAdapter() {
 }
@@ -30,4 +31,5 @@ bool SerialPortAdapter::doIsConnected() const {
     return m_connected;
 }
 
-}
+} // namespace network
+} // namespace sc

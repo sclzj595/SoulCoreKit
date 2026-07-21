@@ -4,14 +4,17 @@
 namespace sc {
 
 Application* Application::s_instance = nullptr;
+std::mutex Application::s_mutex;
 
 Application::Application(int& argc, char** argv)
     : m_qApp(std::make_unique<QCoreApplication>(argc, argv)) {
+    std::lock_guard<std::mutex> lock(s_mutex);
     s_instance = this;
 }
 
 Application::~Application() {
     executeShutdownCallbacks();
+    std::lock_guard<std::mutex> lock(s_mutex);
     s_instance = nullptr;
 }
 
@@ -71,7 +74,13 @@ void Application::setUnhandledExceptionHandler(UnhandledExceptionHandler handler
 }
 
 Application* Application::instance() {
+    std::lock_guard<std::mutex> lock(s_mutex);
     return s_instance;
+}
+
+bool Application::hasInstance() {
+    std::lock_guard<std::mutex> lock(s_mutex);
+    return s_instance != nullptr;
 }
 
 QCoreApplication* Application::qApplication() {

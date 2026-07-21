@@ -1,3 +1,12 @@
+﻿/**
+ * @file http/http_client_adapter.h
+ * @brief HTTP 客户端适配器
+ * @details HTTP 协议的适配器实现
+ * @author SoulCoreKit Team
+ * @date 2026-07-20
+ * @version 1.0.0
+ * @copyright MIT License
+ */
 #ifndef SOUL_NETWORK_HTTP_HTTP_CLIENT_ADAPTER_H
 #define SOUL_NETWORK_HTTP_HTTP_CLIENT_ADAPTER_H
 
@@ -6,9 +15,10 @@
 #include "soul/network/http_client.h"
 #include "soul/network/http_request.h"
 
-namespace sc::network {
+namespace sc {
+namespace network {
 
-class HttpClientAdapter : public NetworkAdapterBase {
+class SC_NETWORK_EXPORT HttpClientAdapter : public NetworkAdapterBase {
     Q_OBJECT
 public:
     explicit HttpClientAdapter(QObject* parent = nullptr);
@@ -27,6 +37,7 @@ private:
     std::unique_ptr<HttpClient> m_client;
 };
 
-}
+} // namespace network
+} // namespace sc
 
 #endif

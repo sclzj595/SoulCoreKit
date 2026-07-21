@@ -30,6 +30,16 @@ Result<void> DiskCache::put(const QString& key, const QByteArray& value, std::ch
         return Error(ErrorCode::InternalError, "Cannot create cache directory: " + dir.toStdString());
     }
 
+    auto existingIt = m_entrySizes.find(key);
+    if (existingIt != m_entrySizes.end()) {
+        m_currentSize -= existingIt->second;
+        m_lruList.remove(key);
+    }
+
+    if (m_currentSize + value.size() > m_maxSize && m_maxSize > 0) {
+        evict();
+    }
+
     QFile file(filePath);
     if (!file.open(QIODevice::WriteOnly)) {
         SC_ERROR("Cannot open cache file: " + filePath.toStdString());
@@ -40,7 +50,7 @@ Result<void> DiskCache::put(const QString& key, const QByteArray& value, std::ch
     file.close();
 
     if (ttl.count() > 0) {
-        QString ttlFilePath = filePath + ".ttl";
+        QString ttlFilePath = getTtlFilePath(key);
         QFile ttlFile(ttlFilePath);
         if (ttlFile.open(QIODevice::WriteOnly)) {
             qint64 expiry = QDateTime::currentDateTime().addSecs(static_cast<int>(ttl.count())).toSecsSinceEpoch();
@@ -48,6 +58,10 @@ Result<void> DiskCache::put(const QString& key, const QByteArray& value, std::ch
             ttlFile.close();
         }
     }
+
+    m_entrySizes[key] = value.size();
+    m_currentSize += value.size();
+    m_lruList.push_front(key);
 
     return {};
 }
@@ -58,10 +72,13 @@ Result<QByteArray> DiskCache::get(const QString& key) {
     QString filePath = getFilePath(key);
 
     if (!QFile::exists(filePath)) {
+        m_entrySizes.erase(key);
+        m_lruList.remove(key);
         return Error(ErrorCode::NotFound, "Cache key not found");
     }
 
     if (isExpired(key)) {
+        remove(key);
         return Error(ErrorCode::NotFound, "Cache key expired");
     }
 
@@ -69,6 +86,9 @@ Result<QByteArray> DiskCache::get(const QString& key) {
     if (!file.open(QIODevice::ReadOnly)) {
         return Error(ErrorCode::InternalError, "Cannot open cache file: " + filePath.toStdString());
     }
+
+    m_lruList.remove(key);
+    m_lruList.push_front(key);
 
     return file.readAll();
 }
@@ -89,7 +109,14 @@ Result<void> DiskCache::remove(const QString& key) {
     std::lock_guard<std::mutex> lock(m_mutex);
 
     QString filePath = getFilePath(key);
-    QString ttlFilePath = filePath + ".ttl";
+    QString ttlFilePath = getTtlFilePath(key);
+
+    auto it = m_entrySizes.find(key);
+    if (it != m_entrySizes.end()) {
+        m_currentSize -= it->second;
+        m_entrySizes.erase(it);
+    }
+    m_lruList.remove(key);
 
     bool removed = false;
     if (QFile::exists(filePath)) {
@@ -116,17 +143,15 @@ void DiskCache::clear() {
     for (const QString& file : files) {
         dir.remove(file);
     }
+
+    m_entrySizes.clear();
+    m_lruList.clear();
+    m_currentSize = 0;
 }
 
 size_t DiskCache::size() const {
     std::lock_guard<std::mutex> lock(m_mutex);
-
-    QDir dir(m_cacheDir);
-    QStringList filters;
-    filters << "*";
-    QStringList files = dir.entryList(filters, QDir::Files);
-
-    return files.size();
+    return m_currentSize;
 }
 
 size_t DiskCache::maxSize() const {
@@ -143,9 +168,12 @@ QString DiskCache::getFilePath(const QString& key) const {
     return QString("%1/%2/%3").arg(m_cacheDir).arg(subDir).arg(fileName);
 }
 
+QString DiskCache::getTtlFilePath(const QString& key) const {
+    return getFilePath(key) + ".ttl";
+}
+
 bool DiskCache::isExpired(const QString& key) const {
-    QString filePath = getFilePath(key);
-    QString ttlFilePath = filePath + ".ttl";
+    QString ttlFilePath = getTtlFilePath(key);
 
     if (!QFile::exists(ttlFilePath)) {
         return false;
@@ -165,6 +193,35 @@ bool DiskCache::isExpired(const QString& key) const {
     }
 
     return QDateTime::currentDateTime().toSecsSinceEpoch() > expiry;
+}
+
+void DiskCache::evict() {
+    while (!m_lruList.empty()) {
+        QString key = m_lruList.back();
+        m_lruList.pop_back();
+
+        QString filePath = getFilePath(key);
+        QString ttlFilePath = getTtlFilePath(key);
+
+        bool expired = isExpired(key);
+
+        if (QFile::exists(filePath)) {
+            QFile::remove(filePath);
+        }
+        if (QFile::exists(ttlFilePath)) {
+            QFile::remove(ttlFilePath);
+        }
+
+        auto it = m_entrySizes.find(key);
+        if (it != m_entrySizes.end()) {
+            m_currentSize -= it->second;
+            m_entrySizes.erase(it);
+        }
+
+        if (expired) {
+            return;
+        }
+    }
 }
 
 }

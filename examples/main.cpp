@@ -7,8 +7,8 @@
 #include "soul/ui/toast.h"
 #include "soul/ui/dialog.h"
 #include "soul/ui/theme.h"
-#include "soul/base/base_widget.h"
-#include "soul/base/base_dialog.h"
+#include "soul/ui/base_widget.h"
+#include "soul/ui/base_dialog.h"
 
 int main(int argc, char* argv[]) {
     QApplication app(argc, argv);
@@ -17,7 +17,7 @@ int main(int argc, char* argv[]) {
 
     sc::Theme::instance().style().setColor(sc::ColorRole::Primary, QColor("#4CAF50"));
 
-    sc::BaseWidget window;
+    sc::ui::BaseWidget window;
     window.setWindowTitle("SoulCore Demo");
     window.resize(800, 600);
 

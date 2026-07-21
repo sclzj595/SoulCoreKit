@@ -1,7 +1,8 @@
 #include "soul/network/codec/codec_factory.h"
 #include "soul/network/codec/json_codec.h"
 
-namespace sc::network {
+namespace sc {
+namespace network {
 
 std::shared_ptr<ICodec> CodecFactory::create(CodecType type) {
     switch (type) {
@@ -24,4 +25,5 @@ std::shared_ptr<ICodec> CodecFactory::create(const QString& contentType) {
     return std::make_shared<JsonCodec>();
 }
 
-}
+} // namespace network
+} // namespace sc

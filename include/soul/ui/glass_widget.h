@@ -9,6 +9,7 @@
 #include "i_glass_effect.h"
 
 namespace sc {
+namespace ui {
 
 class GlassWidget : public QWidget, public IGlassEffect {
     Q_OBJECT
@@ -45,6 +46,7 @@ private:
     QPixmap m_blurredBackground;
 };
 
-}
+} // namespace ui
+} // namespace sc
 
 #endif

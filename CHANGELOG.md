@@ -5,7 +5,63 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.3.0] - 2026-07-21
+
+### Added
+
+- **Dependency Injection Container**: `sc::di::Container` with factory function registration pattern
+  - Lifetime management: `Transient`, `Singleton`, `Scoped`
+  - Thread-safe `resolve()` using Double-Checked Locking Pattern (DCLP) with `std::recursive_mutex`
+  - `bind<T>()`, `bindSingleton<T>()`, `bindInstance<T>()` registration APIs
+  - `SingletonWrapper<T>` for bridging existing `Singleton<T>` instances
+  - `registerSingleton<T>()` for four-phase migration strategy
+- **Plugin System**: `sc::plugin::PluginManager` with C-ABI boundary interface
+  - Cross-platform dynamic library loading (DLL/SO/DYLIB)
+  - `PluginMetadata` specification with ABI/API version compatibility checking
+  - `IPlugin` interface with lifecycle management (load → initialize → shutdown → unload)
+  - `PluginHandle` with automatic shutdown on destruction
+  - Thread-safe plugin operations with deadlock-free `initializeAllPlugins()`/`shutdownAllPlugins()`
+- **DI Module**: `soul_di` static library with `SC_DI_EXPORT` macro
+- **Plugin Module**: `soul_plugin` static library with `SC_PLUGIN_EXPORT` macro
+- **Test Suite**: `test_di.cpp` covering DI-T01 through DI-T11 acceptance criteria
+
+### Changed
+
+- Updated CMakeLists.txt to include `soul_di` and `soul_plugin` modules
+- Updated `SoulCoreKit` interface library to link new modules
+- Updated install targets to include new modules
+
+### Fixed
+
+- DI container: Singleton shared_ptr deleter design (use-after-free)
+- DI container: `resolve()` deadlock with recursive dependency resolution
+- DI container: DCLP properly implemented with atomic flag
+- Plugin system: `initializeAllPlugins()`/`shutdownAllPlugins()` deadlock
+- Plugin system: `getPlugin()` always returning nullptr
+- Plugin system: Missing ABI version compatibility check
+- Plugin system: `PluginHandle` destructor not ensuring plugin shutdown
+
+## [1.2.0] - 2026-07-20
+
+### Added
+
+- **Network Module Fixes**: Cross-module header inclusion protection
+  - Added `#ifndef Q_MOC_RUN` guards for `soul/core/*` includes in network headers
+  - Ensured all `SC_NETWORK_EXPORT` classes include `network_global.h`
+
+### Fixed
+
+- MOC preprocessor errors when processing non-Qt class headers
+- Missing `network_global.h` includes in multiple network headers:
+  `monitor.h`, `reconnect_policy.h`, `retry_policy.h`, `timeout_policy.h`,
+  `logging_interceptor.h`, `auth_interceptor.h`, `json_codec.h`,
+  `http_client_adapter.h`, `tcp_client_adapter.h`, `ws_client_adapter.h`,
+  `mqtt_client_adapter.h`, `bluetooth_client_adapter.h`,
+  `serial_port_adapter.h`, `named_pipe_adapter.h`, `http_api.h`
+- `HttpApi` class namespace moved from `sc` to `sc::network`
+- CI build failures on Ubuntu, macOS, and Windows platforms
+
+## [1.1.0] - 2026-07-14
 
 ### Added
 

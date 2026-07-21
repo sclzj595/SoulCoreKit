@@ -1,6 +1,7 @@
 #include "soul/network/policy/timeout_policy.h"
 
-namespace sc::network {
+namespace sc {
+namespace network {
 
 TimeoutPolicy::TimeoutPolicy(int timeoutMs)
     : m_timeout(timeoutMs) {}
@@ -18,4 +19,5 @@ TimeoutPolicy& TimeoutPolicy::setTimeout(int ms) {
     return *this;
 }
 
-}
+} // namespace network
+} // namespace sc

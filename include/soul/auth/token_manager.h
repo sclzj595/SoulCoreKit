@@ -3,6 +3,7 @@
 
 #include <QString>
 #include <memory>
+#include <QJsonObject>
 #include "soul/core/result.h"
 #include "soul/base/base_manager.h"
 
@@ -115,6 +116,13 @@ public:
     Result<QString> refresh();
 
     /**
+     * @brief 当 Token 即将过期时自动刷新
+     * @param thresholdSeconds 阈值（秒），默认 300 秒（5分钟）
+     * @return 包含新 Token 或当前 Token 的 Result
+     */
+    Result<QString> autoRefreshIfNeeded(int thresholdSeconds = 300);
+
+    /**
      * @brief 清空所有 Token
      */
     void clear();
@@ -141,6 +149,10 @@ private:
     int m_expiresIn = 0;
     qint64 m_tokenIssueTime = 0;
     RefreshCallback m_refreshCallback;
+    QJsonObject m_jwtPayload;
+
+    QJsonObject parseJwtPayload() const;
+    void doParseJwtPayload();
 };
 
 }

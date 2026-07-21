@@ -1,45 +1,36 @@
+/**
+ * @file http_request.h
+ * @brief HTTP 请求类
+ * @details 封装 HTTP 请求的方法、URL、请求头、查询参数和请求体，支持链式调用
+ * @author SoulCoreKit Team
+ * @date 2026-07-20
+ * @version 1.0.0
+ * @copyright MIT License
+ */
+
 #ifndef SOUL_NETWORK_HTTP_REQUEST_H
 #define SOUL_NETWORK_HTTP_REQUEST_H
 
+#include "soul/network/network_global.h"
 #include <QUrl>
 #include <QMap>
 #include <QByteArray>
 #include <QJsonDocument>
 
 namespace sc {
+namespace network {
 
-/**
- * @enum HttpMethod
- * @brief HTTP 请求方法枚举
- */
 enum class HttpMethod {
-    Get,     ///< GET 请求
-    Post,    ///< POST 请求
-    Put,     ///< PUT 请求
-    Delete,  ///< DELETE 请求
-    Patch,   ///< PATCH 请求
-    Head,    ///< HEAD 请求
-    Options, ///< OPTIONS 请求
+    Get,
+    Post,
+    Put,
+    Delete,
+    Patch,
+    Head,
+    Options,
 };
 
-/**
- * @class HttpRequest
- * @brief HTTP 请求封装类
- *
- * HttpRequest 提供了链式 API 来构建 HTTP 请求，包括设置请求方法、URL、
- * 请求头、查询参数和请求体。
- *
- * 使用方式：
- * @code
- * HttpRequest request(HttpMethod::Get, QUrl("https://api.example.com/users"));
- * request.addParam("page", "1")
- *        .addParam("limit", "10")
- *        .addHeader("Authorization", "Bearer token");
- * @endcode
- *
- * @see HttpClient, HttpResponse
- */
-class HttpRequest {
+class SC_NETWORK_EXPORT HttpRequest {
 public:
     /**
      * @brief 默认构造函数
@@ -169,6 +160,7 @@ private:
     int m_timeout = 30000;
 };
 
-}
+} // namespace network
+} // namespace sc
 
 #endif

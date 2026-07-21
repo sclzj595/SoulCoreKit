@@ -1,13 +1,26 @@
+/**
+ * @file monitor/monitor.h
+ * @brief 网络监控类
+ * @details 监控网络请求的性能指标和统计信息
+ * @author SoulCoreKit Team
+ * @date 2026-07-20
+ * @version 1.0.0
+ * @copyright MIT License
+ */
 #ifndef SOUL_NETWORK_MONITOR_MONITOR_H
 #define SOUL_NETWORK_MONITOR_MONITOR_H
 
 #include <memory>
+#include <mutex>
+#include <unordered_map>
 #include <QObject>
-#include "metrics.h"
+#include "soul/network/network_global.h"
+#include "soul/network/monitor/metrics.h"
 
-namespace sc::network {
+namespace sc {
+namespace network {
 
-class Monitor : public QObject {
+class SC_NETWORK_EXPORT Monitor : public QObject {
     Q_OBJECT
 public:
     explicit Monitor(QObject* parent = nullptr);
@@ -25,6 +38,7 @@ private:
     std::unordered_map<std::string, std::shared_ptr<Metrics>> m_metricsMap;
 };
 
-}
+} // namespace network
+} // namespace sc
 
 #endif

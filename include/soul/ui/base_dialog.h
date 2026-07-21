@@ -1,12 +1,15 @@
-#ifndef SOUL_BASE_BASE_DIALOG_H
-#define SOUL_BASE_BASE_DIALOG_H
+#ifndef SOUL_UI_BASE_DIALOG_H
+#define SOUL_UI_BASE_DIALOG_H
 
 #include <QDialog>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
+#include <functional>
 #include "soul/ui/theme.h"
 
 namespace sc {
+namespace ui {
+
 
 class BaseDialog : public QDialog {
     Q_OBJECT
@@ -29,6 +32,7 @@ private:
     QHBoxLayout* m_buttonLayout;
 };
 
-}
+} // namespace ui
+} // namespace sc
 
 #endif

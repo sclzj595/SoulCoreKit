@@ -8,6 +8,7 @@
 #include "soul/core/singleton.h"
 #include <memory>
 #include <string>
+#include <QString>
 #include <mutex>
 
 namespace sc {
@@ -66,6 +67,15 @@ public:
     void log(LogLevel level, const std::string& message);
 
     /**
+     * @brief 记录日志（QString重载）
+     * @param level 日志级别
+     * @param message 日志消息
+     */
+    void log(LogLevel level, const QString& message) {
+        log(level, message.toStdString());
+    }
+
+    /**
      * @brief 记录日志（带模块和操作）
      * @param level 日志级别
      * @param message 日志消息
@@ -76,88 +86,76 @@ public:
              const std::string& module, const std::string& operation = "");
 
     /**
-     * @brief 记录 Trace 级别日志
+     * @brief 记录日志（QString重载，带模块和操作）
+     * @param level 日志级别
      * @param message 日志消息
+     * @param module 模块名称
+     * @param operation 操作名称
      */
+    void log(LogLevel level, const QString& message,
+             const QString& module, const QString& operation = "") {
+        log(level, message.toStdString(), module.toStdString(), operation.toStdString());
+    }
+
+    void trace(const char* message) { log(LogLevel::Trace, std::string(message)); }
     void trace(const std::string& message) { log(LogLevel::Trace, message); }
+    void trace(const QString& message) { log(LogLevel::Trace, message); }
 
-    /**
-     * @brief 记录 Debug 级别日志
-     * @param message 日志消息
-     */
+    void debug(const char* message) { log(LogLevel::Debug, std::string(message)); }
     void debug(const std::string& message) { log(LogLevel::Debug, message); }
+    void debug(const QString& message) { log(LogLevel::Debug, message); }
 
-    /**
-     * @brief 记录 Info 级别日志
-     * @param message 日志消息
-     */
+    void info(const char* message) { log(LogLevel::Info, std::string(message)); }
     void info(const std::string& message) { log(LogLevel::Info, message); }
+    void info(const QString& message) { log(LogLevel::Info, message); }
 
-    /**
-     * @brief 记录 Warn 级别日志
-     * @param message 日志消息
-     */
+    void warn(const char* message) { log(LogLevel::Warn, std::string(message)); }
     void warn(const std::string& message) { log(LogLevel::Warn, message); }
+    void warn(const QString& message) { log(LogLevel::Warn, message); }
 
-    /**
-     * @brief 记录 Error 级别日志
-     * @param message 日志消息
-     */
+    void error(const char* message) { log(LogLevel::Error, std::string(message)); }
     void error(const std::string& message) { log(LogLevel::Error, message); }
+    void error(const QString& message) { log(LogLevel::Error, message); }
 
-    /**
-     * @brief 记录 Fatal 级别日志
-     * @param message 日志消息
-     */
+    void fatal(const char* message) { log(LogLevel::Fatal, std::string(message)); }
     void fatal(const std::string& message) { log(LogLevel::Fatal, message); }
+    void fatal(const QString& message) { log(LogLevel::Fatal, message); }
 
-    /**
-     * @brief 记录 Trace 级别日志（带模块和操作）
-     * @param message 日志消息
-     * @param module 模块名称
-     * @param operation 操作名称
-     */
+    void trace(const char* message, const char* module, const char* operation = "") {
+        log(LogLevel::Trace, std::string(message), std::string(module), std::string(operation));
+    }
     void trace(const std::string& message, const std::string& module, const std::string& operation = "") { log(LogLevel::Trace, message, module, operation); }
+    void trace(const QString& message, const QString& module, const QString& operation = "") { log(LogLevel::Trace, message, module, operation); }
 
-    /**
-     * @brief 记录 Debug 级别日志（带模块和操作）
-     * @param message 日志消息
-     * @param module 模块名称
-     * @param operation 操作名称
-     */
+    void debug(const char* message, const char* module, const char* operation = "") {
+        log(LogLevel::Debug, std::string(message), std::string(module), std::string(operation));
+    }
     void debug(const std::string& message, const std::string& module, const std::string& operation = "") { log(LogLevel::Debug, message, module, operation); }
+    void debug(const QString& message, const QString& module, const QString& operation = "") { log(LogLevel::Debug, message, module, operation); }
 
-    /**
-     * @brief 记录 Info 级别日志（带模块和操作）
-     * @param message 日志消息
-     * @param module 模块名称
-     * @param operation 操作名称
-     */
+    void info(const char* message, const char* module, const char* operation = "") {
+        log(LogLevel::Info, std::string(message), std::string(module), std::string(operation));
+    }
     void info(const std::string& message, const std::string& module, const std::string& operation = "") { log(LogLevel::Info, message, module, operation); }
+    void info(const QString& message, const QString& module, const QString& operation = "") { log(LogLevel::Info, message, module, operation); }
 
-    /**
-     * @brief 记录 Warn 级别日志（带模块和操作）
-     * @param message 日志消息
-     * @param module 模块名称
-     * @param operation 操作名称
-     */
+    void warn(const char* message, const char* module, const char* operation = "") {
+        log(LogLevel::Warn, std::string(message), std::string(module), std::string(operation));
+    }
     void warn(const std::string& message, const std::string& module, const std::string& operation = "") { log(LogLevel::Warn, message, module, operation); }
+    void warn(const QString& message, const QString& module, const QString& operation = "") { log(LogLevel::Warn, message, module, operation); }
 
-    /**
-     * @brief 记录 Error 级别日志（带模块和操作）
-     * @param message 日志消息
-     * @param module 模块名称
-     * @param operation 操作名称
-     */
+    void error(const char* message, const char* module, const char* operation = "") {
+        log(LogLevel::Error, std::string(message), std::string(module), std::string(operation));
+    }
     void error(const std::string& message, const std::string& module, const std::string& operation = "") { log(LogLevel::Error, message, module, operation); }
+    void error(const QString& message, const QString& module, const QString& operation = "") { log(LogLevel::Error, message, module, operation); }
 
-    /**
-     * @brief 记录 Fatal 级别日志（带模块和操作）
-     * @param message 日志消息
-     * @param module 模块名称
-     * @param operation 操作名称
-     */
+    void fatal(const char* message, const char* module, const char* operation = "") {
+        log(LogLevel::Fatal, std::string(message), std::string(module), std::string(operation));
+    }
     void fatal(const std::string& message, const std::string& module, const std::string& operation = "") { log(LogLevel::Fatal, message, module, operation); }
+    void fatal(const QString& message, const QString& module, const QString& operation = "") { log(LogLevel::Fatal, message, module, operation); }
 
     /**
      * @brief 刷新所有输出目标的缓冲区

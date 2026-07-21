@@ -1,6 +1,7 @@
 #include "soul/network/policy/retry_policy.h"
 
-namespace sc::network {
+namespace sc {
+namespace network {
 
 RetryPolicy::RetryPolicy() {}
 
@@ -44,4 +45,5 @@ void RetryPolicy::apply(NetworkMessage& message) {
     message.metadata["baseDelay"] = m_baseDelay;
 }
 
-}
+} // namespace network
+} // namespace sc

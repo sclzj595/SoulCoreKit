@@ -1,6 +1,7 @@
 #include "soul/network/monitor/metrics.h"
 
-namespace sc::network {
+namespace sc {
+namespace network {
 
 void MetricData::reset() {
     qps = 0;
@@ -118,4 +119,5 @@ int64_t Metrics::maxResponseTime() const {
     return m_data.maxResponseTime;
 }
 
-}
+} // namespace network
+} // namespace sc

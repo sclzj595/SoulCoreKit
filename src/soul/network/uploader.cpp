@@ -4,6 +4,7 @@
 #include <QFileInfo>
 
 namespace sc {
+namespace network {
 
 Uploader::Uploader(QObject* parent) : QObject(parent) {
     m_manager = new QNetworkAccessManager(this);
@@ -185,4 +186,5 @@ void Uploader::startUpload() {
 void Uploader::uploadNextChunk() {
 }
 
-}
+} // namespace network
+} // namespace sc

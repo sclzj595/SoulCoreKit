@@ -1,5 +1,6 @@
 #include "soul/event/event_bus.h"
 #include <algorithm>
+#include "soul/async/thread_pool.h"
 
 namespace sc {
 
@@ -73,6 +74,24 @@ void DefaultEventBus::publish(const std::string& topic, const std::string& data)
     for (const auto& handlerPtr : handlersCopy) {
         (*handlerPtr)(data);
     }
+}
+
+void DefaultEventBus::publishAsync(const std::string& topic, const std::string& data) {
+    std::vector<std::shared_ptr<Handler>> handlersCopy;
+    
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        auto it = m_handlers.find(topic);
+        if (it != m_handlers.end()) {
+            handlersCopy = it->second;
+        }
+    }
+    
+    ThreadPool::instance().start([handlersCopy, data]() {
+        for (const auto& handlerPtr : handlersCopy) {
+            (*handlerPtr)(data);
+        }
+    });
 }
 
 size_t DefaultEventBus::subscriberCount(const std::string& topic) const {

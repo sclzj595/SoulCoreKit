@@ -5,11 +5,14 @@
 #include <QWebSocket>
 #include <functional>
 #include <memory>
+#include "soul/network/network_global.h"
 #include "soul/network/policy/reconnect_policy.h"
+#include "soul/network/core/connection_state_machine.h"
 
 namespace sc {
+namespace network {
 
-class WebSocket : public QObject {
+class SC_NETWORK_EXPORT WebSocket : public QObject {
     Q_OBJECT
 public:
     using MessageCallback = std::function<void(const QString& message)>;
@@ -17,6 +20,7 @@ public:
     using ConnectedCallback = std::function<void()>;
     using DisconnectedCallback = std::function<void()>;
     using ErrorCallback = std::function<void(QAbstractSocket::SocketError error)>;
+    using StateChangedCallback = std::function<void(ConnectionState oldState, ConnectionState newState)>;
 
     explicit WebSocket(QObject* parent = nullptr);
     ~WebSocket();
@@ -26,15 +30,17 @@ public:
     void sendTextMessage(const QString& message);
     void sendBinaryMessage(const QByteArray& data);
     bool isConnected() const;
+    ConnectionState state() const;
 
     void setMessageCallback(MessageCallback callback);
     void setBinaryCallback(BinaryCallback callback);
     void setConnectedCallback(ConnectedCallback callback);
     void setDisconnectedCallback(DisconnectedCallback callback);
     void setErrorCallback(ErrorCallback callback);
+    void setStateChangedCallback(StateChangedCallback callback);
 
-    void setReconnectPolicy(const network::ReconnectPolicy& policy);
-    network::ReconnectPolicy reconnectPolicy() const;
+    void setReconnectPolicy(const ReconnectPolicy& policy);
+    ReconnectPolicy reconnectPolicy() const;
 
 private slots:
     void onConnected();
@@ -54,9 +60,11 @@ private:
     DisconnectedCallback m_disconnectedCallback;
     ErrorCallback m_errorCallback;
 
-    network::ReconnectPolicy m_reconnectPolicy;
+    ReconnectPolicy m_reconnectPolicy;
+    ConnectionStateMachine m_stateMachine;
 };
 
-}
+} // namespace network
+} // namespace sc
 
 #endif

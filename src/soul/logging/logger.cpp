@@ -1,11 +1,15 @@
 #include "soul/logging/logger.h"
 #include "soul/logging/console_sink.h"
 #include "soul/core/time.h"
+#include "soul/core/singleton.h"
 
 namespace sc {
 
 Logger::Logger() : m_sink(std::make_shared<CompositeSink>()) {
     m_sink->addSink(std::make_shared<ConsoleSink>());
+    SingletonRegistry::instance().registerShutdown([this]() {
+        this->shutdown();
+    });
 }
 
 void Logger::setLogLevel(LogLevel level) {

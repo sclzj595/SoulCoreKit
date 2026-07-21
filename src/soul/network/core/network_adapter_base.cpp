@@ -1,6 +1,7 @@
 #include "soul/network/core/network_adapter_base.h"
 
-namespace sc::network {
+namespace sc {
+namespace network {
 
 NetworkAdapterBase::NetworkAdapterBase(QObject* parent)
     : NetworkBase(parent) {}
@@ -60,7 +61,7 @@ void NetworkAdapterBase::setPolicy(std::shared_ptr<INetworkPolicy> policy) {
     m_policy = policy;
 }
 
-void NetworkAdapterBase::addInterceptor(std::shared_ptr<IInterceptor> interceptor) {
+void NetworkAdapterBase::addInterceptor(std::shared_ptr<IInterceptor<NetworkMessage, NetworkMessage>> interceptor) {
     if (interceptor) {
         m_interceptors.push_back(interceptor);
     }
@@ -88,4 +89,5 @@ void NetworkAdapterBase::applyResponseInterceptors(NetworkMessage& message) {
     }
 }
 
-}
+} // namespace network
+} // namespace sc

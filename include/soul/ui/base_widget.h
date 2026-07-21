@@ -1,10 +1,12 @@
-#ifndef SOUL_BASE_BASE_WIDGET_H
-#define SOUL_BASE_BASE_WIDGET_H
+#ifndef SOUL_UI_BASE_WIDGET_H
+#define SOUL_UI_BASE_WIDGET_H
 
 #include <QWidget>
 #include "soul/ui/theme.h"
 
 namespace sc {
+namespace ui {
+
 
 class BaseWidget : public QWidget {
     Q_OBJECT
@@ -20,6 +22,7 @@ private slots:
     void onThemeChanged();
 };
 
-}
+} // namespace ui
+} // namespace sc
 
 #endif

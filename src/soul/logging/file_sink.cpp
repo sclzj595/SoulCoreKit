@@ -4,11 +4,24 @@
 
 namespace sc {
 
+namespace {
+// 跨平台安全打开文件（追加模式），规避 MSVC fopen C4996 警告
+FILE* openAppendFile(const char* path) {
+    FILE* f = nullptr;
+#ifdef _WIN32
+    fopen_s(&f, path, "a");
+#else
+    f = std::fopen(path, "a");
+#endif
+    return f;
+}
+}  // namespace
+
 FileSink::FileSink(const std::string& filePath, size_t maxSize, int maxFiles)
     : m_filePath(filePath), m_maxSize(maxSize), m_maxFiles(maxFiles),
       m_formatter(std::make_unique<DefaultLogFormatter>()) {
     std::filesystem::create_directories(std::filesystem::path(filePath).parent_path());
-    m_file = fopen(filePath.c_str(), "a");
+    m_file = openAppendFile(filePath.c_str());
 }
 
 FileSink::FileSink(const std::string& filePath, std::unique_ptr<LogFormatter> formatter,
@@ -16,7 +29,7 @@ FileSink::FileSink(const std::string& filePath, std::unique_ptr<LogFormatter> fo
     : m_filePath(filePath), m_maxSize(maxSize), m_maxFiles(maxFiles),
       m_formatter(std::move(formatter)) {
     std::filesystem::create_directories(std::filesystem::path(filePath).parent_path());
-    m_file = fopen(filePath.c_str(), "a");
+    m_file = openAppendFile(filePath.c_str());
 }
 
 void FileSink::log(const LogRecord& record) {
@@ -52,7 +65,7 @@ void FileSink::rotateFile() {
     }
 
     std::filesystem::rename(m_filePath, m_filePath + ".1");
-    m_file = fopen(m_filePath.c_str(), "a");
+    m_file = openAppendFile(m_filePath.c_str());
     m_currentSize = 0;
 }
 

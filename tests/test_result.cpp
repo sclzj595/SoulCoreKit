@@ -86,7 +86,7 @@ void TestResult::testUnwrapOrElse() {
 
 void TestResult::testMapErr() {
     sc::Result<int> success(42);
-    auto mapped = success.mapErr([](const sc::Error& e) {
+    auto mapped = success.mapErr([](const sc::Error& /*e*/) {
         return sc::Error(sc::ErrorCode::InternalError, "Modified");
     });
     QVERIFY(mapped.isOk());
