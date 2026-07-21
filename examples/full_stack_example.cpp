@@ -33,7 +33,7 @@ void runFullStackDemo() {
 
     QueryWrapper query;
     query.eq("username", "demo_user").orderBy("create_time", true);
-    auto listResult = userRepo.list(query);
+    auto listResult = userRepo.find(query);
     std::cout << "Users found: " << listResult.unwrap().size() << std::endl;
 
     auto connection = MQFactory::createConnection(MQType::RabbitMQ);
