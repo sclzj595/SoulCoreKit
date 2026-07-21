@@ -28,7 +28,7 @@ void runFullStackDemo() {
     auto saveResult = userRepo.save(user);
     std::cout << "User saved: id=" << saveResult.unwrap().id.toStdString() << std::endl;
 
-    auto getResult = userRepo.getById(saveResult.unwrap().id);
+    auto getResult = userRepo.findById(saveResult.unwrap().id);
     std::cout << "User retrieved: username=" << getResult.unwrap().username.toStdString() << std::endl;
 
     QueryWrapper query;
