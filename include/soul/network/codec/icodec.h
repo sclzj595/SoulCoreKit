@@ -25,6 +25,10 @@ public:
     virtual QByteArray encode(const NetworkMessage& message) = 0;
     virtual NetworkMessage decode(const QByteArray& data) = 0;
     virtual QString contentType() const = 0;
+
+    std::string interfaceName() const override {
+        return "ICodec";
+    }
 };
 
 } // namespace network

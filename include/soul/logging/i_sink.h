@@ -17,21 +17,15 @@ namespace sc {
  */
 class ISink : public IInterface {
 public:
-    /**
-     * @brief 虚析构函数
-     */
-    virtual ~ISink() = default;
+    virtual ~ISink() override = default;
 
-    /**
-     * @brief 输出日志记录
-     * @param record 日志记录
-     */
     virtual void log(const LogRecord& record) = 0;
 
-    /**
-     * @brief 刷新缓冲区
-     */
     virtual void flush() = 0;
+
+    std::string interfaceName() const override {
+        return "ISink";
+    }
 };
 
 }

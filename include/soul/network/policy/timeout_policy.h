@@ -25,6 +25,10 @@ public:
     int timeout() const;
     TimeoutPolicy& setTimeout(int ms);
 
+    std::string interfaceName() const override {
+        return "TimeoutPolicy";
+    }
+
 private:
     int m_timeout = 30000;
 };

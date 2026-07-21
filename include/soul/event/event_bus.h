@@ -86,59 +86,21 @@ private:
  */
 class IEventBus : public IInterface {
 public:
-    /**
-     * @brief 事件处理函数类型
-     * @param data 事件数据（字符串格式）
-     */
     using Handler = std::function<void(const std::string&)>;
 
-    /**
-     * @brief 虚析构函数
-     */
     ~IEventBus() override = default;
 
-    /**
-     * @brief 订阅指定主题
-     * @param topic 事件主题
-     * @param handler 事件处理函数
-     * @return 订阅对象
-     */
     virtual Subscription subscribe(const std::string& topic, const Handler& handler) = 0;
 
-    /**
-     * @brief 发布事件到指定主题
-     * @param topic 事件主题
-     * @param data 事件数据
-     */
     virtual void publish(const std::string& topic, const std::string& data) = 0;
 
-    /**
-     * @brief 异步发布事件到指定主题（在线程池中执行）
-     *
-     * 与 publish() 不同，publishAsync() 会立即返回，事件处理函数
-     * 将在 ThreadPool 的工作线程中异步执行，不会阻塞调用线程。
-     *
-     * 注意：事件回调将在线程池线程中执行，而不是 GUI 线程。
-     * 如果需要在 GUI 线程中处理事件，请在回调中使用 Dispatcher。
-     *
-     * @param topic 事件主题
-     * @param data 事件数据
-     *
-     * @code
-     * // 在 worker 线程中发布事件
-     * eventBus->publishAsync("data.loaded", data);
-     *
-     * // 如果需要在 GUI 线程处理
-     * eventBus->subscribe("data.loaded", [](const std::string& data) {
-     *     Dispatcher::invoke([data]() {
-     *         // 在 GUI 线程中更新 UI
-     *     });
-     * });
-     * @endcode
-     */
     virtual void publishAsync(const std::string& topic, const std::string& data) = 0;
 
     virtual size_t subscriberCount(const std::string& topic) const = 0;
+
+    std::string interfaceName() const override {
+        return "IEventBus";
+    }
 };
 
 /**
