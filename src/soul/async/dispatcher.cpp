@@ -1,4 +1,5 @@
 #include "soul/async/dispatcher.h"
+#include <functional>
 #include <QTimer>
 #include <QCoreApplication>
 #include <QThreadPool>

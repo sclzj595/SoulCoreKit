@@ -1,5 +1,7 @@
 #include <algorithm>
 #include <filesystem>
+#include <mutex>
+#include <string>
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -127,6 +129,7 @@ bool PluginManager::loadNativePlugin(const std::string& path)
         if (pluginInstance) {
             handlePtr->plugin = std::shared_ptr<IPlugin>(static_cast<IPlugin*>(pluginInstance),
                 [](IPlugin* p) {
+                    (void)p;
                 });
         }
     }

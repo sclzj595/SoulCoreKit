@@ -2,6 +2,7 @@
 #include "soul/core/time.h"
 #include <cstdio>
 #include <filesystem>
+#include <string>
 
 namespace sc {
 

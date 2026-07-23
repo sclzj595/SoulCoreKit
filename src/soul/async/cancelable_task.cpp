@@ -1,4 +1,5 @@
 #include "soul/async/cancelable_task.h"
+#include <functional>
 #include <QThreadPool>
 
 namespace sc {

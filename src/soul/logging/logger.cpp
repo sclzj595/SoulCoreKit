@@ -1,3 +1,6 @@
+#include <memory>
+#include <mutex>
+#include <string>
 #include "soul/logging/logger.h"
 #include "soul/logging/console_sink.h"
 #include "soul/core/time.h"

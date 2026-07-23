@@ -3,6 +3,7 @@
 
 #include <QString>
 #include <QByteArray>
+#include <QHash>
 #include <unordered_map>
 #include <list>
 #include <mutex>

@@ -2,6 +2,7 @@
 #include "soul/configuration/json_configuration.h"
 #include "soul/logging/log_macros.h"
 #include "soul/core/error.h"
+#include <memory>
 #include <QDir>
 #include <QFile>
 #include <QJsonDocument>

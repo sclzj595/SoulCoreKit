@@ -37,7 +37,7 @@ void TestPlugin::cleanupTestCase()
 
 void TestPlugin::testPluginMetadataStructure()
 {
-    sc::plugin::PluginMetadata metadata;
+    PluginMetadata metadata;
     metadata.id = "com.soulcore.plugin.test";
     metadata.name = "Test Plugin";
     metadata.version = "1.0.0";

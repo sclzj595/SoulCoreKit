@@ -12,11 +12,12 @@
 
 #include "soul/network/network_global.h"
 #include "soul/network/interceptor/i_interceptor.h"
+#include "soul/network/core/network_message.h"
 
 namespace sc {
 namespace network {
 
-class SC_NETWORK_EXPORT LoggingInterceptor : public IInterceptor {
+class SC_NETWORK_EXPORT LoggingInterceptor : public IInterceptor<NetworkMessage, NetworkMessage> {
 public:
     ~LoggingInterceptor() override = default;
 

@@ -114,7 +114,7 @@ public:
 
     T unwrapOr(T defaultValue) {
         if (isOk()) return std::get<T>(m_data);
-        return std::move(defaultValue);
+        return defaultValue;
     }
 
     T unwrapOrElse(std::function<T(const Error&)> fn) {

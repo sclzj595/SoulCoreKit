@@ -1,9 +1,10 @@
 #include "soul/core/time.h"
 
 #include <iostream>
-#ifdef _WIN32
 #include <ctime>
-#endif
+#include <cstdio>
+#include <string>
+#include <chrono>
 
 namespace sc {
 

@@ -12,12 +12,13 @@
 
 #include "soul/network/network_global.h"
 #include "soul/network/interceptor/i_interceptor.h"
+#include "soul/network/core/network_message.h"
 #include <QString>
 
 namespace sc {
 namespace network {
 
-class SC_NETWORK_EXPORT AuthInterceptor : public IInterceptor {
+class SC_NETWORK_EXPORT AuthInterceptor : public IInterceptor<NetworkMessage, NetworkMessage> {
 public:
     AuthInterceptor();
     explicit AuthInterceptor(const QString& token);

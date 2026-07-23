@@ -39,7 +39,7 @@ public:
     virtual NetworkState state() const = 0;
 
     virtual void setPolicy(std::shared_ptr<INetworkPolicy> policy) = 0;
-    virtual void addInterceptor(std::shared_ptr<IInterceptor> interceptor) = 0;
+    virtual void addInterceptor(std::shared_ptr<IInterceptor<NetworkMessage, NetworkMessage>> interceptor) = 0;
 
     std::string interfaceName() const override {
         return "INetwork";

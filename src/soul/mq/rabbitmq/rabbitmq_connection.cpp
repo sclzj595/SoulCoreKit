@@ -2,6 +2,7 @@
 #include "soul/mq/rabbitmq/rabbitmq_producer.h"
 #include "soul/mq/rabbitmq/rabbitmq_consumer.h"
 #include "soul/logging/log_macros.h"
+#include <memory>
 
 namespace sc {
 namespace mq {

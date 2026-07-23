@@ -1,4 +1,5 @@
 #include "soul/async/thread_pool.h"
+#include <functional>
 #include "soul/core/singleton.h"
 
 namespace sc {

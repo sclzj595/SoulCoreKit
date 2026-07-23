@@ -1,12 +1,8 @@
+#include <mutex>
 #include "soul/network/session.h"
 
 namespace sc {
 namespace network {
-
-Session& Session::instance() {
-    static Session inst;
-    return inst;
-}
 
 QString Session::token() const {
     std::lock_guard<std::mutex> lock(m_mutex);

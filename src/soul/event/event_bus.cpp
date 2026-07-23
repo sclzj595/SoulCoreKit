@@ -1,5 +1,8 @@
 #include "soul/event/event_bus.h"
+#include <memory>
+#include <mutex>
 #include <algorithm>
+#include <string>
 #include "soul/async/thread_pool.h"
 
 namespace sc {

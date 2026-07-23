@@ -61,7 +61,7 @@ void NetworkAdapterBase::setPolicy(std::shared_ptr<INetworkPolicy> policy) {
     m_policy = policy;
 }
 
-void NetworkAdapterBase::addInterceptor(std::shared_ptr<IInterceptor> interceptor) {
+void NetworkAdapterBase::addInterceptor(std::shared_ptr<IInterceptor<NetworkMessage, NetworkMessage>> interceptor) {
     if (interceptor) {
         m_interceptors.push_back(interceptor);
     }

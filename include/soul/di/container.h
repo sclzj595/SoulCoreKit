@@ -27,6 +27,7 @@ struct SC_DI_EXPORT RegistrationInfo {
     void* singletonInstance = nullptr;
     bool initialized = false;
     std::shared_ptr<std::atomic<bool>> initFlag;
+    std::function<void(void*)> deleter; // 类型擦除的删除器，避免 delete void*
 };
 
 class SC_DI_EXPORT Container {
@@ -53,6 +54,7 @@ public:
         info.singletonInstance = nullptr;
         info.initialized = false;
         info.initFlag = std::make_shared<std::atomic<bool>>(false);
+        info.deleter = [](void* ptr) { delete static_cast<T*>(ptr); };
     }
 
     template<typename T>
@@ -67,6 +69,7 @@ public:
         info.singletonInstance = instance;
         info.initialized = true;
         info.initFlag = std::make_shared<std::atomic<bool>>(true);
+        info.deleter = [](void* ptr) { delete static_cast<T*>(ptr); };
     }
 
     template<typename T>
@@ -83,6 +86,7 @@ public:
         info.singletonInstance = nullptr;
         info.initialized = false;
         info.initFlag = std::make_shared<std::atomic<bool>>(false);
+        info.deleter = [](void* ptr) { delete static_cast<T*>(ptr); };
     }
 
     template<typename T>
@@ -165,7 +169,9 @@ public:
             if (it->second.lifetime == Lifetime::Singleton &&
                 it->second.initialized &&
                 it->second.singletonInstance) {
-                delete static_cast<T*>(it->second.singletonInstance);
+                if (it->second.deleter) {
+                    it->second.deleter(it->second.singletonInstance);
+                }
             }
             m_registrations.erase(typeIdx);
             m_resolvedInstances.erase(typeIdx);
@@ -179,7 +185,9 @@ public:
             if (pair.second.lifetime == Lifetime::Singleton &&
                 pair.second.initialized &&
                 pair.second.singletonInstance) {
-                delete pair.second.singletonInstance;
+                if (pair.second.deleter) {
+                    pair.second.deleter(pair.second.singletonInstance);
+                }
             }
         }
         m_registrations.clear();

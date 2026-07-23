@@ -1,6 +1,8 @@
 #include "soul/storage/cache.h"
 #include "soul/logging/log_macros.h"
 #include "soul/core/error.h"
+#include <mutex>
+#include <chrono>
 #include <QFile>
 #include <QDir>
 #include <QCryptographicHash>
