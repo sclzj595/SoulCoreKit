@@ -1,4 +1,4 @@
-#include "soul/ui/avatar.h"
+﻿#include "soul/ui/avatar.h"
 #include <QPainter>
 #include <QPainterPath>
 

@@ -1,4 +1,4 @@
-#include "soul/ui/glass_widget.h"
+﻿#include "soul/ui/glass_widget.h"
 #include <QApplication>
 #include <QScreen>
 #include <QGraphicsScene>

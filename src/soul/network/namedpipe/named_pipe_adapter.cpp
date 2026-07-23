@@ -1,4 +1,4 @@
-#include "soul/network/namedpipe/named_pipe_adapter.h"
+﻿#include "soul/network/namedpipe/named_pipe_adapter.h"
 #include "soul/core/result.h"
 #include "soul/network/network_error.h"
 

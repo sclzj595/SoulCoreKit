@@ -1,4 +1,4 @@
-#include <QTest>
+﻿#include <QTest>
 #include "soul/storage/memory_storage.h"
 
 class TestStorage : public QObject {

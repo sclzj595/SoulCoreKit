@@ -1,4 +1,4 @@
-#ifndef SOUL_ORM_SQLITE_REPOSITORY_H
+﻿#ifndef SOUL_ORM_SQLITE_REPOSITORY_H
 #define SOUL_ORM_SQLITE_REPOSITORY_H
 
 #include <QSqlDatabase>

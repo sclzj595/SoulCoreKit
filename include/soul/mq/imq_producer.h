@@ -1,4 +1,4 @@
-#ifndef SOUL_MQ_IMQ_PRODUCER_H
+﻿#ifndef SOUL_MQ_IMQ_PRODUCER_H
 #define SOUL_MQ_IMQ_PRODUCER_H
 
 #include <QString>

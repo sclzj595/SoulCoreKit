@@ -1,4 +1,4 @@
-#include <QTest>
+﻿#include <QTest>
 #include "soul/network/core/inetwork.h"
 #include "soul/network/core/network_message.h"
 #include "soul/network/core/network_state.h"

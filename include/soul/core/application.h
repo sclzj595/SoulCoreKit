@@ -1,4 +1,4 @@
-#ifndef SOUL_CORE_APPLICATION_H
+﻿#ifndef SOUL_CORE_APPLICATION_H
 #define SOUL_CORE_APPLICATION_H
 
 #include <QCoreApplication>

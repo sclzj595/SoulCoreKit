@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file codec/codec_factory.h
  * @brief 编解码器工厂
  * @details 工厂模式，根据类型创建对应的编解码器

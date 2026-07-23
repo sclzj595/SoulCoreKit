@@ -1,4 +1,4 @@
-#ifndef SOUL_UI_PROGRESS_H
+﻿#ifndef SOUL_UI_PROGRESS_H
 #define SOUL_UI_PROGRESS_H
 
 #include "soul/ui/theme.h"

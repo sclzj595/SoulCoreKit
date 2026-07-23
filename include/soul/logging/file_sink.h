@@ -1,4 +1,4 @@
-#ifndef SOUL_LOGGING_FILE_SINK_H
+﻿#ifndef SOUL_LOGGING_FILE_SINK_H
 #define SOUL_LOGGING_FILE_SINK_H
 
 #include "soul/logging/i_sink.h"

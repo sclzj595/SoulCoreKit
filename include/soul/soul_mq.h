@@ -1,4 +1,4 @@
-#ifndef SOUL_MQ_H
+﻿#ifndef SOUL_MQ_H
 #define SOUL_MQ_H
 
 #include "soul/mq/imq_producer.h"

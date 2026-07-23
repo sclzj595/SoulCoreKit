@@ -1,4 +1,4 @@
-#ifndef SOUL_UI_SIDEBAR_H
+﻿#ifndef SOUL_UI_SIDEBAR_H
 #define SOUL_UI_SIDEBAR_H
 
 #include <QWidget>

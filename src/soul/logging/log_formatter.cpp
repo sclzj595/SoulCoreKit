@@ -1,4 +1,4 @@
-#include "soul/logging/log_formatter.h"
+﻿#include "soul/logging/log_formatter.h"
 #include <sstream>
 #include <string>
 

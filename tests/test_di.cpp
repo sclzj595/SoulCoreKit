@@ -1,4 +1,4 @@
-#include <QTest>
+﻿#include <QTest>
 #include <atomic>
 #include <thread>
 

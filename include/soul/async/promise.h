@@ -1,4 +1,4 @@
-#ifndef SOUL_ASYNC_PROMISE_H
+﻿#ifndef SOUL_ASYNC_PROMISE_H
 #define SOUL_ASYNC_PROMISE_H
 
 #include <QPromise>

@@ -1,4 +1,4 @@
-#ifndef SOUL_CORE_SINGLETON_H
+﻿#ifndef SOUL_CORE_SINGLETON_H
 #define SOUL_CORE_SINGLETON_H
 
 #include <memory>

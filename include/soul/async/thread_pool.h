@@ -1,4 +1,4 @@
-#ifndef SOUL_ASYNC_THREAD_POOL_H
+﻿#ifndef SOUL_ASYNC_THREAD_POOL_H
 #define SOUL_ASYNC_THREAD_POOL_H
 
 #include <QThreadPool>

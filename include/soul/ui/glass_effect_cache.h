@@ -1,4 +1,4 @@
-#ifndef SOUL_UI_GLASS_EFFECT_CACHE_H
+﻿#ifndef SOUL_UI_GLASS_EFFECT_CACHE_H
 #define SOUL_UI_GLASS_EFFECT_CACHE_H
 
 #include <QPixmap>

@@ -1,4 +1,4 @@
-#ifndef SOUL_BASE_BASE_OBJECT_H
+﻿#ifndef SOUL_BASE_BASE_OBJECT_H
 #define SOUL_BASE_BASE_OBJECT_H
 
 #include <QObject>

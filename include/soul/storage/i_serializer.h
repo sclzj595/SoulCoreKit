@@ -1,4 +1,4 @@
-#ifndef SOUL_STORAGE_I_SERIALIZER_H
+﻿#ifndef SOUL_STORAGE_I_SERIALIZER_H
 #define SOUL_STORAGE_I_SERIALIZER_H
 
 #include <QString>

@@ -1,4 +1,4 @@
-#include "soul/network/http/http_client_adapter.h"
+﻿#include "soul/network/http/http_client_adapter.h"
 #include "soul/network/http_response.h"
 #include "soul/network/http_request.h"
 

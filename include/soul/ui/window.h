@@ -1,4 +1,4 @@
-#ifndef SOUL_UI_WINDOW_H
+﻿#ifndef SOUL_UI_WINDOW_H
 #define SOUL_UI_WINDOW_H
 
 #include <QMainWindow>

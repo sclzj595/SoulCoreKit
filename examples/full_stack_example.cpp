@@ -1,4 +1,4 @@
-#include <QCoreApplication>
+﻿#include <QCoreApplication>
 #include <QTimer>
 #include <iostream>
 #include "soul/mq/mq_factory.h"

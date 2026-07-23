@@ -1,4 +1,4 @@
-#include "soul/utils/crypto/crypto_utils.h"
+﻿#include "soul/utils/crypto/crypto_utils.h"
 #include <QCryptographicHash>
 #include <QMessageAuthenticationCode>
 #include <QFile>

@@ -1,4 +1,4 @@
-#include "soul/storage/sqlite_database.h"
+﻿#include "soul/storage/sqlite_database.h"
 #include "soul/logging/log_macros.h"
 #include <QUuid>
 #include <QDir>

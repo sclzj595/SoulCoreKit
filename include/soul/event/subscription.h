@@ -1,4 +1,4 @@
-#ifndef SOUL_EVENT_SUBSCRIPTION_H
+﻿#ifndef SOUL_EVENT_SUBSCRIPTION_H
 #define SOUL_EVENT_SUBSCRIPTION_H
 
 #include <QString>

@@ -1,4 +1,4 @@
-#ifndef SOUL_UI_BASE_VIEW_H
+﻿#ifndef SOUL_UI_BASE_VIEW_H
 #define SOUL_UI_BASE_VIEW_H
 
 #include "i_view.h"

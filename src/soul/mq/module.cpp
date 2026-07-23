@@ -1,4 +1,4 @@
-#include "soul/mq/module.h"
+﻿#include "soul/mq/module.h"
 #include "soul/logging/log_macros.h"
 #include "soul/core/error.h"
 

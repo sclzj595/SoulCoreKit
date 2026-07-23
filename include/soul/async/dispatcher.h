@@ -1,4 +1,4 @@
-#ifndef SOUL_ASYNC_DISPATCHER_H
+﻿#ifndef SOUL_ASYNC_DISPATCHER_H
 #define SOUL_ASYNC_DISPATCHER_H
 
 #include <QThread>

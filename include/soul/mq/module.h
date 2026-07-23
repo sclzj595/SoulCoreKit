@@ -1,4 +1,4 @@
-#ifndef SOUL_MQ_MODULE_H
+﻿#ifndef SOUL_MQ_MODULE_H
 #define SOUL_MQ_MODULE_H
 
 #include "soul/core/module.h"

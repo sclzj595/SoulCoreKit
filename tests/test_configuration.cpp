@@ -1,4 +1,4 @@
-#include <QTest>
+﻿#include <QTest>
 #include <QTemporaryFile>
 #include <QTemporaryDir>
 #include <QFile>

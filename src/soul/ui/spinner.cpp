@@ -1,4 +1,4 @@
-#include "soul/ui/spinner.h"
+﻿#include "soul/ui/spinner.h"
 #include <QPainter>
 
 namespace sc {

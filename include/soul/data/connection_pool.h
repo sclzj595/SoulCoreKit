@@ -1,4 +1,4 @@
-#ifndef SOUL_DATA_CONNECTION_POOL_H
+﻿#ifndef SOUL_DATA_CONNECTION_POOL_H
 #define SOUL_DATA_CONNECTION_POOL_H
 
 #include <QString>

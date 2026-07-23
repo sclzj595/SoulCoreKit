@@ -1,4 +1,4 @@
-#include "soul/ui/slider.h"
+﻿#include "soul/ui/slider.h"
 #include <QPainter>
 
 namespace sc {

@@ -1,4 +1,4 @@
-#ifndef SOUL_DI_DI_GLOBAL_H
+﻿#ifndef SOUL_DI_DI_GLOBAL_H
 #define SOUL_DI_DI_GLOBAL_H
 
 #include <QtCore/qglobal.h>

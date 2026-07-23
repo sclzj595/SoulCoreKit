@@ -1,4 +1,4 @@
-#ifndef SOUL_UTILS_JSON_UTILS_H
+﻿#ifndef SOUL_UTILS_JSON_UTILS_H
 #define SOUL_UTILS_JSON_UTILS_H
 
 #include <QJsonDocument>

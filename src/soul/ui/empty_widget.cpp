@@ -1,4 +1,4 @@
-#include "soul/ui/empty_widget.h"
+﻿#include "soul/ui/empty_widget.h"
 
 namespace sc {
 

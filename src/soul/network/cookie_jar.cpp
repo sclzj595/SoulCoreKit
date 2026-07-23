@@ -1,4 +1,4 @@
-#include "soul/network/cookie_jar.h"
+﻿#include "soul/network/cookie_jar.h"
 #include "soul/logging/log_macros.h"
 #include <QFile>
 #include <QDataStream>

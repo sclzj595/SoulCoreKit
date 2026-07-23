@@ -1,4 +1,4 @@
-#include "soul/core/version.h"
+﻿#include "soul/core/version.h"
 
 #include <sstream>
 #include <regex>

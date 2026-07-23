@@ -1,4 +1,4 @@
-#ifndef SOUL_UI_LOADING_H
+﻿#ifndef SOUL_UI_LOADING_H
 #define SOUL_UI_LOADING_H
 
 #include <QWidget>

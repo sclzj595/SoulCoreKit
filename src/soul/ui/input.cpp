@@ -1,4 +1,4 @@
-#include "soul/ui/input.h"
+﻿#include "soul/ui/input.h"
 #include <QPainter>
 
 namespace sc {

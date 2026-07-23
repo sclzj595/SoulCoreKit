@@ -1,4 +1,4 @@
-#include "soul/ui/tool_tip.h"
+﻿#include "soul/ui/tool_tip.h"
 #include <QPainter>
 #include <QPainterPath>
 

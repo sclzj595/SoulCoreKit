@@ -1,4 +1,4 @@
-#ifndef SOUL_UI_BADGE_H
+﻿#ifndef SOUL_UI_BADGE_H
 #define SOUL_UI_BADGE_H
 
 #include "soul/ui/theme.h"

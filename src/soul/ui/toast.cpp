@@ -1,4 +1,4 @@
-#include "soul/ui/toast.h"
+﻿#include "soul/ui/toast.h"
 #include "soul/ui/theme.h"
 #include "soul/ui/design_constants.h"
 #include <QApplication>

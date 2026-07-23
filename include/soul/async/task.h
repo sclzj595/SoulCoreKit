@@ -1,4 +1,4 @@
-#ifndef SOUL_ASYNC_TASK_H
+﻿#ifndef SOUL_ASYNC_TASK_H
 #define SOUL_ASYNC_TASK_H
 
 #include <functional>

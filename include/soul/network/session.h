@@ -1,4 +1,4 @@
-#ifndef SOUL_NETWORK_SESSION_H
+﻿#ifndef SOUL_NETWORK_SESSION_H
 #define SOUL_NETWORK_SESSION_H
 
 #include "soul/network/network_global.h"

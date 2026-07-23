@@ -1,4 +1,4 @@
-#include <QTest>
+﻿#include <QTest>
 #include "soul/logging/logger.h"
 
 class TestLogger : public QObject {

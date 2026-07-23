@@ -1,4 +1,4 @@
-#ifndef SOUL_CORE_MODULE_H
+﻿#ifndef SOUL_CORE_MODULE_H
 #define SOUL_CORE_MODULE_H
 
 #include <string>

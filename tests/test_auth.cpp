@@ -1,4 +1,4 @@
-#include <QTest>
+﻿#include <QTest>
 #include "soul/auth/auth_manager.h"
 
 using namespace sc;

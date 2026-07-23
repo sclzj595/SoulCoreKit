@@ -1,4 +1,4 @@
-#include "soul/network/uploader.h"
+﻿#include "soul/network/uploader.h"
 #include "soul/logging/log_macros.h"
 #include <QHttpMultiPart>
 #include <QFileInfo>

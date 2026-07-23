@@ -1,4 +1,4 @@
-#include "soul/configuration/ini_configuration.h"
+﻿#include "soul/configuration/ini_configuration.h"
 #include "soul/core/error.h"
 
 namespace sc {

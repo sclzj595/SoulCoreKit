@@ -1,4 +1,4 @@
-#ifndef SOUL_AUTH_PERMISSION_H
+﻿#ifndef SOUL_AUTH_PERMISSION_H
 #define SOUL_AUTH_PERMISSION_H
 
 #include <QString>

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file policy/heartbeat_policy.h
  * @brief 心跳策略类
  * @details 管理网络连接的心跳检测和保活机制

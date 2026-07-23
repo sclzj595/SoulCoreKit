@@ -1,4 +1,4 @@
-#include "soul/base/base_object.h"
+﻿#include "soul/base/base_object.h"
 
 namespace sc {
 

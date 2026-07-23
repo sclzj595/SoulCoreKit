@@ -1,4 +1,4 @@
-#include "soul/ui/page.h"
+﻿#include "soul/ui/page.h"
 #include <QVBoxLayout>
 
 namespace sc {

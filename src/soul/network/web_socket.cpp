@@ -1,4 +1,4 @@
-#include "soul/network/web_socket.h"
+﻿#include "soul/network/web_socket.h"
 #include <QTimer>
 #include "soul/logging/logger.h"
 

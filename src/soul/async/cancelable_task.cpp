@@ -1,4 +1,4 @@
-#include "soul/async/cancelable_task.h"
+﻿#include "soul/async/cancelable_task.h"
 #include <functional>
 #include <QThreadPool>
 

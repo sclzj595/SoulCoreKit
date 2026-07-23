@@ -1,4 +1,4 @@
-#include "soul/ui/animation.h"
+﻿#include "soul/ui/animation.h"
 #include "soul/ui/design_constants.h"
 #include <QParallelAnimationGroup>
 #include <QSequentialAnimationGroup>

@@ -1,4 +1,4 @@
-#include "soul/async/async_runner.h"
+﻿#include "soul/async/async_runner.h"
 #include <QMetaObject>
 #include <QCoreApplication>
 #include <QTimer>

@@ -1,4 +1,4 @@
-#include "soul/ui/sidebar.h"
+﻿#include "soul/ui/sidebar.h"
 #include "soul/ui/sidebar_hover_filter.h"
 #include "soul/ui/animation.h"
 #include "soul/ui/theme.h"

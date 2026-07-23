@@ -1,4 +1,4 @@
-#ifndef SOUL_UTILS_IMAGE_UTILS_H
+﻿#ifndef SOUL_UTILS_IMAGE_UTILS_H
 #define SOUL_UTILS_IMAGE_UTILS_H
 
 #include <QPixmap>

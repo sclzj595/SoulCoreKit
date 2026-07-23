@@ -1,4 +1,4 @@
-#include <QTest>
+﻿#include <QTest>
 
 #include "soul/plugin/iplugin.h"
 #include "soul/plugin/module.h"

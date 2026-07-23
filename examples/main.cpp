@@ -1,4 +1,4 @@
-#include <QApplication>
+﻿#include <QApplication>
 #include <QPushButton>
 #include <QLabel>
 #include <QVBoxLayout>

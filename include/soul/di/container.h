@@ -1,4 +1,4 @@
-#ifndef SOUL_DI_CONTAINER_H
+﻿#ifndef SOUL_DI_CONTAINER_H
 #define SOUL_DI_CONTAINER_H
 
 #include <atomic>

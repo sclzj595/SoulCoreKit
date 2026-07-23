@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file network_global.h
  * @brief 网络模块全局导出宏定义
  * @details 定义 SC_NETWORK_EXPORT 宏，用于 DLL 导出/导入控制

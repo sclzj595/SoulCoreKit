@@ -1,4 +1,4 @@
-#ifndef SOUL_CORE_PLATFORM_H
+﻿#ifndef SOUL_CORE_PLATFORM_H
 #define SOUL_CORE_PLATFORM_H
 
 #include <string>

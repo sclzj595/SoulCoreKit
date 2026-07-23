@@ -1,4 +1,4 @@
-#include "soul/event/subscription.h"
+﻿#include "soul/event/subscription.h"
 
 namespace sc {
 

@@ -1,4 +1,4 @@
-#ifndef SOUL_UI_IVIEW_H
+﻿#ifndef SOUL_UI_IVIEW_H
 #define SOUL_UI_IVIEW_H
 
 #include <QWidget>

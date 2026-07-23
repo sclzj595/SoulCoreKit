@@ -1,4 +1,4 @@
-#ifndef SOUL_PLUGIN_PLUGIN_GLOBAL_H
+﻿#ifndef SOUL_PLUGIN_PLUGIN_GLOBAL_H
 #define SOUL_PLUGIN_PLUGIN_GLOBAL_H
 
 #include <QtCore/qglobal.h>

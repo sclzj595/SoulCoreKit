@@ -1,4 +1,4 @@
-#ifndef SOUL_UI_CARD_H
+﻿#ifndef SOUL_UI_CARD_H
 #define SOUL_UI_CARD_H
 
 #include <QWidget>

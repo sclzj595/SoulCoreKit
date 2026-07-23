@@ -1,4 +1,4 @@
-#include "soul/logging/daily_file_sink.h"
+﻿#include "soul/logging/daily_file_sink.h"
 #include "soul/core/time.h"
 #include <cstdio>
 #include <filesystem>

@@ -1,4 +1,4 @@
-#ifndef SOUL_EVENT_TYPED_EVENT_BUS_H
+﻿#ifndef SOUL_EVENT_TYPED_EVENT_BUS_H
 #define SOUL_EVENT_TYPED_EVENT_BUS_H
 
 #include <string>

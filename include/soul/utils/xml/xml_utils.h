@@ -1,4 +1,4 @@
-#ifndef SOUL_UTILS_XML_XML_UTILS_H
+﻿#ifndef SOUL_UTILS_XML_XML_UTILS_H
 #define SOUL_UTILS_XML_XML_UTILS_H
 
 #include <QDomDocument>

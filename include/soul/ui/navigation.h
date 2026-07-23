@@ -1,4 +1,4 @@
-#ifndef SOUL_UI_NAVIGATION_H
+﻿#ifndef SOUL_UI_NAVIGATION_H
 #define SOUL_UI_NAVIGATION_H
 
 #include <QStackedWidget>

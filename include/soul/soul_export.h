@@ -1,4 +1,4 @@
-#ifndef SOUL_EXPORT_H
+﻿#ifndef SOUL_EXPORT_H
 #define SOUL_EXPORT_H
 
 #include "SoulCoreKit_export.h"

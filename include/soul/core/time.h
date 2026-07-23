@@ -1,4 +1,4 @@
-#ifndef SOUL_CORE_TIME_H
+﻿#ifndef SOUL_CORE_TIME_H
 #define SOUL_CORE_TIME_H
 
 #include <string>

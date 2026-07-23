@@ -1,4 +1,4 @@
-#ifndef SOUL_ASYNC_FUTURE_H
+﻿#ifndef SOUL_ASYNC_FUTURE_H
 #define SOUL_ASYNC_FUTURE_H
 
 #include <QFuture>

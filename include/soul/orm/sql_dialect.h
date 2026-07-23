@@ -1,4 +1,4 @@
-#ifndef SOUL_ORM_SQL_DIALECT_H
+﻿#ifndef SOUL_ORM_SQL_DIALECT_H
 #define SOUL_ORM_SQL_DIALECT_H
 
 #include <QString>

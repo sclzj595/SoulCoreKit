@@ -1,4 +1,4 @@
-#ifndef SOUL_UI_GLASS_WIDGET_H
+﻿#ifndef SOUL_UI_GLASS_WIDGET_H
 #define SOUL_UI_GLASS_WIDGET_H
 
 #include <QWidget>

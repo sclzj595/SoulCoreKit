@@ -1,4 +1,4 @@
-#ifndef SOUL_AUTH_TOKEN_H
+﻿#ifndef SOUL_AUTH_TOKEN_H
 #define SOUL_AUTH_TOKEN_H
 
 #include <QString>

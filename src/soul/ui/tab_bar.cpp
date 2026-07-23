@@ -1,4 +1,4 @@
-#include "soul/ui/tab_bar.h"
+﻿#include "soul/ui/tab_bar.h"
 #include <QPainter>
 
 namespace sc {

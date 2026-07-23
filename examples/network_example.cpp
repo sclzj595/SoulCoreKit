@@ -1,4 +1,4 @@
-#include <memory>
+﻿#include <memory>
 #include "soul/network/http_client.h"
 #include "soul/network/http_request.h"
 #include "soul/logging/log_macros.h"

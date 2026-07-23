@@ -1,4 +1,4 @@
-#ifndef SOUL_ORM_ENTITIES_H
+﻿#ifndef SOUL_ORM_ENTITIES_H
 #define SOUL_ORM_ENTITIES_H
 
 #include "soul/orm/entity.h"

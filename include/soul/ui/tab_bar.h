@@ -1,4 +1,4 @@
-#ifndef SOUL_UI_TAB_BAR_H
+﻿#ifndef SOUL_UI_TAB_BAR_H
 #define SOUL_UI_TAB_BAR_H
 
 #include "soul/ui/theme.h"

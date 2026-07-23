@@ -1,4 +1,4 @@
-#ifndef SOUL_NETWORK_WEB_SOCKET_H
+﻿#ifndef SOUL_NETWORK_WEB_SOCKET_H
 #define SOUL_NETWORK_WEB_SOCKET_H
 
 #include <QObject>

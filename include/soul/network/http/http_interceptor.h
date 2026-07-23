@@ -1,4 +1,4 @@
-#ifndef SOUL_NETWORK_HTTP_HTTP_INTERCEPTOR_H
+﻿#ifndef SOUL_NETWORK_HTTP_HTTP_INTERCEPTOR_H
 #define SOUL_NETWORK_HTTP_HTTP_INTERCEPTOR_H
 
 #include "soul/network/interceptor/i_interceptor.h"

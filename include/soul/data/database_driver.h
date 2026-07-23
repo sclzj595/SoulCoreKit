@@ -1,4 +1,4 @@
-#ifndef SOUL_DATA_DATABASE_DRIVER_H
+﻿#ifndef SOUL_DATA_DATABASE_DRIVER_H
 #define SOUL_DATA_DATABASE_DRIVER_H
 
 #include <QString>

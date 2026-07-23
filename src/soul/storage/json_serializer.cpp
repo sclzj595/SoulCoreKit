@@ -1,4 +1,4 @@
-#include "soul/storage/json_serializer.h"
+﻿#include "soul/storage/json_serializer.h"
 #include "soul/core/error.h"
 #include <QJsonDocument>
 #include <QJsonObject>

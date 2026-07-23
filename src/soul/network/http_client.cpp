@@ -1,4 +1,4 @@
-#include "soul/network/http_client.h"
+﻿#include "soul/network/http_client.h"
 #include <memory>
 #include <atomic>
 #include <QCoreApplication>

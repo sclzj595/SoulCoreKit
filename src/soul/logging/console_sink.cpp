@@ -1,4 +1,4 @@
-#include <string>
+﻿#include <string>
 #include "soul/logging/console_sink.h"
 
 namespace sc {

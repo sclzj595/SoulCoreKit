@@ -1,4 +1,4 @@
-#include <QTest>
+﻿#include <QTest>
 #include "soul/storage/cache.h"
 
 class TestMemoryCache : public QObject {
