@@ -1,11 +1,14 @@
 #include <QCoreApplication>
 #include <QElapsedTimer>
-#include <iostream>
+
 #include <atomic>
+#include <iostream>
 #include <vector>
+
 #include "soul/async/thread_pool.h"
 
-int main(int argc, char* argv[]) {
+int main(int argc, char* argv[])
+{
     QCoreApplication app(argc, argv);
 
     std::cout << "=== ThreadPool Benchmark ===" << std::endl;
@@ -15,7 +18,8 @@ int main(int argc, char* argv[]) {
     std::atomic<int> counter(0);
 
     timer.start();
-    for (int i = 0; i < iterations; ++i) {
+    for (int i = 0; i < iterations; ++i)
+    {
         sc::ThreadPool::instance().start([&counter]() {
             ++counter;
         });
@@ -28,8 +32,10 @@ int main(int argc, char* argv[]) {
     counter = 0;
 
     timer.start();
-    for (int b = 0; b < batches; ++b) {
-        for (int i = 0; i < batchSize; ++i) {
+    for (int b = 0; b < batches; ++b)
+    {
+        for (int i = 0; i < batchSize; ++i)
+        {
             sc::ThreadPool::instance().start([&counter]() {
                 ++counter;
             });
@@ -42,7 +48,8 @@ int main(int argc, char* argv[]) {
     counter = 0;
 
     timer.start();
-    for (int i = 0; i < iterations; ++i) {
+    for (int i = 0; i < iterations; ++i)
+    {
         sc::ThreadPool::instance().start([&results, i]() {
             results[i] = i * 2;
         });
@@ -51,11 +58,13 @@ int main(int argc, char* argv[]) {
     std::cout << "3. Submit " << iterations << " tasks with data processing: " << timer.elapsed() << " ms" << std::endl;
 
     int maxThreads[] = {1, 2, 4, 8, 16};
-    for (int mt : maxThreads) {
+    for (int mt : maxThreads)
+    {
         sc::ThreadPool::instance().setMaxThreadCount(mt);
         counter = 0;
         timer.start();
-        for (int i = 0; i < iterations; ++i) {
+        for (int i = 0; i < iterations; ++i)
+        {
             sc::ThreadPool::instance().start([&counter]() {
                 ++counter;
             });
