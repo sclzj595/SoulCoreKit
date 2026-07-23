@@ -3,6 +3,8 @@
 #include <iostream>
 #include <ctime>
 #include <cstdio>
+#include <string>
+#include <chrono>
 
 namespace sc {
 

@@ -1,3 +1,4 @@
+#include <string>
 #include "soul/network/codec/json_codec.h"
 #include <QJsonObject>
 #include <QJsonArray>

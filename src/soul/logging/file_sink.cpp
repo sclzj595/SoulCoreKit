@@ -1,6 +1,7 @@
 #include "soul/logging/file_sink.h"
 #include <cstdio>
 #include <filesystem>
+#include <string>
 
 namespace sc {
 

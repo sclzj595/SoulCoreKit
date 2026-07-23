@@ -2,6 +2,7 @@
 #include "soul/network/factory/network_factory.h"
 #include <mutex>
 #include <chrono>
+#include <string>
 
 namespace sc {
 namespace network {

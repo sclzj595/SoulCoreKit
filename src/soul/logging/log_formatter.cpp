@@ -1,5 +1,6 @@
 #include "soul/logging/log_formatter.h"
 #include <sstream>
+#include <string>
 
 namespace sc {
 
