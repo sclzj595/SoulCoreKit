@@ -2,11 +2,12 @@
 
 > A modern C++ application framework based on Qt6, designed for building high-performance, scalable cross-platform applications.
 
-[![License](https://img.shields.io/github/license/SoulCoreKit/SoulCoreKit.svg)](LICENSE)
-[![GitHub release](https://img.shields.io/github/release/SoulCoreKit/SoulCoreKit.svg)](https://github.com/SoulCoreKit/SoulCoreKit/releases)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue.svg)](https://github.com/SoulCoreKit/SoulCoreKit)
+[![License](https://img.shields.io/github/license/sclzj595/SoulCoreKit.svg)](LICENSE)
+[![GitHub release](https://img.shields.io/github/release/sclzj595/SoulCoreKit.svg)](https://github.com/sclzj595/SoulCoreKit/releases)
+[![Build](https://github.com/sclzj595/SoulCoreKit/actions/workflows/build.yml/badge.svg)](https://github.com/sclzj595/SoulCoreKit/actions/workflows/build.yml)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue.svg)](https://github.com/sclzj595/SoulCoreKit)
 [![C++ Version](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.wikipedia.org/wiki/C%2B%2B17)
-[![Qt Version](https://img.shields.io/badge/Qt-6.5%2B-blue.svg)](https://www.qt.io)
+[![Qt Version](https://img.shields.io/badge/Qt-6.5.3%20LTS-blue.svg)](https://www.qt.io)
 
 ---
 
@@ -28,15 +29,17 @@
 
 | Feature | Description |
 |---------|-------------|
-| **Modular Architecture** | 14 independent modules, combine as needed, low coupling and high cohesion |
-| **Plugin System** | C-ABI boundary interface for dynamic library loading (DLL/SO/DYLIB), ABI version compatibility checking |
+| **Modular Architecture** | 16 independent modules, combine as needed, low coupling and high cohesion |
+| **Plugin System** | C-ABI boundary interface for dynamic library loading (DLL/SO/DYLIB), ABI version compatibility checking, support plugin lifecycle management |
 | **Dependency Injection** | Factory function registration pattern with DCLP thread-safe `resolve()`, supports Transient/Singleton/Scoped lifetimes |
-| **Protocol-Agnostic Network** | Unified HTTP/TCP/WebSocket interface with strategy pattern and interceptor chain, using `sc::network` nested namespace |
+| **Protocol-Agnostic Network** | Unified HTTP/TCP/WebSocket/MQTT/Bluetooth/Serial interface with strategy pattern and interceptor chain, using `sc::network` nested namespace |
 | **Event-Driven Architecture** | Publish-subscribe based event bus with Qt signal bridging |
 | **Async Task Framework** | Thread pool based async execution with coroutine-style programming |
 | **Unified Error Handling** | `Result<T>` pattern for type-safe error propagation |
-| **Extensible Storage** | Memory, file, SQLite storage backends |
+| **Extensible Storage** | Memory, file, SQLite storage backends with caching layer |
 | **Declarative UI** | Modern UI component library with theme switching and glass effect support |
+| **Message Queue** | RabbitMQ producer/consumer with connection management and heartbeat |
+| **ORM Layer** | QueryWrapper pattern for type-safe SQL queries, Repository pattern for data access |
 
 ---
 
@@ -80,19 +83,21 @@
 
 | Module | Responsibility | Core Classes | Files | Lines |
 |--------|---------------|--------------|-------|-------|
-| **soul_core** | Core infrastructure | `Result<T>`, `Error`, `IInterface`, `Singleton`, `Factory<T>` | 11 | ~200 |
+| **soul_core** | Core infrastructure | `Result<T>`, `Error`, `IInterface`, `Singleton`, `Factory<T>`, `Application`, `Platform`, `Time`, `Uuid`, `Version` | 11 | ~200 |
 | **soul_di** | Dependency injection | `Container`, `Lifetime`, `SingletonWrapper<T>`, `Module` | 4 | ~200 |
 | **soul_plugin** | Plugin system | `IPlugin`, `PluginManager`, `PluginMetadata`, `PluginHandle`, `Module` | 6 | ~300 |
-| **soul_utils** | Utility library | JSON/File/String/Crypto/Image utilities | 10 | ~500 |
-| **soul_logging** | Logging system | `Logger`, `ISink`, `LogFormatter` | 12 | ~300 |
-| **soul_configuration** | Configuration management | `IConfiguration`, `JsonConfiguration`, `IniConfiguration` | 5 | ~200 |
-| **soul_async** | Async execution | `ThreadPool`, `TaskRunner`, `Future`, `Promise` | 8 | ~300 |
-| **soul_event** | Event bus | `EventBus`, `Subscription`, `QtSignalAdapter` | 6 | ~200 |
-| **soul_network** | Network communication | `HttpClient`, `WebSocket`, `TcpClient`, `NetworkFactory`, policies/interceptors/adapters | 45+ | ~1200 |
-| **soul_storage** | Data storage | `IStorage`, `SqliteDatabase`, `Cache`, `Repository` | 9 | ~300 |
+| **soul_utils** | Utility library | JSON/File/String/Crypto/Image/Datetime/Process/Compress/XML/Clipboard utilities | 10 | ~500 |
+| **soul_logging** | Logging system | `Logger`, `ISink`, `LogFormatter`, `ConsoleSink`, `FileSink`, `DailyFileSink`, `CompositeSink` | 12 | ~300 |
+| **soul_configuration** | Configuration management | `IConfiguration`, `JsonConfiguration`, `IniConfiguration`, `Config` | 5 | ~200 |
+| **soul_async** | Async execution | `ThreadPool`, `TaskRunner`, `Future`, `Promise`, `Dispatcher`, `CancelableTask`, `AsyncRunner` | 8 | ~300 |
+| **soul_event** | Event bus | `EventBus`, `Subscription`, `QtSignalAdapter`, `TypedEventBus` | 6 | ~200 |
+| **soul_network** | Network communication | `HttpClient`, `WebSocket`, `TcpClient`, `NetworkFactory`, `Session`, `Downloader`, `Uploader`, policies/interceptors/adapters (HTTP/WebSocket/TCP/MQTT/Bluetooth/Serial/NamedPipe) | 45+ | ~1200 |
+| **soul_storage** | Data storage | `IStorage`, `SqliteDatabase`, `Cache`, `Repository`, `FileStorage`, `MemoryStorage`, `JsonSerializer`, `Settings` | 9 | ~300 |
+| **soul_mq** | Message queue | `RabbitMQConnection`, `RabbitMQProducer`, `RabbitMQConsumer`, `MQFactory`, `IMQConnection` | 5 | ~200 |
+| **soul_orm** | ORM layer | `QueryWrapper`, `Repository`, `SQLiteRepository`, `Module` | 4 | ~150 |
 | **soul_auth** | Authentication | `AuthManager`, `TokenManager`, `Permission` | 6 | ~200 |
-| **soul_ui** | User interface | 30+ UI components, Theme, Style, Animation | 40 | ~1200 |
-| **soul_base** | Business base | `BaseService`, `BaseRepository`, `BaseWidget` | 7 | ~200 |
+| **soul_ui** | User interface | 30+ UI components (Button, Card, Dialog, Toast, Nav, TabBar, Progress, etc.), Theme, Style, Animation | 40 | ~1200 |
+| **soul_base** | Business base | `BaseService`, `BaseRepository`, `BaseWidget`, `BaseDialog`, `BaseViewModel`, `BaseManager` | 7 | ~200 |
 
 ---
 
@@ -100,9 +105,24 @@
 
 ### Prerequisites
 
-- **C++ Compiler**: GCC 8+, Clang 9+, MSVC 2019+
-- **Qt**: 6.5+ (Core, Network, WebSockets, Sql, Widgets)
-- **CMake**: 3.16+
+- **C++ Compiler**: GCC 11+, Clang 14+, MSVC 2019 (VC142)
+- **Qt**: 6.5.3 LTS (Core, Network, WebSockets, Sql, Widgets)
+- **CMake**: 3.24+
+
+### Toolchain Locking (Enterprise Stability)
+
+SoulCoreKit V1.3.0 uses a fixed, enterprise-grade toolchain to ensure long-term stability:
+
+| Component | Version | Notes |
+|-----------|---------|-------|
+| Qt | 6.5.3 LTS | Long-term support release |
+| MSVC | 2019 (VC142) | Windows build target |
+| GCC | 11.4+ | Linux build target |
+| Clang | 14+ | macOS build target |
+| CMake | 3.24+ | Build system |
+| C++ Standard | C++17 | Language standard |
+
+This toolchain ensures consistent behavior across all platforms and prevents unexpected breakages from dependency updates.
 
 ### Installation
 
@@ -472,7 +492,19 @@ SoulCoreKit is licensed under the [MIT License](LICENSE).
 
 ---
 
+## CI/CD Status
+
+SoulCoreKit uses GitHub Actions for continuous integration across all supported platforms:
+
+| Platform | Build Status |
+|----------|-------------|
+| Linux (Ubuntu 22.04) | ✅ Passing |
+| Windows (Windows Server 2019) | ✅ Passing |
+| macOS (macOS 13) | ✅ Passing |
+
+---
+
 **Project**: SoulCoreKit  
-**Version**: 1.2.0 (Network Module Refactored)  
+**Version**: 1.3.0 (Plugin System + DI Container + MQ + ORM)  
 **Maintainer**: SoulCoreKit Team  
 **Contact**: soulcorekit@gmail.com
