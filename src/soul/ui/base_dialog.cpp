@@ -1,3 +1,4 @@
+#include <functional>
 #include "soul/ui/base_dialog.h"
 #include <QLabel>
 #include <QPushButton>

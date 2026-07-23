@@ -1,5 +1,6 @@
 #include "soul/network/pool/connection_pool.h"
 #include "soul/network/factory/network_factory.h"
+#include <mutex>
 #include <chrono>
 
 namespace sc {

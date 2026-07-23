@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <filesystem>
+#include <mutex>
 
 #if defined(_WIN32)
 #include <windows.h>

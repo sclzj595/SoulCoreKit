@@ -1,3 +1,4 @@
+#include <functional>
 #include "soul/ui/dialog.h"
 #include "soul/ui/theme.h"
 #include <QHBoxLayout>

@@ -1,3 +1,4 @@
+#include <mutex>
 #include "soul/network/monitor/metrics.h"
 
 namespace sc {

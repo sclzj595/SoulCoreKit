@@ -1,4 +1,5 @@
 #include <memory>
+#include <mutex>
 #include "soul/network/monitor/monitor.h"
 
 namespace sc {

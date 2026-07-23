@@ -1,4 +1,5 @@
 #include "soul/utils/process/process_utils.h"
+#include <functional>
 #include <QCoreApplication>
 #include <QProcess>
 #include <QStandardPaths>
