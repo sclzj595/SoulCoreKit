@@ -1,3 +1,4 @@
+#include <memory>
 #include "soul/network/monitor/monitor.h"
 
 namespace sc {

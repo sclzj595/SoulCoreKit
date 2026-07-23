@@ -1,4 +1,5 @@
 #include "soul/network/http_client.h"
+#include <memory>
 #include <QNetworkRequest>
 #include <QNetworkReply>
 #include <QSslConfiguration>

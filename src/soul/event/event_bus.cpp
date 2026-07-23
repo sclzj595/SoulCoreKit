@@ -1,4 +1,5 @@
 #include "soul/event/event_bus.h"
+#include <memory>
 #include <algorithm>
 #include "soul/async/thread_pool.h"
 

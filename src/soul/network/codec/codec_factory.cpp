@@ -1,3 +1,4 @@
+#include <memory>
 #include "soul/network/codec/codec_factory.h"
 #include "soul/network/codec/json_codec.h"
 
