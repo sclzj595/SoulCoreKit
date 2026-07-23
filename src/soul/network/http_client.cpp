@@ -79,7 +79,7 @@ void HttpClient::setupSslConfiguration() {
 
 Result<HttpResponse> HttpClient::send(const HttpRequest& request) {
 #ifdef QT_DEBUG
-    if (QThread::currentThread() == qApp->thread()) {
+    if (QThread::currentThread() == QCoreApplication::instance()->thread()) {
         Logger::instance().warn("HttpClient::send() is called in GUI thread, consider using sendAsync()", "HttpClient");
     }
 #endif
