@@ -1,4 +1,4 @@
-#include "soul/ui/scroll_bar.h"
+﻿#include "soul/ui/scroll_bar.h"
 #include <QPainter>
 
 namespace sc {

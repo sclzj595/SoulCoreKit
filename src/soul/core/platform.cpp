@@ -1,4 +1,4 @@
-#include "soul/core/platform.h"
+﻿#include "soul/core/platform.h"
 
 #include <QOperatingSystemVersion>
 #include <string>

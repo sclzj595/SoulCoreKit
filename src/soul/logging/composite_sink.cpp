@@ -1,4 +1,4 @@
-#include "soul/logging/composite_sink.h"
+﻿#include "soul/logging/composite_sink.h"
 #include <algorithm>
 
 namespace sc {

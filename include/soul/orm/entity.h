@@ -1,4 +1,4 @@
-#ifndef SOUL_ORM_ENTITY_H
+﻿#ifndef SOUL_ORM_ENTITY_H
 #define SOUL_ORM_ENTITY_H
 
 #include <QString>

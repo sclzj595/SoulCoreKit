@@ -1,4 +1,4 @@
-#include "soul/ui/badge.h"
+﻿#include "soul/ui/badge.h"
 #include <QPainter>
 
 namespace sc {

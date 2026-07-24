@@ -1,4 +1,4 @@
-#include "soul/utils/compress/compress_utils.h"
+﻿#include "soul/utils/compress/compress_utils.h"
 #include <QByteArray>
 
 namespace sc {

@@ -1,4 +1,4 @@
-#ifndef SOUL_STORAGE_MEMORY_STORAGE_H
+﻿#ifndef SOUL_STORAGE_MEMORY_STORAGE_H
 #define SOUL_STORAGE_MEMORY_STORAGE_H
 
 #include "istorage.h"

@@ -1,4 +1,4 @@
-#ifndef SOUL_UI_SLIDER_H
+﻿#ifndef SOUL_UI_SLIDER_H
 #define SOUL_UI_SLIDER_H
 
 #include "soul/ui/theme.h"

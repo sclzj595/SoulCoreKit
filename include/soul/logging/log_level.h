@@ -1,4 +1,4 @@
-#ifndef SOUL_LOGGING_LOG_LEVEL_H
+﻿#ifndef SOUL_LOGGING_LOG_LEVEL_H
 #define SOUL_LOGGING_LOG_LEVEL_H
 
 namespace sc {

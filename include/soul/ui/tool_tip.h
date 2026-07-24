@@ -1,4 +1,4 @@
-#ifndef SOUL_UI_TOOL_TIP_H
+﻿#ifndef SOUL_UI_TOOL_TIP_H
 #define SOUL_UI_TOOL_TIP_H
 
 #include "soul/ui/theme.h"

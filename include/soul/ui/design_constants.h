@@ -1,4 +1,4 @@
-#ifndef SOUL_UI_DESIGN_CONSTANTS_H
+﻿#ifndef SOUL_UI_DESIGN_CONSTANTS_H
 #define SOUL_UI_DESIGN_CONSTANTS_H
 
 #include <QtGlobal>

@@ -1,4 +1,4 @@
-#ifndef SOUL_UI_BUTTON_H
+﻿#ifndef SOUL_UI_BUTTON_H
 #define SOUL_UI_BUTTON_H
 
 #include <QPushButton>

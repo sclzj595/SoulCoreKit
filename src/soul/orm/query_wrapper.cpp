@@ -1,4 +1,4 @@
-#include <functional>
+﻿#include <functional>
 #include "soul/orm/query_wrapper.h"
 
 namespace sc {

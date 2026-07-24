@@ -111,7 +111,6 @@ coverage/
 
 # Clang tools
 compile_commands.json
-.clang-format
 .clang-tidy
 
 # Visual Studio

@@ -1,4 +1,4 @@
-#ifndef SOUL_CORE_INTERFACE_H
+﻿#ifndef SOUL_CORE_INTERFACE_H
 #define SOUL_CORE_INTERFACE_H
 
 #include <string>

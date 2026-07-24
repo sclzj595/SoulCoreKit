@@ -1,4 +1,4 @@
-#include "soul/network/http_request.h"
+﻿#include "soul/network/http_request.h"
 #include <QUrlQuery>
 
 namespace sc {

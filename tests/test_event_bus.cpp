@@ -1,4 +1,4 @@
-#include <QTest>
+﻿#include <QTest>
 #include "soul/event/event_bus.h"
 
 class TestEventBus : public QObject {

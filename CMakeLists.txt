@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(SoulCoreKit VERSION 1.3.0 LANGUAGES CXX)
+project(SoulCoreKit VERSION 1.5.0 LANGUAGES CXX)
 
 include(GenerateExportHeader)
 
@@ -566,8 +566,15 @@ set(SOUL_DATA_HEADERS
     include/soul/data/connection_pool.h
 )
 
+set(SOUL_DATA_SOURCES
+    src/soul/data/database_driver.cpp
+    src/soul/data/memory_repository.cpp
+    src/soul/data/transaction.cpp
+)
+
 add_library(soul_data STATIC
     ${SOUL_DATA_HEADERS}
+    ${SOUL_DATA_SOURCES}
 )
 
 target_include_directories(soul_data PUBLIC
@@ -577,6 +584,7 @@ target_include_directories(soul_data PUBLIC
 
 target_link_libraries(soul_data PUBLIC
     Qt6::Core
+    Qt6::Sql
     soul_core
 )
 
@@ -863,6 +871,10 @@ if(BUILD_SHARED_LIBS)
     target_compile_definitions(soul_plugin PRIVATE SC_PLUGIN_LIBRARY)
 else()
     target_compile_definitions(soul_plugin PUBLIC SC_PLUGIN_STATIC_LIB)
+endif()
+
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(soul_plugin PRIVATE -Wno-cast-function-type)
 endif()
 
 target_link_libraries(soul_plugin PUBLIC

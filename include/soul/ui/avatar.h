@@ -1,4 +1,4 @@
-#ifndef SOUL_UI_AVATAR_H
+﻿#ifndef SOUL_UI_AVATAR_H
 #define SOUL_UI_AVATAR_H
 
 #include "soul/ui/theme.h"

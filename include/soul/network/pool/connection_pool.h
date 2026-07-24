@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file pool/connection_pool.h
  * @brief 连接池类
  * @details 管理 HTTP 连接的复用和生命周期

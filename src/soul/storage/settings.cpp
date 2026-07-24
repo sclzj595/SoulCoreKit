@@ -1,4 +1,4 @@
-#include "soul/storage/settings.h"
+﻿#include "soul/storage/settings.h"
 #include <QStandardPaths>
 
 namespace sc {

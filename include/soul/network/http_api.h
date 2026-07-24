@@ -1,4 +1,4 @@
-#ifndef SOUL_NETWORK_HTTP_API_H
+﻿#ifndef SOUL_NETWORK_HTTP_API_H
 #define SOUL_NETWORK_HTTP_API_H
 
 #include "soul/network/network_global.h"

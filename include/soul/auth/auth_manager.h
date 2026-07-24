@@ -1,4 +1,4 @@
-#ifndef SOUL_AUTH_AUTH_MANAGER_H
+﻿#ifndef SOUL_AUTH_AUTH_MANAGER_H
 #define SOUL_AUTH_AUTH_MANAGER_H
 
 #include <QString>

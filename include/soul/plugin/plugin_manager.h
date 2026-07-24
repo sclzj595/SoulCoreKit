@@ -1,4 +1,4 @@
-#ifndef SOUL_PLUGIN_PLUGIN_MANAGER_H
+﻿#ifndef SOUL_PLUGIN_PLUGIN_MANAGER_H
 #define SOUL_PLUGIN_PLUGIN_MANAGER_H
 
 #include <memory>

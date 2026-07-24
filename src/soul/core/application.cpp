@@ -1,4 +1,4 @@
-#include "soul/core/application.h"
+﻿#include "soul/core/application.h"
 #include "soul/logging/log_macros.h"
 #include <mutex>
 #include <string>

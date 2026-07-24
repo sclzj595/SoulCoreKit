@@ -1,4 +1,4 @@
-#include <QTest>
+﻿#include <QTest>
 #include "soul/async/thread_pool.h"
 #include "soul/async/future.h"
 

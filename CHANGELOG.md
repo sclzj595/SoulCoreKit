@@ -5,6 +5,57 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-07-24
+
+### Added
+
+- **Data Module Implementation**: Complete data layer with multiple database driver support
+  - `DatabaseDriverFactory` with SQLite, MySQL, PostgreSQL implementations
+  - `MemoryRepository<T>` - Generic in-memory repository implementation
+  - `Transaction` and `ITransactionManager` interfaces
+  - `DbConnectionPool` - Database connection pooling with acquire/release lifecycle
+- **DI Container Enhancement**: `resolve<T>()` now returns `Result<std::shared_ptr<T>>`
+  - Proper error handling for unregistered types, null creators, and invalid lifetimes
+  - `SingletonWrapper<T>::get()` updated to return `Result`
+- **ThreadPool Lifecycle Management**: `init()`, `shutdown()`, `isInitialized()` methods
+  - Lazy initialization with double-checked locking
+  - Automatic cleanup on application shutdown
+- **Test Suite Expansion**: Added comprehensive test coverage
+  - `test_data.cpp`: MemoryRepository CRUD, DatabaseDriverFactory, DbConnectionPool (22 tests)
+  - `test_orm.cpp`: QueryWrapper, Entity CRTP, SQLiteRepository CRUD (30 tests)
+  - `test_mq.cpp`: Message structure, MQFactory, Interface validation (14 tests)
+  - `test_ui.cpp`: Theme management, Style, BaseWidget (14 tests)
+
+### Changed
+
+- **ConnectionPool Naming Conflict Resolution**: Renamed `sc::data::ConnectionPool` to `sc::data::DbConnectionPool`
+- **Static Library Export Macros**: Fixed `SC_DI_EXPORT` and `SC_PLUGIN_EXPORT` macros for static lib builds
+  - Added `SC_DI_STATIC_LIB` and `SC_PLUGIN_STATIC_LIB` conditions to avoid dllimport in static builds
+- **Version Bump**: Updated CMakeLists.txt from 1.3.0 to 1.5.0
+- **README.md**: Updated version references from 1.3.0 to 1.5.0
+
+### Fixed
+
+- **Data Module Dependencies**: Added Qt6::Sql dependency to `soul_data` module
+- **QSqlRecord Include**: Added missing `#include <QSqlRecord>` in database_driver.cpp
+- **Transaction State Tracking**: Replaced non-existent `QSqlDatabase::isTransactionActive()` with manual flag tracking
+- **ORM Update Bug**: Fixed `SQLiteRepository::updateInternal()` missing `update_time` parameter binding
+- **Plugin Cast Warning**: Suppressed `-Wcast-function-type` for dynamic plugin loading on GCC
+- **DI Test State Leakage**: Fixed `testIsRegistered` by clearing container state before assertion
+
+## [1.4.0] - 2026-07-23
+
+### Added
+
+- **Missing Implementation Files**:
+  - `database_driver.cpp` - DatabaseDriverFactory implementation
+  - `memory_repository.cpp` - MemoryRepository compilation unit
+  - `transaction.cpp` - Transaction compilation unit
+
+### Changed
+
+- **CMakeLists.txt**: Added `SOUL_DATA_SOURCES` and linked Qt6::Sql for data module
+
 ## [1.3.0] - 2026-07-21
 
 ### Added

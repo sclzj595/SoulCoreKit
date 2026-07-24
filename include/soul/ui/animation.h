@@ -1,4 +1,4 @@
-#ifndef SOUL_UI_ANIMATION_H
+﻿#ifndef SOUL_UI_ANIMATION_H
 #define SOUL_UI_ANIMATION_H
 
 #include <QPropertyAnimation>

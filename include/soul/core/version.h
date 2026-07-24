@@ -1,4 +1,4 @@
-#ifndef SOUL_CORE_VERSION_H
+﻿#ifndef SOUL_CORE_VERSION_H
 #define SOUL_CORE_VERSION_H
 
 #include <string>

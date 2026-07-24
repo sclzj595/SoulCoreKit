@@ -1,4 +1,4 @@
-#include "soul/ui/theme.h"
+﻿#include "soul/ui/theme.h"
 #include "soul/configuration/config.h"
 #include <QApplication>
 #include <QPalette>

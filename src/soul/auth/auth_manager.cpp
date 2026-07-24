@@ -1,4 +1,4 @@
-#include "soul/auth/auth_manager.h"
+﻿#include "soul/auth/auth_manager.h"
 #include "soul/network/session.h"
 #include "soul/storage/memory_storage.h"
 #include "soul/utils/json/json_utils.h"

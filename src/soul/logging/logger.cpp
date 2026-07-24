@@ -1,4 +1,4 @@
-#include <memory>
+﻿#include <memory>
 #include <mutex>
 #include <string>
 #include "soul/logging/logger.h"

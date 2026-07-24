@@ -1,4 +1,4 @@
-#ifndef SOUL_LOGGING_LOGGER_H
+﻿#ifndef SOUL_LOGGING_LOGGER_H
 #define SOUL_LOGGING_LOGGER_H
 
 #include "soul/logging/log_level.h"

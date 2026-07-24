@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file http_client.h
  * @brief HTTP 客户端类
  * @details 封装 Qt 的 QNetworkAccessManager，提供同步/异步 HTTP 请求、拦截器支持和重试策略

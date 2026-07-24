@@ -1,4 +1,4 @@
-#include <algorithm>
+﻿#include <algorithm>
 #include <filesystem>
 #include <mutex>
 #include <string>

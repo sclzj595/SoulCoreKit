@@ -1,4 +1,4 @@
-#ifndef SOUL_STORAGE_ISTORAGE_H
+﻿#ifndef SOUL_STORAGE_ISTORAGE_H
 #define SOUL_STORAGE_ISTORAGE_H
 
 #include <QString>

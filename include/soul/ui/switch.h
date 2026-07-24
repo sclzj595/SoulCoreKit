@@ -1,4 +1,4 @@
-#ifndef SOUL_UI_SWITCH_H
+﻿#ifndef SOUL_UI_SWITCH_H
 #define SOUL_UI_SWITCH_H
 
 #include "soul/ui/theme.h"

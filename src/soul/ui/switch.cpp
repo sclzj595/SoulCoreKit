@@ -1,4 +1,4 @@
-#include "soul/ui/switch.h"
+﻿#include "soul/ui/switch.h"
 #include <QPainter>
 #include <QPropertyAnimation>
 #include <QMouseEvent>

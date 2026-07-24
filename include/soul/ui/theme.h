@@ -1,4 +1,4 @@
-#ifndef SOUL_UI_THEME_H
+﻿#ifndef SOUL_UI_THEME_H
 #define SOUL_UI_THEME_H
 
 #include <QObject>

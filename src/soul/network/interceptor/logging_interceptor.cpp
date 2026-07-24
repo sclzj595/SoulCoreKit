@@ -1,4 +1,4 @@
-#include "soul/network/interceptor/logging_interceptor.h"
+﻿#include "soul/network/interceptor/logging_interceptor.h"
 #include "soul/logging/log_macros.h"
 
 namespace sc {

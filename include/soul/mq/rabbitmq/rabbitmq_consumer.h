@@ -1,4 +1,4 @@
-#ifndef SOUL_MQ_RABBITMQ_CONSUMER_H
+﻿#ifndef SOUL_MQ_RABBITMQ_CONSUMER_H
 #define SOUL_MQ_RABBITMQ_CONSUMER_H
 
 #include <QObject>

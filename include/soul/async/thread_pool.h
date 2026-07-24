@@ -12,6 +12,10 @@ class ThreadPool : public QObject {
 public:
     static ThreadPool& instance();
 
+    void init(int maxThreads = 0);
+    void shutdown();
+    bool isInitialized() const;
+
     void start(std::function<void()> task);
     void start(std::function<void()> task, int priority);
 
@@ -31,12 +35,13 @@ public:
 
 private:
     ThreadPool();
-    ~ThreadPool() override = default;
+    ~ThreadPool() override;
 
     ThreadPool(const ThreadPool&) = delete;
     ThreadPool& operator=(const ThreadPool&) = delete;
 
     std::unique_ptr<QThreadPool> m_threadPool;
+    bool m_initialized = false;
 };
 
 }

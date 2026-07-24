@@ -1,4 +1,4 @@
-#ifndef SOUL_ORM_QUERY_WRAPPER_H
+﻿#ifndef SOUL_ORM_QUERY_WRAPPER_H
 #define SOUL_ORM_QUERY_WRAPPER_H
 
 #include <QString>

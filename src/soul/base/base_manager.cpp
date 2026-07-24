@@ -1,4 +1,4 @@
-#include "soul/base/base_manager.h"
+﻿#include "soul/base/base_manager.h"
 
 namespace sc {
 

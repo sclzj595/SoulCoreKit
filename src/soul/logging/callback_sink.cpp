@@ -1,4 +1,4 @@
-#include "soul/logging/callback_sink.h"
+﻿#include "soul/logging/callback_sink.h"
 
 namespace sc {
 

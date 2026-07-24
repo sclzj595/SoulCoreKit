@@ -1,4 +1,4 @@
-#include <memory>
+﻿#include <memory>
 #include "soul/logging/log_macros.h"
 #include "soul/logging/file_sink.h"
 

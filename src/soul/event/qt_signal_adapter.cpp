@@ -1,4 +1,4 @@
-#include "soul/event/qt_signal_adapter.h"
+﻿#include "soul/event/qt_signal_adapter.h"
 
 namespace sc {
 

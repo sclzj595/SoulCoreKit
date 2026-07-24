@@ -279,6 +279,7 @@ Result<T> SQLiteRepository<T>::updateInternal(const T& entity) {
     for (const auto& pair : extractEntityValues(entity)) {
         q.bindValue(idx++, pair.second);
     }
+    q.bindValue(idx++, entity.updateTime.toString(Qt::ISODate));
     q.bindValue(idx++, entity.id);
 
     if (!q.exec()) {

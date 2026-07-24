@@ -1,4 +1,4 @@
-#include <QTest>
+﻿#include <QTest>
 #include <QSignalSpy>
 #include <QVariant>
 #include <QLabel>

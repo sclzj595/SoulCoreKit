@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file http_response.h
  * @brief HTTP 响应类
  * @details 封装 HTTP 响应的状态码、响应体、响应头和错误信息，提供 JSON 和文本解析

@@ -1,4 +1,4 @@
-#include "soul/ui/progress.h"
+﻿#include "soul/ui/progress.h"
 #include <QPainter>
 
 namespace sc {

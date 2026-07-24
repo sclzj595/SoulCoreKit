@@ -1,4 +1,4 @@
-#ifndef SOUL_CORE_RESULT_H
+﻿#ifndef SOUL_CORE_RESULT_H
 #define SOUL_CORE_RESULT_H
 
 #include <variant>

@@ -1,4 +1,4 @@
-#ifndef SOUL_EVENT_EVENT_PRIORITY_H
+﻿#ifndef SOUL_EVENT_EVENT_PRIORITY_H
 #define SOUL_EVENT_EVENT_PRIORITY_H
 
 namespace sc {

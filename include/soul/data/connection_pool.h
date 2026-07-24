@@ -13,9 +13,9 @@
 namespace sc {
 namespace data {
 
-class ConnectionPool {
+class DbConnectionPool {
 public:
-    virtual ~ConnectionPool() = default;
+    virtual ~DbConnectionPool() = default;
     virtual Result<std::unique_ptr<IDatabaseDriver>> acquire() = 0;
     virtual void release(std::unique_ptr<IDatabaseDriver> driver) = 0;
     virtual int getPoolSize() const = 0;
@@ -23,9 +23,9 @@ public:
     virtual void closeAll() = 0;
 };
 
-class DefaultConnectionPool : public ConnectionPool {
+class DefaultDbConnectionPool : public DbConnectionPool {
 public:
-    DefaultConnectionPool(const ConnectionConfig& config, int minSize = 2, int maxSize = 10) : m_config(config), m_minSize(minSize), m_maxSize(maxSize) {}
+    DefaultDbConnectionPool(const ConnectionConfig& config, int minSize = 2, int maxSize = 10) : m_config(config), m_minSize(minSize), m_maxSize(maxSize) {}
 
     Result<std::unique_ptr<IDatabaseDriver>> acquire() override {
         std::lock_guard<std::mutex> lock(m_mutex);

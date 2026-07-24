@@ -1,4 +1,4 @@
-#include "soul/network/bluetooth/bluetooth_client_adapter.h"
+﻿#include "soul/network/bluetooth/bluetooth_client_adapter.h"
 #include "soul/core/result.h"
 #include "soul/network/network_error.h"
 

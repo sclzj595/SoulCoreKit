@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file policy/inetwork_policy.h
  * @brief 网络策略接口
  * @details 策略模式接口，定义重试、超时、重连等策略的统一接口

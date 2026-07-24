@@ -1,4 +1,4 @@
-#ifndef SOUL_UI_DIALOG_H
+﻿#ifndef SOUL_UI_DIALOG_H
 #define SOUL_UI_DIALOG_H
 
 #include <QDialog>

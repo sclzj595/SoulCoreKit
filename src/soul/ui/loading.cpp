@@ -1,4 +1,4 @@
-#include "soul/ui/loading.h"
+﻿#include "soul/ui/loading.h"
 #include <QApplication>
 
 namespace sc {

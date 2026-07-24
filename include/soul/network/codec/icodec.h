@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file codec/icodec.h
  * @brief 编解码器接口
  * @details 定义数据编解码的统一接口

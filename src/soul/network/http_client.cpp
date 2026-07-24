@@ -1,6 +1,7 @@
-#include "soul/network/http_client.h"
+﻿#include "soul/network/http_client.h"
 #include <memory>
 #include <atomic>
+#include <QCoreApplication>
 #include <QNetworkRequest>
 #include <QNetworkReply>
 #include <QSslConfiguration>
@@ -79,7 +80,8 @@ void HttpClient::setupSslConfiguration() {
 
 Result<HttpResponse> HttpClient::send(const HttpRequest& request) {
 #ifdef QT_DEBUG
-    if (QThread::currentThread() == qApp->thread()) {
+    auto app = QCoreApplication::instance();
+    if (app && QThread::currentThread() == app->thread()) {
         Logger::instance().warn("HttpClient::send() is called in GUI thread, consider using sendAsync()", "HttpClient");
     }
 #endif

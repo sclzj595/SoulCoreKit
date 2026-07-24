@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file codec/json_codec.h
  * @brief JSON 编解码器
  * @details 实现 JSON 数据的序列化和反序列化

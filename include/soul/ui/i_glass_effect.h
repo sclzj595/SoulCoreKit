@@ -1,4 +1,4 @@
-#ifndef SOUL_UI_IGLASS_EFFECT_H
+﻿#ifndef SOUL_UI_IGLASS_EFFECT_H
 #define SOUL_UI_IGLASS_EFFECT_H
 
 #include <QColor>

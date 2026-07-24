@@ -1,4 +1,4 @@
-#ifndef SOUL_NETWORK_TCP_CLIENT_H
+﻿#ifndef SOUL_NETWORK_TCP_CLIENT_H
 #define SOUL_NETWORK_TCP_CLIENT_H
 
 #include <QObject>

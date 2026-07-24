@@ -111,7 +111,7 @@
 
 ### Toolchain Locking (Enterprise Stability)
 
-SoulCoreKit V1.3.0 uses a fixed, enterprise-grade toolchain to ensure long-term stability:
+SoulCoreKit V1.5.0 uses a fixed, enterprise-grade toolchain to ensure long-term stability:
 
 | Component | Version | Notes |
 |-----------|---------|-------|
@@ -505,6 +505,6 @@ SoulCoreKit uses GitHub Actions for continuous integration across all supported 
 ---
 
 **Project**: SoulCoreKit  
-**Version**: 1.3.0 (Plugin System + DI Container + MQ + ORM)  
+**Version**: 1.5.0 (Full Data Layer + Architecture Consolidation)  
 **Maintainer**: SoulCoreKit Team  
 **Contact**: soulcorekit@gmail.com

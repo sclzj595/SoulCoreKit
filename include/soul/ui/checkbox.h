@@ -1,4 +1,4 @@
-#ifndef SOUL_UI_CHECKBOX_H
+﻿#ifndef SOUL_UI_CHECKBOX_H
 #define SOUL_UI_CHECKBOX_H
 
 #include "soul/ui/theme.h"

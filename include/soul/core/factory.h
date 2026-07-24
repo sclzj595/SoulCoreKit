@@ -1,4 +1,4 @@
-#ifndef SOUL_CORE_FACTORY_H
+﻿#ifndef SOUL_CORE_FACTORY_H
 #define SOUL_CORE_FACTORY_H
 
 #include <unordered_map>

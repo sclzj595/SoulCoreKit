@@ -1,4 +1,4 @@
-#include "soul/ui/icon_manager.h"
+﻿#include "soul/ui/icon_manager.h"
 #include <QPainter>
 #include <QPixmapCache>
 

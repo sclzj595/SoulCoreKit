@@ -1,4 +1,4 @@
-#include <QTest>
+﻿#include <QTest>
 #include <QCoreApplication>
 #include <string>
 #include "soul/core/time.h"

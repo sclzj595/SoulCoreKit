@@ -1,4 +1,4 @@
-#ifndef SOUL_UI_ICON_MANAGER_H
+﻿#ifndef SOUL_UI_ICON_MANAGER_H
 #define SOUL_UI_ICON_MANAGER_H
 
 #include <QObject>

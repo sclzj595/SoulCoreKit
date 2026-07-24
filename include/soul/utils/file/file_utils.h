@@ -1,4 +1,4 @@
-#ifndef SOUL_UTILS_FILE_FILE_UTILS_H
+﻿#ifndef SOUL_UTILS_FILE_FILE_UTILS_H
 #define SOUL_UTILS_FILE_FILE_UTILS_H
 
 #include <QString>

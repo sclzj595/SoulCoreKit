@@ -1,4 +1,4 @@
-#include "soul/network/core/network_adapter_base.h"
+﻿#include "soul/network/core/network_adapter_base.h"
 
 namespace sc {
 namespace network {

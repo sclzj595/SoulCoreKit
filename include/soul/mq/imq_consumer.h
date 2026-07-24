@@ -1,4 +1,4 @@
-#ifndef SOUL_MQ_IMQ_CONSUMER_H
+﻿#ifndef SOUL_MQ_IMQ_CONSUMER_H
 #define SOUL_MQ_IMQ_CONSUMER_H
 
 #include <QString>

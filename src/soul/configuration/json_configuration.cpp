@@ -1,4 +1,4 @@
-#include "soul/configuration/json_configuration.h"
+﻿#include "soul/configuration/json_configuration.h"
 #include "soul/core/error.h"
 #include <QJsonDocument>
 #include <QFile>

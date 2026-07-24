@@ -1,4 +1,4 @@
-#include <QTest>
+﻿#include <QTest>
 #include "soul/core/result.h"
 
 class TestResult : public QObject {

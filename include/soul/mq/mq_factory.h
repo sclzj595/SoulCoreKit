@@ -1,4 +1,4 @@
-#ifndef SOUL_MQ_MQ_FACTORY_H
+﻿#ifndef SOUL_MQ_MQ_FACTORY_H
 #define SOUL_MQ_MQ_FACTORY_H
 
 #include <memory>

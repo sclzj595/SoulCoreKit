@@ -1,4 +1,4 @@
-#include "soul/utils/clipboard/clipboard_utils.h"
+﻿#include "soul/utils/clipboard/clipboard_utils.h"
 #include <QClipboard>
 #include <QGuiApplication>
 #include <QMimeData>

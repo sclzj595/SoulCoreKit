@@ -1,4 +1,4 @@
-#ifndef SOUL_UI_ICON_H
+﻿#ifndef SOUL_UI_ICON_H
 #define SOUL_UI_ICON_H
 
 #include <QIcon>

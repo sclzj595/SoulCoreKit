@@ -1,4 +1,4 @@
-#ifndef SOUL_STORAGE_SETTINGS_H
+﻿#ifndef SOUL_STORAGE_SETTINGS_H
 #define SOUL_STORAGE_SETTINGS_H
 
 #include <QSettings>

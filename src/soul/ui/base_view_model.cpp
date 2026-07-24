@@ -1,4 +1,4 @@
-#include "soul/ui/base_view_model.h"
+﻿#include "soul/ui/base_view_model.h"
 #include <mutex>
 
 namespace sc {

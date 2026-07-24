@@ -1,4 +1,4 @@
-#include <QCoreApplication>
+﻿#include <QCoreApplication>
 #include <QElapsedTimer>
 #include <iostream>
 #include <string>

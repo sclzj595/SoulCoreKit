@@ -1,4 +1,4 @@
-#ifndef SOUL_UI_PAGE_H
+﻿#ifndef SOUL_UI_PAGE_H
 #define SOUL_UI_PAGE_H
 
 #include <QWidget>

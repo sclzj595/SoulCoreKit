@@ -1,4 +1,4 @@
-#ifndef SOUL_UI_BASE_VIEW_MODEL_H
+﻿#ifndef SOUL_UI_BASE_VIEW_MODEL_H
 #define SOUL_UI_BASE_VIEW_MODEL_H
 
 #include <QObject>

@@ -80,11 +80,11 @@ void TestDI::testBindAndResolveTransient()
     auto instance1 = container.resolve<TestService>();
     auto instance2 = container.resolve<TestService>();
 
-    QVERIFY(instance1 != nullptr);
-    QVERIFY(instance2 != nullptr);
-    QVERIFY(instance1 != instance2);
-    QCOMPARE(instance1->getValue(), 42);
-    QCOMPARE(instance2->getValue(), 42);
+    QVERIFY(instance1.isOk());
+    QVERIFY(instance2.isOk());
+    QVERIFY(instance1.unwrap() != instance2.unwrap());
+    QCOMPARE(instance1.unwrap()->getValue(), 42);
+    QCOMPARE(instance2.unwrap()->getValue(), 42);
 }
 
 void TestDI::testBindAndResolveSingleton()
@@ -95,12 +95,12 @@ void TestDI::testBindAndResolveSingleton()
     auto instance1 = container.resolve<StatefulService>();
     auto instance2 = container.resolve<StatefulService>();
 
-    QVERIFY(instance1 != nullptr);
-    QVERIFY(instance2 != nullptr);
-    QVERIFY(instance1 == instance2);
+    QVERIFY(instance1.isOk());
+    QVERIFY(instance2.isOk());
+    QVERIFY(instance1.unwrap() == instance2.unwrap());
 
-    int val1 = instance1->increment();
-    int val2 = instance2->increment();
+    int val1 = instance1.unwrap()->increment();
+    int val2 = instance2.unwrap()->increment();
 
     QCOMPARE(val1, 1);
     QCOMPARE(val2, 2);
@@ -114,14 +114,15 @@ void TestDI::testBindInstance()
     container.bindInstance(external);
 
     auto resolved = container.resolve<StatefulService>();
-    QVERIFY(resolved != nullptr);
-    QCOMPARE(resolved.get(), external);
+    QVERIFY(resolved.isOk());
+    QCOMPARE(resolved.unwrap().get(), external);
 }
 
 void TestDI::testIsRegistered()
 {
     auto& container = sc::di::Container::instance();
 
+    container.clear();
     QVERIFY(!container.isRegistered<TestService>());
 
     container.bind<TestService>([]() { return new ConcreteService(); });
@@ -139,7 +140,7 @@ void TestDI::testUnregister()
     QVERIFY(!container.isRegistered<TestService>());
 
     auto instance = container.resolve<TestService>();
-    QVERIFY(instance == nullptr);
+    QVERIFY(instance.isErr());
 }
 
 void TestDI::testClear()
@@ -187,8 +188,8 @@ void TestDI::testThreadSafety()
         threads.emplace_back([&container, iterations]() {
             for (int j = 0; j < iterations; ++j) {
                 auto instance = container.resolve<StatefulService>();
-                if (instance) {
-                    instance->increment();
+                if (instance.isOk()) {
+                    instance.unwrap()->increment();
                 }
             }
         });
@@ -199,8 +200,8 @@ void TestDI::testThreadSafety()
     }
 
     auto finalInstance = container.resolve<StatefulService>();
-    QVERIFY(finalInstance != nullptr);
-    QCOMPARE(finalInstance->getCounter(), threadCount * iterations);
+    QVERIFY(finalInstance.isOk());
+    QCOMPARE(finalInstance.unwrap()->getCounter(), threadCount * iterations);
 }
 
 void TestDI::testSingletonWrapper()
@@ -211,9 +212,9 @@ void TestDI::testSingletonWrapper()
     auto wrapped = sc::di::SingletonWrapper<StatefulService>::get();
     auto resolved = container.resolve<StatefulService>();
 
-    QVERIFY(wrapped != nullptr);
-    QVERIFY(resolved != nullptr);
-    QVERIFY(wrapped == resolved);
+    QVERIFY(wrapped.isOk());
+    QVERIFY(resolved.isOk());
+    QVERIFY(wrapped.unwrap() == resolved.unwrap());
 }
 
 void TestDI::testSingletonIntegration()
@@ -223,12 +224,12 @@ void TestDI::testSingletonIntegration()
     sc::di::registerSingleton<GlobalSingleton>();
 
     auto resolved = container.resolve<GlobalSingleton>();
-    QVERIFY(resolved != nullptr);
+    QVERIFY(resolved.isOk());
 
-    QCOMPARE(resolved->value(), 100);
+    QCOMPARE(resolved.unwrap()->value(), 100);
 
     GlobalSingleton::instance().setValue(200);
-    QCOMPARE(resolved->value(), 200);
+    QCOMPARE(resolved.unwrap()->value(), 200);
 }
 
 QTEST_APPLESS_MAIN(TestDI)

@@ -1,4 +1,4 @@
-#ifndef SOUL_BASE_BASE_MANAGER_H
+﻿#ifndef SOUL_BASE_BASE_MANAGER_H
 #define SOUL_BASE_BASE_MANAGER_H
 
 #include "soul/base/base_object.h"

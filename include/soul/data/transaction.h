@@ -1,4 +1,4 @@
-#ifndef SOUL_DATA_TRANSACTION_H
+﻿#ifndef SOUL_DATA_TRANSACTION_H
 #define SOUL_DATA_TRANSACTION_H
 
 #include <functional>

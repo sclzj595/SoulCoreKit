@@ -1,4 +1,4 @@
-#ifndef SOUL_PLUGIN_MODULE_H
+﻿#ifndef SOUL_PLUGIN_MODULE_H
 #define SOUL_PLUGIN_MODULE_H
 
 #include "plugin_manager.h"

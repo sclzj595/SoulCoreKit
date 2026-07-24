@@ -1,4 +1,4 @@
-#include "soul/plugin/module.h"
+﻿#include "soul/plugin/module.h"
 
 namespace sc {
 namespace plugin {

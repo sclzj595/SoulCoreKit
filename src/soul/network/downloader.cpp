@@ -1,4 +1,4 @@
-#include "soul/network/downloader.h"
+﻿#include "soul/network/downloader.h"
 #include "soul/logging/log_macros.h"
 #include <QDir>
 

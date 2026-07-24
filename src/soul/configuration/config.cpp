@@ -1,4 +1,4 @@
-#include "soul/configuration/config.h"
+﻿#include "soul/configuration/config.h"
 #include "soul/configuration/json_configuration.h"
 #include "soul/logging/log_macros.h"
 #include "soul/core/error.h"

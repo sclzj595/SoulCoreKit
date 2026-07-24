@@ -1,4 +1,4 @@
-#ifndef SOUL_CORE_UUID_H
+﻿#ifndef SOUL_CORE_UUID_H
 #define SOUL_CORE_UUID_H
 
 #include <string>

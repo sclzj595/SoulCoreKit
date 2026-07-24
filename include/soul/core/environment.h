@@ -1,4 +1,4 @@
-#ifndef SOUL_CORE_ENVIRONMENT_H
+﻿#ifndef SOUL_CORE_ENVIRONMENT_H
 #define SOUL_CORE_ENVIRONMENT_H
 
 #include <string>

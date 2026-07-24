@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file http_request.h
  * @brief HTTP 请求类
  * @details 封装 HTTP 请求的方法、URL、请求头、查询参数和请求体，支持链式调用

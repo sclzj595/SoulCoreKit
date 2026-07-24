@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file policy/retry_policy.h
  * @brief 重试策略类
  * @details 实现重试逻辑，支持指数退避和最大重试次数

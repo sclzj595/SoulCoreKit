@@ -1,4 +1,4 @@
-#ifndef SOUL_ASYNC_TASK_RUNNER_H
+﻿#ifndef SOUL_ASYNC_TASK_RUNNER_H
 #define SOUL_ASYNC_TASK_RUNNER_H
 
 #include <QObject>

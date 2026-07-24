@@ -1,4 +1,4 @@
-#ifndef SOUL_PLUGIN_IPLUGIN_H
+﻿#ifndef SOUL_PLUGIN_IPLUGIN_H
 #define SOUL_PLUGIN_IPLUGIN_H
 
 #include <string>

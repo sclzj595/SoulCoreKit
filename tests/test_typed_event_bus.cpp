@@ -1,4 +1,4 @@
-#include <QTest>
+﻿#include <QTest>
 #include "soul/event/typed_event_bus.h"
 #include "soul/event/event_bus.h"
 #include <QThread>

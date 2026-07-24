@@ -10,6 +10,7 @@
 #include <unordered_map>
 
 #include "di_global.h"
+#include "soul/core/result.h"
 
 namespace sc {
 namespace di {
@@ -90,13 +91,13 @@ public:
     }
 
     template<typename T>
-    std::shared_ptr<T> resolve()
+    Result<std::shared_ptr<T>> resolve()
     {
         auto typeIdx = std::type_index(typeid(T));
 
         auto regIt = m_registrations.find(typeIdx);
         if (regIt == m_registrations.end()) {
-            return nullptr;
+            return Error(ErrorCode::NotFound, "Type not registered: " + std::string(typeid(T).name()));
         }
 
         if (regIt->second.initFlag &&
@@ -108,7 +109,7 @@ public:
         std::lock_guard<std::recursive_mutex> lock(m_mutex);
         auto it = m_registrations.find(typeIdx);
         if (it == m_registrations.end()) {
-            return nullptr;
+            return Error(ErrorCode::NotFound, "Type not registered: " + std::string(typeid(T).name()));
         }
 
         auto& info = it->second;
@@ -119,12 +120,12 @@ public:
             }
 
             if (!info.creator) {
-                return nullptr;
+                return Error(ErrorCode::InvalidArgument, "Creator not set for singleton");
             }
 
             void* instance = info.creator(m_resolvedInstances);
             if (!instance) {
-                return nullptr;
+                return Error(ErrorCode::InternalError, "Creator returned null");
             }
 
             info.singletonInstance = instance;
@@ -140,16 +141,16 @@ public:
 
         if (info.lifetime == Lifetime::Transient) {
             if (!info.creator) {
-                return nullptr;
+                return Error(ErrorCode::InvalidArgument, "Creator not set for transient");
             }
             void* instance = info.creator(m_resolvedInstances);
             if (!instance) {
-                return nullptr;
+                return Error(ErrorCode::InternalError, "Creator returned null");
             }
             return std::shared_ptr<T>(static_cast<T*>(instance));
         }
 
-        return nullptr;
+        return Error(ErrorCode::InternalError, "Unknown lifetime type");
     }
 
     template<typename T>
@@ -214,7 +215,7 @@ private:
 
 template<typename T>
 struct SingletonWrapper {
-    static std::shared_ptr<T> get()
+    static Result<std::shared_ptr<T>> get()
     {
         return Container::instance().resolve<T>();
     }

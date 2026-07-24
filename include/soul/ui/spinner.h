@@ -1,4 +1,4 @@
-#ifndef SOUL_UI_SPINNER_H
+﻿#ifndef SOUL_UI_SPINNER_H
 #define SOUL_UI_SPINNER_H
 
 #include "soul/ui/theme.h"

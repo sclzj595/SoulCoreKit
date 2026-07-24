@@ -1,4 +1,4 @@
-#include <memory>
+﻿#include <memory>
 #include <string>
 #include "soul/network/factory/network_factory.h"
 #include "soul/network/http/http_client_adapter.h"
