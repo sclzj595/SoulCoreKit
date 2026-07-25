@@ -136,3 +136,9 @@ compile_commands.json
 # SoulCoreKit specific
 compile.log
 *.autosave
+
+# Root-level temp scripts
+/*.py
+/*.ps1
+/*.bat
+/*.sh

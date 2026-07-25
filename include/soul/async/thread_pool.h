@@ -3,7 +3,9 @@
 
 #include <QThreadPool>
 #include <QObject>
+#include <atomic>
 #include <memory>
+#include <mutex>
 
 namespace sc {
 
@@ -40,8 +42,9 @@ private:
     ThreadPool(const ThreadPool&) = delete;
     ThreadPool& operator=(const ThreadPool&) = delete;
 
-    std::unique_ptr<QThreadPool> m_threadPool;
-    bool m_initialized = false;
+    std::shared_ptr<QThreadPool> m_threadPool;
+    std::atomic<bool> m_initialized{false};
+    mutable std::mutex m_initMutex;
 };
 
 }

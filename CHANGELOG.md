@@ -5,6 +5,55 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.1] - 2026-07-25
+
+### Architecture
+
+- **ORM Multi-Database Refactor (MyBatis-Plus Pattern)**: Transformed `SQLiteRepository` into a generic `SqlRepository<T>` with `ISqlDialect` injection, enabling any database to be supported via dialect injection rather than subclass duplication.
+  - `ISqlDialect` abstraction: `SQLiteDialect`, `MySqlDialect`, `PostgreSqlDialect` implementations covering placeholder conversion, identifier escaping, LIMIT/OFFSET syntax, type casting, and soft-delete configuration
+  - `SqlRepository<T>`: Single repository implementation that works with any SQL dialect via constructor injection
+  - `SoftDeleteConfig`: Configurable soft-delete column name and logic values (default: `deleted=0/1`), with `enabled=false` falling back to physical DELETE
+  - `BaseRepository<T>`: Default implementations for `findById`, `findAll`, `removeById`, `count()`, `existsById`, `saveBatch`, `findOne` — subclasses only implement 5 core methods (`find`, `save`, `remove`, `count(query)`, `executeSql`)
+  - `QueryWrapper`: Dialect-aware SQL generation for LIMIT/OFFSET, placeholders, and soft-delete predicates
+  - `SQLiteRepository<T>` preserved as a `typedef` alias for backward compatibility
+
+### Added
+
+- `src/soul/orm/sql_dialect.cpp`: Full implementation of `ISqlDialect::create()` factory with SQLite/MySQL/PostgreSQL dialect classes
+- `SoftDeleteConfig` struct in `sql_dialect.h` for configurable soft-delete behavior
+- 3 dialect verification tests: PostgreSQL `$1/$2` placeholders, MySQL `LIMIT offset,count` syntax, SQLite `LIMIT..OFFSET` syntax
+- 3 QueryWrapper grouping tests: `and_()` combination, `or_()` grouping semantics, mixed AND/OR precedence
+
+### Changed
+
+- `BaseRepository<T>`: Converted `findById`/`findAll`/`removeById`/`count()`/`existsById`/`saveBatch` from pure virtual to default implementations
+- `SqlRepository<T>`: Removed 4 redundant method overrides (`findById`, `findAll`, `removeById`, `count()`), delegating to `BaseRepository` defaults
+- `generateInsertSql`/`generateUpdateSql`: Replaced hardcoded `?` placeholders with `m_dialect->convertPlaceholder(index)` for PostgreSQL `$1,$2,...` support
+- `buildSelectSql`/`buildCountSql`/`buildDeleteSql`: Replaced hardcoded `deleted=0`/`deleted=1` with `SoftDeleteConfig` from dialect
+- `QueryWrapper::Condition`: Replaced `isGroupStart`/`isGroupEnd` booleans with `openParens`/`closeParens` counters for correct nested grouping
+- `ThreadPool`: Changed `m_threadPool` from `unique_ptr` to `shared_ptr` for thread-safe lifetime management; all methods copy the pointer before use
+- `.gitignore`: Added `/*.py`, `/*.ps1`, `/*.bat`, `/*.sh` rules to prevent root-level temp script commits
+
+### Fixed
+
+- **CRITICAL**: `saveBatch` double-processed new entities (set ID + `beforeInsert` then called `save` which routed to UPDATE) — now delegates directly to `save()`
+- **CRITICAL**: `QueryWrapper::or_()` set all sub-conditions to OR logic, producing `OR a OR b` instead of `OR (a AND b)` — now only the first condition is marked OR, rest stay AND
+- **CRITICAL**: Mixed AND/OR conditions produced incorrect SQL precedence — `hasOr` detection now wraps all conditions in parentheses
+- **CRITICAL**: Nested `or_()` caused unbalanced parentheses due to `singleCondGroup` suppression — `openParens`/`closeParens` accumulators handle arbitrary nesting depth
+- **CRITICAL**: `ISqlDialect::create()` was declared but never implemented (linker error) — full factory implementation added
+- **CRITICAL**: `INSERT`/`UPDATE` SQL hardcoded `?` placeholder, breaking PostgreSQL `$1,$2` — now uses `convertPlaceholder()`
+- **MAJOR**: `ThreadPool::shutdown()` held mutex during `waitForDone()`, risking self-deadlock — now copies `shared_ptr` under lock, calls `waitForDone()` outside lock
+- **MAJOR**: `DI Container` Scoped instances used `shared_ptr` with default deleter, causing double-free in `disposeScope()` — Scoped instances now use empty deleter `[](T*){}`
+- **MAJOR**: `GlassWidget` leaked `QGraphicsBlurEffect` via raw `new` — wrapped in `std::unique_ptr`
+- **MAJOR**: `MemoryRepository` lacked mutex protection on all CRUD operations — added `std::mutex` + `std::lock_guard`
+- **MAJOR**: `Singleton` base destructor was non-virtual — made `virtual` to prevent UB on subclass deletion
+- **MAJOR**: `DbConnectionPool::release()` didn't decrement `m_totalCount` for disconnected drivers — fixed resource tracking
+- **MAJOR**: `testRemove` expected `findById` to return soft-deleted record, but `WHERE deleted=0` filters it — corrected assertion to expect `NotFound` error
+
+### Removed
+
+- 53 temporary development scripts (Python/PowerShell) from repository root
+
 ## [1.5.0] - 2026-07-24
 
 ### Added

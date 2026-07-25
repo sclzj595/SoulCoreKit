@@ -46,7 +46,6 @@ private:
     QPixmap m_blurredBackground;
 };
 
-} // namespace ui
-} // namespace sc
+}
 
 #endif

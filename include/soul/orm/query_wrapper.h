@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_ORM_QUERY_WRAPPER_H
+#ifndef SOUL_ORM_QUERY_WRAPPER_H
 #define SOUL_ORM_QUERY_WRAPPER_H
 
 #include <QString>
@@ -7,6 +7,7 @@
 #include <map>
 #include <memory>
 #include <functional>
+#include "soul/orm/sql_dialect.h"
 
 namespace sc {
 namespace orm {
@@ -24,6 +25,9 @@ struct Condition {
     SqlKeyword op;
     QVariant value;
     SqlKeyword logic = SqlKeyword::AND;
+    std::vector<QVariant> inValues;
+    int openParens = 0;
+    int closeParens = 0;
 };
 
 class QueryWrapper {
@@ -63,6 +67,10 @@ public:
     QString buildUpdateSql(const QString& tableName, const std::map<QString, QVariant>& updates) const;
 
     std::vector<QVariant> getBindValues() const;
+    std::vector<QVariant> getUpdateBindValues(const std::map<QString, QVariant>& updates) const;
+
+    void setDialect(ISqlDialect* dialect) { m_dialect = dialect; }
+    ISqlDialect* dialect() const { return m_dialect; }
 
 private:
     std::vector<Condition> m_conditions;
@@ -70,9 +78,13 @@ private:
     std::vector<QString> m_groupBy;
     int m_limit = -1;
     int m_offset = -1;
+    ISqlDialect* m_dialect = nullptr;
 
     QString opToString(SqlKeyword op) const;
     QString valueToString(const QVariant& value) const;
+    void appendConditions(QString& sql, int startIndex = 1) const;
+    QString buildValueClause(const Condition& cond, int& index) const;
+    QString placeholder(int index) const;
 };
 
 } // namespace orm

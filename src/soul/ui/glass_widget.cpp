@@ -1,8 +1,9 @@
-﻿#include "soul/ui/glass_widget.h"
+#include "soul/ui/glass_widget.h"
 #include <QApplication>
 #include <QScreen>
 #include <QGraphicsScene>
 #include <QGraphicsPixmapItem>
+#include <QGraphicsBlurEffect>
 
 namespace sc {
 namespace ui {
@@ -82,12 +83,12 @@ void GlassWidget::updateBackground() {
 
     QPixmap source = parent->grab(QRect(pos, size));
 
-    QGraphicsBlurEffect* blurEffect = new QGraphicsBlurEffect();
-    blurEffect->setBlurRadius(m_blurRadius);
-
     QGraphicsScene scene;
     QGraphicsPixmapItem* item = scene.addPixmap(source);
-    item->setGraphicsEffect(blurEffect);
+
+    auto blurEffect = std::make_unique<QGraphicsBlurEffect>();
+    blurEffect->setBlurRadius(m_blurRadius);
+    item->setGraphicsEffect(blurEffect.get());
 
     m_blurredBackground = QPixmap(size);
     m_blurredBackground.fill(Qt::transparent);

@@ -786,6 +786,7 @@ target_link_libraries(soul_mq PUBLIC
 set(SOUL_ORM_HEADERS
     include/soul/orm/entity.h
     include/soul/orm/query_wrapper.h
+    include/soul/orm/sql_dialect.h
     include/soul/orm/base_repository.h
     include/soul/orm/sqlite_repository.h
     include/soul/orm/entities.h
@@ -794,6 +795,7 @@ set(SOUL_ORM_HEADERS
 
 set(SOUL_ORM_SOURCES
     src/soul/orm/query_wrapper.cpp
+    src/soul/orm/sql_dialect.cpp
     src/soul/orm/module.cpp
 )
 
