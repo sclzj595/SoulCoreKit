@@ -1,4 +1,4 @@
-﻿#include "soul/configuration/config.h"
+#include "soul/configuration/config.h"
 #include "soul/configuration/json_configuration.h"
 #include "soul/logging/log_macros.h"
 #include "soul/core/error.h"
@@ -6,7 +6,10 @@
 #include <QDir>
 #include <QFile>
 #include <QJsonDocument>
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QVariant>
+#include <QProcessEnvironment>
 
 namespace sc {
 
@@ -19,7 +22,7 @@ void Config::init() {
 }
 
 void Config::shutdown() {
-    saveAll();
+    (void)saveAll();
 }
 
 Config::~Config() {
@@ -114,10 +117,14 @@ double Config::getDouble(const QString& key, double defaultValue) const {
 
 bool Config::getBool(const QString& key, bool defaultValue) const {
     QVariant value = getValue(key);
-    if (value.isValid()) {
-        return value.toBool();
+    if (!value.isValid()) return defaultValue;
+    if (value.typeId() == QMetaType::Bool) return value.toBool();
+    if (value.typeId() == QMetaType::QString) {
+        QString str = value.toString().trimmed().toLower();
+        if (str == "true" || str == "1" || str == "yes") return true;
+        if (str == "false" || str == "0" || str == "no") return false;
     }
-    return defaultValue;
+    return value.toBool();
 }
 
 void Config::setString(const QString& key, const QString& value) {
@@ -209,7 +216,7 @@ void Config::onFileChanged(const QString& path) {
     for (auto& source : m_configSources) {
         auto jsonConfig = dynamic_cast<JsonConfiguration*>(source.get());
         if (jsonConfig) {
-            jsonConfig->load(path);
+            (void)jsonConfig->load(path);
         }
     }
 
@@ -219,19 +226,25 @@ void Config::onFileChanged(const QString& path) {
 }
 
 QVariant Config::getValue(const QString& key) const {
+    QString envVal = getEnvValue(key);
+    if (!envVal.isNull()) {
+        return QVariant(envVal);
+    }
+
     for (auto it = m_configSources.rbegin(); it != m_configSources.rend(); ++it) {
         if ((*it)->contains(key)) {
-            QVariant value;
-            if ((*it)->getString(key) != "") {
-                value = (*it)->getString(key);
-            } else if ((*it)->getInt(key, 0) != 0) {
-                value = (*it)->getInt(key);
-            } else if ((*it)->getDouble(key, 0.0) != 0.0) {
-                value = (*it)->getDouble(key);
-            } else if ((*it)->getBool(key, false)) {
-                value = (*it)->getBool(key);
+            auto jsonConfig = dynamic_cast<const JsonConfiguration*>(it->get());
+            if (jsonConfig) {
+                const QJsonObject& data = jsonConfig->data();
+                if (data.contains(key)) {
+                    const QJsonValue& val = data[key];
+                    if (val.isString()) return QVariant(val.toString());
+                    if (val.isDouble()) return QVariant(val.toDouble());
+                    if (val.isBool()) return QVariant(val.toBool());
+                    if (val.isArray()) return QVariant(val.toArray().toVariantList());
+                    if (val.isObject()) return QVariant(val.toObject().toVariantMap());
+                }
             }
-            return value;
         }
     }
     return QVariant();
@@ -269,12 +282,74 @@ QString Config::envPrefix() const {
 }
 
 QVariantMap Config::getGroup(const QString& group) const {
-    Q_UNUSED(group);
-    return QVariantMap();
+    QVariantMap result;
+    QString prefix = group + ".";
+
+    for (const auto& source : m_configSources) {
+        auto jsonConfig = dynamic_cast<const JsonConfiguration*>(source.get());
+        if (!jsonConfig) continue;
+        const QJsonObject& data = jsonConfig->data();
+        for (auto it = data.begin(); it != data.end(); ++it) {
+            QString key = it.key();
+            if (key.startsWith(prefix)) {
+                QString subKey = key.mid(prefix.length());
+                const QJsonValue& val = it.value();
+                if (val.isString()) result[subKey] = val.toString();
+                else if (val.isDouble()) result[subKey] = val.toDouble();
+                else if (val.isBool()) result[subKey] = val.toBool();
+                else if (val.isArray()) result[subKey] = val.toArray().toVariantList();
+                else if (val.isObject()) result[subKey] = val.toObject().toVariantMap();
+            }
+        }
+    }
+
+    QString envPrefix = m_envPrefix + group.toUpper().replace(".", "_") + "_";
+    QStringList keys = QProcessEnvironment::systemEnvironment().keys();
+    for (const QString& envKey : keys) {
+        if (envKey.startsWith(envPrefix)) {
+            QString subKey = envKey.mid(envPrefix.length()).toLower().replace("_", ".");
+            QString envValue = qEnvironmentVariable(envKey.toUtf8().constData());
+            result[subKey] = envValue;
+        }
+    }
+
+    return result;
 }
 
 QVariantMap Config::getAll() const {
-    return QVariantMap();
+    QVariantMap result;
+
+    for (const auto& source : m_configSources) {
+        auto jsonConfig = dynamic_cast<const JsonConfiguration*>(source.get());
+        if (!jsonConfig) continue;
+        const QJsonObject& data = jsonConfig->data();
+        for (auto it = data.begin(); it != data.end(); ++it) {
+            QString key = it.key();
+            const QJsonValue& val = it.value();
+            if (val.isString()) result[key] = val.toString();
+            else if (val.isDouble()) result[key] = val.toDouble();
+            else if (val.isBool()) result[key] = val.toBool();
+            else if (val.isArray()) result[key] = val.toArray().toVariantList();
+            else if (val.isObject()) result[key] = val.toObject().toVariantMap();
+        }
+    }
+
+    return result;
+}
+
+QString Config::getEnvKey(const QString& key) const {
+    return m_envPrefix + key.toUpper().replace(".", "_");
+}
+
+QString Config::getEnvValue(const QString& key) const {
+    QString envKey = getEnvKey(key);
+    QByteArray envKeyBytes = envKey.toUtf8();
+    const char* envKeyStr = envKeyBytes.constData();
+    QString value = qEnvironmentVariable(envKeyStr);
+    if (value.isNull() || value.isEmpty()) {
+        return QString();
+    }
+    return value;
 }
 
 bool Config::validate(const ConfigSchema& schema, QString* errorMsg) const {

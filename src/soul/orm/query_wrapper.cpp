@@ -165,11 +165,13 @@ QString QueryWrapper::buildSelectSql(const QString& tableName) const {
     }
 
     if (!m_groupBy.empty()) {
-        sql += " GROUP BY " + m_groupBy.join(", ");
+        QStringList groupByList(m_groupBy.begin(), m_groupBy.end());
+        sql += " GROUP BY " + groupByList.join(", ");
     }
 
     if (!m_orderBy.empty()) {
-        sql += " ORDER BY " + m_orderBy.join(", ");
+        QStringList orderByList(m_orderBy.begin(), m_orderBy.end());
+        sql += " ORDER BY " + orderByList.join(", ");
     }
 
     if (m_limit > 0 || m_offset > 0) {
@@ -250,10 +252,11 @@ void QueryWrapper::appendConditions(QString& sql, int startIndex) const {
         }
     }
 
+    bool hasWhere = sql.contains("WHERE", Qt::CaseInsensitive);
     if (hasOr) {
-        sql += " AND (";
+        sql += hasWhere ? " AND (" : " WHERE (";
     } else {
-        sql += " AND ";
+        sql += hasWhere ? " AND " : " WHERE ";
     }
 
     int placeholderIndex = startIndex;

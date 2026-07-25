@@ -1,4 +1,4 @@
-﻿#include <QTest>
+#include <QTest>
 #include "soul/auth/auth_manager.h"
 
 using namespace sc;
@@ -120,14 +120,14 @@ void TestAuthManager::testAuthStateCallback() {
 
 void TestAuthManager::testLoadAndSaveAuthState() {
     AuthManager::instance().login("testuser", "password");
-    bool saved = AuthManager::instance().saveAuthState();
-    QVERIFY(saved);
+    auto saved = AuthManager::instance().saveAuthState();
+    QVERIFY(saved.isOk());
     
     AuthManager::instance().logout();
     QVERIFY(!AuthManager::instance().isAuthenticated());
     
-    bool loaded = AuthManager::instance().loadAuthState();
-    QVERIFY(loaded);
+    auto loaded = AuthManager::instance().loadAuthState();
+    QVERIFY(loaded.isOk());
     QVERIFY(AuthManager::instance().isAuthenticated());
     QCOMPARE(AuthManager::instance().currentUser().username, QString("testuser"));
 }

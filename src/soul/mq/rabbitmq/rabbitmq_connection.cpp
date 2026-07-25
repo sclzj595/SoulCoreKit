@@ -1,4 +1,4 @@
-﻿#include "soul/mq/rabbitmq/rabbitmq_connection.h"
+#include "soul/mq/rabbitmq/rabbitmq_connection.h"
 #include "soul/mq/rabbitmq/rabbitmq_producer.h"
 #include "soul/mq/rabbitmq/rabbitmq_consumer.h"
 #include "soul/logging/log_macros.h"
@@ -75,7 +75,7 @@ void RabbitMQConnection::onReconnectTimer() {
     m_reconnectTimer.stop();
     if (m_reconnectEnabled) {
         SC_INFO("Attempting reconnection to RabbitMQ, attempt: " + std::to_string(m_reconnectAttempts));
-        connect(m_config);
+        (void)connect(m_config);
     }
 }
 

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file pool/connection_pool.h
  * @brief 连接池类
  * @details 管理 HTTP 连接的复用和生命周期
@@ -12,7 +12,7 @@
 
 #include <memory>
 #include <mutex>
-#include <queue>
+#include <list>
 #include <string>
 #include <unordered_map>
 #include <QUrl>
@@ -56,7 +56,7 @@ private:
     std::shared_ptr<INetwork> createConnection(const QUrl& url);
     
     mutable std::mutex m_mutex;
-    std::unordered_map<std::string, std::queue<ConnectionEntry>> m_pools;
+    std::unordered_map<std::string, std::list<ConnectionEntry>> m_pools;
     Config m_config;
     QTimer m_cleanupTimer;
 };

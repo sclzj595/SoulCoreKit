@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_UI_PAGE_H
+#ifndef SOUL_UI_PAGE_H
 #define SOUL_UI_PAGE_H
 
 #include <QWidget>
@@ -41,7 +41,7 @@ public:
      * @brief 构造函数
      * @param parent 父窗口
      */
-    explicit Page(QWidget* parent = nullptr);
+    explicit Page(::QWidget* parent = nullptr);
 
     /**
      * @brief 析构函数
@@ -52,25 +52,25 @@ public:
      * @brief 设置页面标题
      * @param title 标题文本
      */
-    void setPageTitle(const QString& title);
+    void setPageTitle(const ::QString& title);
 
     /**
      * @brief 获取页面标题
      * @return 标题文本
      */
-    QString pageTitle() const;
+    ::QString pageTitle() const;
 
     /**
      * @brief 设置页面副标题
      * @param subtitle 副标题文本
      */
-    void setPageSubtitle(const QString& subtitle);
+    void setPageSubtitle(const ::QString& subtitle);
 
     /**
      * @brief 获取页面副标题
      * @return 副标题文本
      */
-    QString pageSubtitle() const;
+    ::QString pageSubtitle() const;
 
     /**
      * @brief 页面进入回调（虚函数，子类可重写）
@@ -108,11 +108,11 @@ protected:
      * @brief 设置页面内容
      * @param content 内容组件
      */
-    void setupContent(QWidget* content);
+    void setupContent(::QWidget* content);
 
 private:
-    QString m_title;
-    QString m_subtitle;
+    ::QString m_title;
+    ::QString m_subtitle;
 };
 
 }

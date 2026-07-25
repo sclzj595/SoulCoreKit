@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_UI_AVATAR_H
+#ifndef SOUL_UI_AVATAR_H
 #define SOUL_UI_AVATAR_H
 
 #include "soul/ui/theme.h"
@@ -6,13 +6,13 @@
 
 namespace sc {
 
-class Avatar : public QWidget {
+class Avatar : public ::QWidget {
     Q_OBJECT
 public:
-    explicit Avatar(QWidget* parent = nullptr);
+    explicit Avatar(::QWidget* parent = nullptr);
 
-    QPixmap pixmap() const;
-    void setPixmap(const QPixmap& pixmap);
+    ::QPixmap pixmap() const;
+    void setPixmap(const ::QPixmap& pixmap);
 
     QString initials() const;
     void setInitials(const QString& initials);
@@ -21,11 +21,11 @@ public:
     void setSize(int size);
 
 protected:
-    void paintEvent(QPaintEvent* event) override;
-    QSize sizeHint() const override;
+    void paintEvent(::QPaintEvent* event) override;
+    ::QSize sizeHint() const override;
 
 private:
-    QPixmap m_pixmap;
+    ::QPixmap m_pixmap;
     QString m_initials;
     int m_size;
 };

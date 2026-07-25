@@ -1,4 +1,4 @@
-﻿#include "soul/ui/icon_manager.h"
+#include "soul/ui/icon_manager.h"
 #include <QPainter>
 #include <QPixmapCache>
 
@@ -9,9 +9,9 @@ IconManager::IconManager()
       m_defaultSize(design::DEFAULT_ICON_SIZE) {
 }
 
-bool IconManager::init() {
+Result<void> IconManager::init() {
     m_initialized = true;
-    return true;
+    return Ok();
 }
 
 void IconManager::shutdown() {

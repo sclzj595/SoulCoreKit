@@ -1,4 +1,4 @@
-﻿#include "soul/utils/process/process_utils.h"
+#include "soul/utils/process/process_utils.h"
 #include <functional>
 #include <QCoreApplication>
 #include <QProcess>
@@ -27,16 +27,19 @@ bool ProcessUtils::execute(const QString& program, const QStringList& arguments,
 
 bool ProcessUtils::executeAsync(const QString& program, const QStringList& arguments,
                                 std::function<void(int exitCode, const QString& output)> callback) {
-    QProcess* process = new QProcess();
+    auto process = std::unique_ptr<QProcess, void(*)(QProcess*)>(
+        new QProcess(),
+        [](QProcess* p) { p->deleteLater(); }
+    );
     if (callback) {
-        QObject::connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-                         [process, callback](int exitCode, QProcess::ExitStatus) {
+        QObject::connect(process.get(), QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+                         [process = std::move(process), callback](int exitCode, QProcess::ExitStatus) {
             QString output = process->readAllStandardOutput();
             callback(exitCode, output);
-            process->deleteLater();
         });
     } else {
-        QObject::connect(process, &QProcess::finished, process, &QProcess::deleteLater);
+        QObject::connect(process.get(), &QProcess::finished, [process = std::move(process)]() {
+        });
     }
     process->start(program, arguments);
     return true;

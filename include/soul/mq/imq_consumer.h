@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_MQ_IMQ_CONSUMER_H
+#ifndef SOUL_MQ_IMQ_CONSUMER_H
 #define SOUL_MQ_IMQ_CONSUMER_H
 
 #include <QString>
@@ -16,7 +16,7 @@ struct ConsumeMessage {
     QByteArray body;
     QString messageId;
     QString correlationId;
-    qint64 deliveryTag;
+    qint64 deliveryTag = 0;
 };
 
 using ConsumeCallback = std::function<void(const ConsumeMessage& msg)>;

@@ -1,7 +1,8 @@
-﻿#include "soul/utils/clipboard/clipboard_utils.h"
+#include "soul/utils/clipboard/clipboard_utils.h"
 #include <QClipboard>
 #include <QGuiApplication>
 #include <QMimeData>
+#include <memory>
 
 namespace sc {
 
@@ -18,9 +19,9 @@ QString ClipboardUtils::getText() {
 
 bool ClipboardUtils::setHtml(const QString& html) {
     QClipboard* clipboard = QGuiApplication::clipboard();
-    QMimeData* mimeData = new QMimeData();
+    auto mimeData = std::unique_ptr<QMimeData>(new QMimeData());
     mimeData->setHtml(html);
-    clipboard->setMimeData(mimeData);
+    clipboard->setMimeData(mimeData.release());
     return true;
 }
 
@@ -46,9 +47,9 @@ QImage ClipboardUtils::getImage() {
 
 bool ClipboardUtils::setUrls(const QList<QUrl>& urls) {
     QClipboard* clipboard = QGuiApplication::clipboard();
-    QMimeData* mimeData = new QMimeData();
+    auto mimeData = std::unique_ptr<QMimeData>(new QMimeData());
     mimeData->setUrls(urls);
-    clipboard->setMimeData(mimeData);
+    clipboard->setMimeData(mimeData.release());
     return true;
 }
 

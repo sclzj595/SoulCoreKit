@@ -4,6 +4,7 @@
 
 
 
+#include <exception>
 #include <memory>
 
 #include "soul/orm/base_repository.h"
@@ -24,7 +25,28 @@ namespace sc {
 
 namespace orm {
 
+namespace detail {
+    class ConnectionGuard {
+    public:
+        ConnectionGuard(std::shared_ptr<data::DbConnectionPool> pool,
+                        std::unique_ptr<data::IDatabaseDriver> conn)
+            : m_pool(std::move(pool)), m_conn(std::move(conn)), m_released(false) {}
 
+        ~ConnectionGuard() {
+            if (!m_released && m_conn) {
+                m_pool->release(std::move(m_conn));
+            }
+        }
+
+        data::IDatabaseDriver* operator->() { return m_conn.get(); }
+        data::IDatabaseDriver* get() { return m_conn.get(); }
+
+    private:
+        std::shared_ptr<data::DbConnectionPool> m_pool;
+        std::unique_ptr<data::IDatabaseDriver> m_conn;
+        bool m_released;
+    };
+} // namespace detail
 
 template<typename T>
 
@@ -47,6 +69,7 @@ public:
     Result<void> remove(const QueryWrapper& query) override;
 
     Result<int> count(const QueryWrapper& query) override;
+    Result<int> count() override { return count(QueryWrapper()); }
 
 
 
@@ -91,16 +114,16 @@ SqlRepository<T>::~SqlRepository() {}
 template<typename T>
 Result<std::vector<T>> SqlRepository<T>::find(const QueryWrapper& query) {
     try {
-        auto conn = m_pool->acquire();
-        if (!conn.isOk()) {
-            return Error(ErrorCode::DatabaseError, conn.unwrapErr().message());
+        auto connResult = m_pool->acquire();
+        if (!connResult.isOk()) {
+            return Error(ErrorCode::DatabaseError, connResult.unwrapErr().message());
         }
+        detail::ConnectionGuard guard(m_pool, std::move(connResult.unwrap()));
 
         QueryWrapper q = query;
         q.setDialect(m_dialect.get());
         QString sql = q.buildSelectSql(T::TABLE_NAME());
-        auto result = conn.unwrap()->executeQuery(sql, q.getBindValues());
-        m_pool->release(std::move(conn.unwrap()));
+        auto result = guard->executeQuery(sql, q.getBindValues());
 
         if (!result.isOk()) {
             return Error(ErrorCode::DatabaseError, result.unwrapErr().message());
@@ -111,8 +134,9 @@ Result<std::vector<T>> SqlRepository<T>::find(const QueryWrapper& query) {
             entities.push_back(fromQueryResult(row));
         }
         return entities;
-    } catch (...) {
-        return Error(ErrorCode::DatabaseError, "Database exception");
+    } catch (const std::exception& e) {
+        Logger::instance().error(QString("SqlRepository::find failed: %1").arg(e.what()), "orm");
+        return Error(ErrorCode::DatabaseError, e.what());
     }
 }
 
@@ -128,47 +152,49 @@ Result<T> SqlRepository<T>::save(const T& entity) {
             e.beforeUpdate();
             return updateInternal(e);
         }
-    } catch (...) {
-        return Error(ErrorCode::DatabaseError, "Database exception");
+    } catch (const std::exception& e) {
+        Logger::instance().error(QString("SqlRepository::save failed: %1").arg(e.what()), "orm");
+        return Error(ErrorCode::DatabaseError, e.what());
     }
 }
 
 template<typename T>
 Result<void> SqlRepository<T>::remove(const QueryWrapper& query) {
     try {
-        auto conn = m_pool->acquire();
-        if (!conn.isOk()) {
-            return Error(ErrorCode::DatabaseError, conn.unwrapErr().message());
+        auto connResult = m_pool->acquire();
+        if (!connResult.isOk()) {
+            return Error(ErrorCode::DatabaseError, connResult.unwrapErr().message());
         }
+        detail::ConnectionGuard guard(m_pool, std::move(connResult.unwrap()));
 
         QueryWrapper q = query;
         q.setDialect(m_dialect.get());
         QString sql = q.buildDeleteSql(T::TABLE_NAME());
-        auto result = conn.unwrap()->executeUpdate(sql, q.getBindValues());
-        m_pool->release(std::move(conn.unwrap()));
+        auto result = guard->executeUpdate(sql, q.getBindValues());
 
         if (!result.isOk()) {
             return Error(ErrorCode::DatabaseError, result.unwrapErr().message());
         }
         return {};
-    } catch (...) {
-        return Error(ErrorCode::DatabaseError, "Database exception");
+    } catch (const std::exception& e) {
+        Logger::instance().error(QString("SqlRepository::remove failed: %1").arg(e.what()), "orm");
+        return Error(ErrorCode::DatabaseError, e.what());
     }
 }
 
 template<typename T>
 Result<int> SqlRepository<T>::count(const QueryWrapper& query) {
     try {
-        auto conn = m_pool->acquire();
-        if (!conn.isOk()) {
-            return Error(ErrorCode::DatabaseError, conn.unwrapErr().message());
+        auto connResult = m_pool->acquire();
+        if (!connResult.isOk()) {
+            return Error(ErrorCode::DatabaseError, connResult.unwrapErr().message());
         }
+        detail::ConnectionGuard guard(m_pool, std::move(connResult.unwrap()));
 
         QueryWrapper q = query;
         q.setDialect(m_dialect.get());
         QString sql = q.buildCountSql(T::TABLE_NAME());
-        auto result = conn.unwrap()->executeQuery(sql, q.getBindValues());
-        m_pool->release(std::move(conn.unwrap()));
+        auto result = guard->executeQuery(sql, q.getBindValues());
 
         if (!result.isOk()) {
             return Error(ErrorCode::DatabaseError, result.unwrapErr().message());
@@ -178,21 +204,23 @@ Result<int> SqlRepository<T>::count(const QueryWrapper& query) {
             return result.unwrap().rows[0].begin()->second.toInt();
         }
         return 0;
-    } catch (...) {
-        return Error(ErrorCode::DatabaseError, "Database exception");
+    } catch (const std::exception& e) {
+        Logger::instance().error(QString("SqlRepository::count failed: %1").arg(e.what()), "orm");
+        return Error(ErrorCode::DatabaseError, e.what());
     }
 }
 
 template<typename T>
 bool SqlRepository<T>::executeSql(const QString& sql, const std::vector<QVariant>& params) {
     try {
-        auto conn = m_pool->acquire();
-        if (!conn.isOk()) return false;
+        auto connResult = m_pool->acquire();
+        if (!connResult.isOk()) return false;
+        detail::ConnectionGuard guard(m_pool, std::move(connResult.unwrap()));
 
-        auto result = conn.unwrap()->executeUpdate(sql, params);
-        m_pool->release(std::move(conn.unwrap()));
+        auto result = guard->executeUpdate(sql, params);
         return result.isOk();
-    } catch (...) {
+    } catch (const std::exception& e) {
+        Logger::instance().error(QString("SqlRepository::executeSql failed: %1").arg(e.what()), "orm");
         return false;
     }
 }
@@ -200,44 +228,46 @@ bool SqlRepository<T>::executeSql(const QString& sql, const std::vector<QVariant
 template<typename T>
 Result<T> SqlRepository<T>::insertInternal(const T& entity) {
     try {
-        auto conn = m_pool->acquire();
-        if (!conn.isOk()) {
-            return Error(ErrorCode::DatabaseError, conn.unwrapErr().message());
+        auto connResult = m_pool->acquire();
+        if (!connResult.isOk()) {
+            return Error(ErrorCode::DatabaseError, connResult.unwrapErr().message());
         }
+        detail::ConnectionGuard guard(m_pool, std::move(connResult.unwrap()));
 
         QString sql = generateInsertSql(entity);
         auto params = collectInsertParams(entity);
-        auto result = conn.unwrap()->executeUpdate(sql, params);
-        m_pool->release(std::move(conn.unwrap()));
+        auto result = guard->executeUpdate(sql, params);
 
         if (!result.isOk()) {
             return Error(ErrorCode::DatabaseError, result.unwrapErr().message());
         }
         return entity;
-    } catch (...) {
-        return Error(ErrorCode::DatabaseError, "Insert exception");
+    } catch (const std::exception& e) {
+        Logger::instance().error(QString("SqlRepository::insertInternal failed: %1").arg(e.what()), "orm");
+        return Error(ErrorCode::DatabaseError, e.what());
     }
 }
 
 template<typename T>
 Result<T> SqlRepository<T>::updateInternal(const T& entity) {
     try {
-        auto conn = m_pool->acquire();
-        if (!conn.isOk()) {
-            return Error(ErrorCode::DatabaseError, conn.unwrapErr().message());
+        auto connResult = m_pool->acquire();
+        if (!connResult.isOk()) {
+            return Error(ErrorCode::DatabaseError, connResult.unwrapErr().message());
         }
+        detail::ConnectionGuard guard(m_pool, std::move(connResult.unwrap()));
 
         QString sql = generateUpdateSql(entity);
         auto params = collectUpdateParams(entity);
-        auto result = conn.unwrap()->executeUpdate(sql, params);
-        m_pool->release(std::move(conn.unwrap()));
+        auto result = guard->executeUpdate(sql, params);
 
         if (!result.isOk()) {
             return Error(ErrorCode::DatabaseError, result.unwrapErr().message());
         }
         return entity;
-    } catch (...) {
-        return Error(ErrorCode::DatabaseError, "Update exception");
+    } catch (const std::exception& e) {
+        Logger::instance().error(QString("SqlRepository::updateInternal failed: %1").arg(e.what()), "orm");
+        return Error(ErrorCode::DatabaseError, e.what());
     }
 }
 
@@ -249,20 +279,24 @@ QString SqlRepository<T>::generateInsertSql(const T& entity) {
     int paramIndex = 1;
 
     columns << "id";
-    placeholders << m_dialect->convertPlaceholder(paramIndex++);
+    placeholders << m_dialect->convertPlaceholder(paramIndex);
+    ++paramIndex;
 
     const QStringList baseFields = {"createTime", "updateTime", "deleted"};
     for (const auto& field : meta.fields) {
         if (field.second.isPrimaryKey) continue;
         if (baseFields.contains(field.first)) continue;
         columns << field.second.columnName;
-        placeholders << m_dialect->convertPlaceholder(paramIndex++);
+        placeholders << m_dialect->convertPlaceholder(paramIndex);
+        ++paramIndex;
     }
 
     columns << "create_time" << "update_time" << m_dialect->softDeleteConfig().columnName;
-    placeholders << m_dialect->convertPlaceholder(paramIndex++)
-                 << m_dialect->convertPlaceholder(paramIndex++)
-                 << m_dialect->softDeleteConfig().logicNotDeletedValue;
+    placeholders << m_dialect->convertPlaceholder(paramIndex);
+    ++paramIndex;
+    placeholders << m_dialect->convertPlaceholder(paramIndex);
+    ++paramIndex;
+    placeholders << m_dialect->softDeleteConfig().logicNotDeletedValue;
 
     return QString("INSERT INTO %1(%2) VALUES (%3)")
         .arg(T::TABLE_NAME())
@@ -281,11 +315,14 @@ QString SqlRepository<T>::generateUpdateSql(const T& entity) {
         if (field.second.isPrimaryKey) continue;
         if (baseFields.contains(field.first)) continue;
         setClauses << QString("%1 = %2").arg(field.second.columnName)
-                                              .arg(m_dialect->convertPlaceholder(paramIndex++));
+                                              .arg(m_dialect->convertPlaceholder(paramIndex));
+        ++paramIndex;
     }
-    setClauses << QString("update_time = %1").arg(m_dialect->convertPlaceholder(paramIndex++));
+    setClauses << QString("update_time = %1").arg(m_dialect->convertPlaceholder(paramIndex));
+    ++paramIndex;
 
-    QString idPlaceholder = m_dialect->convertPlaceholder(paramIndex++);
+    QString idPlaceholder = m_dialect->convertPlaceholder(paramIndex);
+    ++paramIndex;
     return QString("UPDATE %1 SET %2 WHERE id = %3")
         .arg(T::TABLE_NAME())
         .arg(setClauses.join(","))

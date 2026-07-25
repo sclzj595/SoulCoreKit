@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_UI_PROGRESS_H
+#ifndef SOUL_UI_PROGRESS_H
 #define SOUL_UI_PROGRESS_H
 
 #include "soul/ui/theme.h"
@@ -7,13 +7,13 @@
 
 namespace sc {
 
-class Progress : public QWidget {
+class Progress : public ::QWidget {
     Q_OBJECT
     Q_PROPERTY(int value READ value WRITE setValue)
     Q_PROPERTY(qreal glowProgress READ glowProgress WRITE setGlowProgress)
 
 public:
-    explicit Progress(QWidget* parent = nullptr);
+    explicit Progress(::QWidget* parent = nullptr);
 
     int value() const;
     void setValue(int value);
@@ -28,14 +28,14 @@ public:
     void setGlowProgress(qreal progress);
 
 protected:
-    void paintEvent(QPaintEvent* event) override;
+    void paintEvent(::QPaintEvent* event) override;
 
 private:
     int m_min;
     int m_max;
     int m_value;
     qreal m_glowProgress;
-    QPropertyAnimation* m_glowAnimation;
+    ::QPropertyAnimation* m_glowAnimation;
 };
 
 }

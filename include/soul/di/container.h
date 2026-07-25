@@ -27,8 +27,9 @@ struct SC_DI_EXPORT RegistrationInfo {
     std::type_index interfaceType = std::type_index(typeid(void));
     void* singletonInstance = nullptr;
     bool initialized = false;
+    bool owned = true;
     std::shared_ptr<std::atomic<bool>> initFlag;
-    std::function<void(void*)> deleter; // 类型擦除的删除器，避免 delete void*
+    std::function<void(void*)> deleter;
 };
 
 class SC_DI_EXPORT Container {
@@ -56,7 +57,7 @@ public:
         if (it != m_scopes.end()) {
             for (auto& pair : it->second) {
                 auto regIt = m_registrations.find(pair.first);
-                if (regIt != m_registrations.end() && regIt->second.deleter) {
+                if (regIt != m_registrations.end() && regIt->second.deleter && regIt->second.owned) {
                     regIt->second.deleter(pair.second);
                 }
             }
@@ -100,8 +101,9 @@ public:
         info.interfaceType = typeIdx;
         info.singletonInstance = instance;
         info.initialized = true;
+        info.owned = false;
         info.initFlag = std::make_shared<std::atomic<bool>>(true);
-        info.deleter = [](void* ptr) { delete static_cast<T*>(ptr); };
+        info.deleter = [](void*) {};
     }
 
     template<typename T>
@@ -124,23 +126,14 @@ public:
     template<typename T>
     Result<std::shared_ptr<T>> resolve()
     {
+        std::lock_guard<std::recursive_mutex> lock(m_mutex);
+
         auto typeIdx = std::type_index(typeid(T));
 
-        auto regIt = m_registrations.find(typeIdx);
-        if (regIt == m_registrations.end()) {
-            return Error(ErrorCode::NotFound, "Type not registered: " + std::string(typeid(T).name()));
-        }
-
-        if (regIt->second.initFlag &&
-            regIt->second.initFlag->load(std::memory_order_acquire) &&
-            regIt->second.singletonInstance) {
-            return std::shared_ptr<T>(static_cast<T*>(regIt->second.singletonInstance), [](T*) {});
-        }
-
-        std::lock_guard<std::recursive_mutex> lock(m_mutex);
         auto it = m_registrations.find(typeIdx);
         if (it == m_registrations.end()) {
-            return Error(ErrorCode::NotFound, "Type not registered: " + std::string(typeid(T).name()));
+            return Result<std::shared_ptr<T>>(Error(ErrorCode::NotFound,
+                QStringLiteral("Type not registered: %1").arg(QString::fromStdString(typeid(T).name()))));
         }
 
         auto& info = it->second;
@@ -228,7 +221,8 @@ public:
         if (it != m_registrations.end()) {
             if (it->second.lifetime == Lifetime::Singleton &&
                 it->second.initialized &&
-                it->second.singletonInstance) {
+                it->second.singletonInstance &&
+                it->second.owned) {
                 if (it->second.deleter) {
                     it->second.deleter(it->second.singletonInstance);
                 }
@@ -244,7 +238,7 @@ public:
         for (auto& pair : m_scopes) {
             for (auto& instPair : pair.second) {
                 auto regIt = m_registrations.find(instPair.first);
-                if (regIt != m_registrations.end() && regIt->second.deleter) {
+                if (regIt != m_registrations.end() && regIt->second.deleter && regIt->second.owned) {
                     regIt->second.deleter(instPair.second);
                 }
             }
@@ -255,7 +249,8 @@ public:
         for (auto& pair : m_registrations) {
             if (pair.second.lifetime == Lifetime::Singleton &&
                 pair.second.initialized &&
-                pair.second.singletonInstance) {
+                pair.second.singletonInstance &&
+                pair.second.owned) {
                 if (pair.second.deleter) {
                     pair.second.deleter(pair.second.singletonInstance);
                 }

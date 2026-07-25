@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_UI_NAVIGATION_H
+#ifndef SOUL_UI_NAVIGATION_H
 #define SOUL_UI_NAVIGATION_H
 
 #include <QStackedWidget>
@@ -33,14 +33,14 @@ public:
      * @brief 设置根导航组件
      * @param stack QStackedWidget 指针
      */
-    static void setRootWidget(QStackedWidget* stack);
+    static void setRootWidget(::QStackedWidget* stack);
 
     /**
      * @brief 推入新页面
      * @param widget 页面组件
      * @param title 页面标题（可选）
      */
-    static void push(QWidget* widget, const QString& title = "");
+    static void push(::QWidget* widget, const ::QString& title = "");
 
     /**
      * @brief 返回上一页
@@ -57,7 +57,7 @@ public:
      * @param widget 新页面组件
      * @param title 页面标题（可选）
      */
-    static void replace(QWidget* widget, const QString& title = "");
+    static void replace(::QWidget* widget, const ::QString& title = "");
 
     /**
      * @brief 获取当前页面索引
@@ -69,13 +69,13 @@ public:
      * @brief 获取当前页面组件
      * @return 当前页面 QWidget 指针
      */
-    static QWidget* currentWidget();
+    static ::QWidget* currentWidget();
 
     /**
      * @brief 获取当前页面标题
      * @return 当前页面标题
      */
-    static QString currentTitle();
+    static ::QString currentTitle();
 
     /**
      * @brief 获取页面栈数量
@@ -88,7 +88,7 @@ public:
      * @param widget 当前页面组件
      * @param title 当前页面标题
      */
-    using NavigationCallback = std::function<void(QWidget*, const QString&)>;
+    using NavigationCallback = std::function<void(::QWidget*, const ::QString&)>;
 
     /**
      * @brief 设置导航回调
@@ -97,8 +97,8 @@ public:
     static void setOnNavigate(NavigationCallback callback);
 
 private:
-    static QStackedWidget* s_stack;
-    static QStringList s_titles;
+    static ::QStackedWidget* s_stack;
+    static ::QStringList s_titles;
     static NavigationCallback s_onNavigate;
 };
 

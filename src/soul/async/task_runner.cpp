@@ -1,4 +1,5 @@
-﻿#include "soul/async/task_runner.h"
+#include "soul/async/task_runner.h"
+#include "soul/core/error.h"
 
 namespace sc {
 
@@ -10,8 +11,11 @@ int TaskRunner::activeTaskCount() const {
     return m_activeTasks.load();
 }
 
-bool TaskRunner::waitForAll(int msecs) {
-    return QThreadPool::globalInstance()->waitForDone(msecs);
+Result<void> TaskRunner::waitForAll(int msecs) {
+    if (!QThreadPool::globalInstance()->waitForDone(msecs)) {
+        return Error(ErrorCode::Timeout, "waitForAll timed out");
+    }
+    return {};
 }
 
 }

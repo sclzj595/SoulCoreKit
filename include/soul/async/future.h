@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_ASYNC_FUTURE_H
+#ifndef SOUL_ASYNC_FUTURE_H
 #define SOUL_ASYNC_FUTURE_H
 
 #include <QFuture>
@@ -6,6 +6,7 @@
 #include <QThreadPool>
 #include <functional>
 #include <memory>
+#include <vector>
 #include "soul/core/result.h"
 
 namespace sc {
@@ -24,91 +25,156 @@ public:
     bool isCanceled() const { return m_future.isCanceled(); }
     bool isRunning() const { return m_future.isRunning(); }
 
-    void waitForFinished() { m_future.waitForFinished(); }
-    T result() const { return m_future.result(); }
+    void waitForFinished() {
+        try {
+            m_future.waitForFinished();
+        } catch (...) {
+        }
+        executeCallbacks();
+    }
+
+    T result() {
+        auto value = m_future.result();
+        executeCallbacks();
+        return value;
+    }
 
     template<typename F>
     auto then(F&& func) -> Future<decltype(func(std::declval<T>()))> {
         using U = decltype(func(std::declval<T>()));
 
-        QPromise<U> promise;
-        auto future = promise.future();
-
-        auto watcher = new QFutureWatcher<T>();
-        QObject::connect(watcher, &QFutureWatcher<T>::finished, [watcher, promisePtr = std::make_shared<QPromise<U>>(std::move(promise)), func = std::forward<F>(func)]() mutable {
+        if (m_future.isFinished()) {
             try {
-                T result = watcher->future().result();
-                QThreadPool::globalInstance()->start([result = std::move(result), func = std::move(func), promisePtr]() mutable {
-                    try {
-                        promisePtr->start();
-                        promisePtr->addResult(func(std::move(result)));
-                        promisePtr->finish();
-                    } catch (...) {
-                        promisePtr->setException(std::current_exception());
-                    }
-                });
+                U result = func(m_future.result());
+                QPromise<U> promise;
+                promise.start();
+                promise.addResult(result);
+                promise.finish();
+                return Future<U>(promise.future());
             } catch (...) {
-                promisePtr->start();
-                promisePtr->setException(std::current_exception());
+                QPromise<U> promise;
+                promise.start();
+                promise.setException(std::current_exception());
+                promise.finish();
+                return Future<U>(promise.future());
             }
-            watcher->deleteLater();
+        }
+
+        auto promisePtr = std::shared_ptr<QPromise<U>>(new QPromise<U>());
+        promisePtr->start();
+        auto future = promisePtr->future();
+
+        QFuture<T> originalFuture = m_future;
+        QThreadPool::globalInstance()->start([promisePtr, func = std::forward<F>(func), originalFuture]() mutable {
+            try {
+                T result = originalFuture.result();
+                try {
+                    promisePtr->addResult(func(std::move(result)));
+                    promisePtr->finish();
+                } catch (...) {
+                    promisePtr->setException(std::current_exception());
+                    promisePtr->finish();
+                }
+            } catch (...) {
+                promisePtr->setException(std::current_exception());
+                promisePtr->finish();
+            }
         });
 
-        watcher->setFuture(m_future);
         return Future<U>(std::move(future));
     }
 
     template<typename F>
     void onSuccess(F&& func) {
-        auto watcher = new QFutureWatcher<T>();
-        QObject::connect(watcher, &QFutureWatcher<T>::finished, [watcher, func = std::forward<F>(func)]() {
+        if (m_future.isFinished()) {
             try {
-                func(watcher->future().result());
+                func(m_future.result());
             } catch (...) {
             }
-            watcher->deleteLater();
-        });
-        watcher->setFuture(m_future);
+            return;
+        }
+        ensureCallbacks();
+        m_data->successCallbacks.push_back(std::forward<F>(func));
     }
 
     template<typename F>
     void onFailure(F&& func) {
-        auto watcher = new QFutureWatcher<T>();
-        QObject::connect(watcher, &QFutureWatcher<T>::finished, [watcher, func = std::forward<F>(func)]() {
+        if (m_future.isFinished()) {
             try {
-                watcher->future().result();
+                m_future.result();
             } catch (const std::exception& e) {
                 func(e);
             } catch (...) {
                 func(std::runtime_error("Unknown exception"));
             }
-            watcher->deleteLater();
-        });
-        watcher->setFuture(m_future);
+            return;
+        }
+        ensureCallbacks();
+        m_data->failureCallbacks.push_back(std::forward<F>(func));
     }
 
     void cancel() { m_future.cancel(); }
     QFuture<T> qFuture() const { return m_future; }
 
 private:
+    struct CallbackData {
+        std::vector<std::function<void(const T&)>> successCallbacks;
+        std::vector<std::function<void(const std::exception&)>> failureCallbacks;
+    };
+
+    void ensureCallbacks() {
+        if (!m_data) {
+            m_data = std::make_shared<CallbackData>();
+        }
+    }
+
+    void executeCallbacks() {
+        if (!m_data) return;
+        if (!m_data->successCallbacks.empty()) {
+            try {
+                T result = m_future.result();
+                for (auto& cb : m_data->successCallbacks) {
+                    cb(result);
+                }
+            } catch (...) {
+            }
+            m_data->successCallbacks.clear();
+        }
+        if (!m_data->failureCallbacks.empty()) {
+            try {
+                m_future.result();
+            } catch (const std::exception& e) {
+                for (auto& cb : m_data->failureCallbacks) {
+                    cb(e);
+                }
+            } catch (...) {
+                for (auto& cb : m_data->failureCallbacks) {
+                    cb(std::runtime_error("Unknown exception"));
+                }
+            }
+            m_data->failureCallbacks.clear();
+        }
+    }
+
     QFuture<T> m_future;
+    std::shared_ptr<CallbackData> m_data;
 };
 
 template<typename F>
 Future<std::invoke_result_t<F>> async(F&& func) {
     using ResultType = std::invoke_result_t<F>;
 
-    QPromise<ResultType> promise;
-    auto future = promise.future();
+    auto promisePtr = std::shared_ptr<QPromise<ResultType>>(new QPromise<ResultType>());
+    promisePtr->start();
+    auto future = promisePtr->future();
 
-    auto promisePtr = std::make_shared<QPromise<ResultType>>(std::move(promise));
     QThreadPool::globalInstance()->start([func = std::forward<F>(func), promisePtr]() mutable {
         try {
-            promisePtr->start();
             promisePtr->addResult(func());
             promisePtr->finish();
         } catch (...) {
             promisePtr->setException(std::current_exception());
+            promisePtr->finish();
         }
     });
 
@@ -119,17 +185,20 @@ template<typename F>
 Future<std::invoke_result_t<F>> asyncOnThreadPool(F&& func) {
     using ResultType = std::invoke_result_t<F>;
 
-    QPromise<ResultType> promise;
-    auto future = promise.future();
+    auto promisePtr = std::shared_ptr<QPromise<ResultType>>(new QPromise<ResultType>());
+    promisePtr->start();
+    auto future = promisePtr->future();
 
-    auto promisePtr = std::make_shared<QPromise<ResultType>>(std::move(promise));
     QThreadPool::globalInstance()->start([func = std::forward<F>(func), promisePtr]() mutable {
         try {
-            promisePtr->start();
             promisePtr->addResult(func());
+            promisePtr->finish();
+        } catch (const std::exception&) {
+            promisePtr->setException(std::current_exception());
             promisePtr->finish();
         } catch (...) {
             promisePtr->setException(std::current_exception());
+            promisePtr->finish();
         }
     });
 

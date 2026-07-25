@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_UI_BADGE_H
+#ifndef SOUL_UI_BADGE_H
 #define SOUL_UI_BADGE_H
 
 #include "soul/ui/theme.h"
@@ -6,10 +6,10 @@
 
 namespace sc {
 
-class Badge : public QWidget {
+class Badge : public ::QWidget {
     Q_OBJECT
 public:
-    explicit Badge(QWidget* parent = nullptr);
+    explicit Badge(::QWidget* parent = nullptr);
 
     int count() const;
     void setCount(int count);
@@ -18,8 +18,8 @@ public:
     void setVisible(bool visible);
 
 protected:
-    void paintEvent(QPaintEvent* event) override;
-    QSize sizeHint() const override;
+    void paintEvent(::QPaintEvent* event) override;
+    ::QSize sizeHint() const override;
 
 private:
     int m_count;

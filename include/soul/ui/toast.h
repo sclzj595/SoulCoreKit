@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_UI_TOAST_H
+#ifndef SOUL_UI_TOAST_H
 #define SOUL_UI_TOAST_H
 
 #include <QWidget>
@@ -18,35 +18,35 @@ enum class ToastType {
     Success
 };
 
-class Toast : public QWidget {
+class Toast : public ::QWidget {
     Q_OBJECT
 public:
-    explicit Toast(QWidget* parent = nullptr);
+    explicit Toast(::QWidget* parent = nullptr);
     ~Toast() override;
 
     void setType(ToastType type);
-    void setMessage(const QString& message);
+    void setMessage(const ::QString& message);
     void setDuration(int milliseconds);
     void show();
 
-    static void info(const QString& message, int duration = design::TOAST_DEFAULT_DURATION);
-    static void warning(const QString& message, int duration = design::TOAST_DEFAULT_DURATION);
-    static void error(const QString& message, int duration = design::TOAST_DEFAULT_DURATION);
-    static void success(const QString& message, int duration = design::TOAST_DEFAULT_DURATION);
+    static void info(const ::QString& message, int duration = design::TOAST_DEFAULT_DURATION);
+    static void warning(const ::QString& message, int duration = design::TOAST_DEFAULT_DURATION);
+    static void error(const ::QString& message, int duration = design::TOAST_DEFAULT_DURATION);
+    static void success(const ::QString& message, int duration = design::TOAST_DEFAULT_DURATION);
 
 protected:
-    void closeEvent(QCloseEvent* event) override;
+    void closeEvent(::QCloseEvent* event) override;
 
 private:
     void setupUI();
 
     ToastType m_type;
-    QString m_message;
+    ::QString m_message;
     int m_duration;
-    std::unique_ptr<QTimer> m_timer;
+    std::unique_ptr<::QTimer> m_timer;
 };
 
-class ToastManager : public QWidget {
+class ToastManager : public ::QWidget {
     Q_OBJECT
 public:
     static ToastManager& instance();
@@ -57,7 +57,7 @@ private:
     ToastManager();
     ~ToastManager() override;
 
-    QVBoxLayout* m_layout;
+    ::QVBoxLayout* m_layout;
 };
 
 }

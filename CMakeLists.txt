@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(SoulCoreKit VERSION 1.5.0 LANGUAGES CXX)
+project(SoulCoreKit VERSION 1.6.0 LANGUAGES CXX)
 
 include(GenerateExportHeader)
 
@@ -133,70 +133,27 @@ endif()
 if(WIN32)
     get_target_property(QT6_CORE_LOCATION Qt6::Core IMPORTED_LOCATION)
     get_filename_component(QT6_BIN_DIR ${QT6_CORE_LOCATION} DIRECTORY)
+    find_program(WINDEPLOYQT_EXECUTABLE NAMES windeployqt HINTS "${QT6_BIN_DIR}")
 endif()
 
-function(copy_qt_dll TARGET_NAME COPY_TEST_DLL)
+function(windeployqt_post_build TARGET_NAME IS_TEST)
     if(NOT WIN32)
         return()
     endif()
 
-    add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${QT6_BIN_DIR}/Qt6Core.dll"
-            "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6Core.dll"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${QT6_BIN_DIR}/Qt6Network.dll"
-            "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6Network.dll"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${QT6_BIN_DIR}/Qt6Sql.dll"
-            "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6Sql.dll"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${QT6_BIN_DIR}/Qt6Widgets.dll"
-            "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6Widgets.dll"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${QT6_BIN_DIR}/Qt6Gui.dll"
-            "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6Gui.dll"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${QT6_BIN_DIR}/Qt6WebSockets.dll"
-            "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6WebSockets.dll"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${QT6_BIN_DIR}/Qt6Xml.dll"
-            "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6Xml.dll"
-        COMMENT "Copying Qt6 DLLs to ${TARGET_NAME} output directory"
-    )
-
-    if(COPY_TEST_DLL)
-        add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${QT6_BIN_DIR}/Qt6Test.dll"
-                "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6Test.dll"
-            COMMENT "Copying Qt6Test.dll to ${TARGET_NAME} output directory"
-        )
+    if(NOT WINDEPLOYQT_EXECUTABLE)
+        message(WARNING "windeployqt not found! Set WINDEPLOYQT_EXECUTABLE or ensure Qt bin dir is in PATH")
+        return()
     endif()
 
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-        add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${QT6_BIN_DIR}/libgcc_s_seh-1.dll"
-                "$<TARGET_FILE_DIR:${TARGET_NAME}>/libgcc_s_seh-1.dll"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${QT6_BIN_DIR}/libstdc++-6.dll"
-                "$<TARGET_FILE_DIR:${TARGET_NAME}>/libstdc++-6.dll"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${QT6_BIN_DIR}/libwinpthread-1.dll"
-                "$<TARGET_FILE_DIR:${TARGET_NAME}>/libwinpthread-1.dll"
-            COMMENT "Copying MinGW runtime DLLs to ${TARGET_NAME} output directory"
-        )
-    endif()
-
-    set(QT6_PLUGINS_DIR "${QT6_BIN_DIR}/../plugins")
     add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory
-            "$<TARGET_FILE_DIR:${TARGET_NAME}>/sqldrivers"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${QT6_PLUGINS_DIR}/sqldrivers/qsqlite.dll"
-            "$<TARGET_FILE_DIR:${TARGET_NAME}>/sqldrivers/qsqlite.dll"
-        COMMENT "Copying Qt6 SQL drivers to ${TARGET_NAME} output directory"
+        COMMAND "${WINDEPLOYQT_EXECUTABLE}"
+            "--debug"
+            "--no-translations"
+            "--no-system-d3d-compiler"
+            $<$<BOOL:${IS_TEST}>:--test>
+            "$<TARGET_FILE:${TARGET_NAME}>"
+        COMMENT "Deploying Qt dependencies for ${TARGET_NAME}"
     )
 endfunction()
 
@@ -791,6 +748,8 @@ set(SOUL_ORM_HEADERS
     include/soul/orm/sqlite_repository.h
     include/soul/orm/entities.h
     include/soul/orm/module.h
+    include/soul/orm/read_write_repository.h
+    include/soul/orm/code_generator.h
 )
 
 set(SOUL_ORM_SOURCES
@@ -815,6 +774,47 @@ target_link_libraries(soul_orm PUBLIC
     soul_core
     soul_logging
     soul_data
+)
+
+set(SOUL_RPC_SOURCES
+    src/soul/rpc/iserializer.cpp
+    src/soul/rpc/irpc_transport.cpp
+    src/soul/rpc/service_dispatcher.cpp
+    src/soul/rpc/client_proxy.cpp
+    src/soul/rpc/service_registry.cpp
+    src/soul/rpc/http_transport.cpp
+)
+
+set(SOUL_RPC_HEADERS
+    include/soul/rpc/iserializer.h
+    include/soul/rpc/irpc_transport.h
+    include/soul/rpc/service_dispatcher.h
+    include/soul/rpc/client_proxy.h
+    include/soul/rpc/service_registry.h
+    include/soul/rpc/http_transport.h
+    include/soul/soul_rpc.h
+)
+
+add_library(soul_rpc STATIC
+    ${SOUL_RPC_SOURCES}
+    ${SOUL_RPC_HEADERS}
+)
+
+target_include_directories(soul_rpc PUBLIC
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
+
+target_link_libraries(soul_rpc PUBLIC
+    Qt6::Core
+    Qt6::Network
+    soul_core
+)
+
+set_target_properties(soul_rpc PROPERTIES
+    VERSION ${PROJECT_VERSION}
+    SOVERSION ${PROJECT_VERSION_MAJOR}
+    PUBLIC_HEADER "${SOUL_RPC_HEADERS}"
 )
 
 add_library(soul_ui STATIC
@@ -901,6 +901,7 @@ target_link_libraries(SoulCoreKit INTERFACE
     soul_auth
     soul_mq
     soul_orm
+    soul_rpc
     soul_ui
     soul_di
     soul_plugin
@@ -911,6 +912,7 @@ if(BUILD_EXAMPLES)
 endif()
 
 if(BUILD_TESTS)
+    enable_testing()
     add_subdirectory(tests)
 endif()
 
@@ -940,9 +942,9 @@ if(BUILD_BENCHMARKS)
     )
 
     if(WIN32)
-        copy_qt_dll(benchmark_thread_pool FALSE)
-        copy_qt_dll(benchmark_cache FALSE)
-        copy_qt_dll(benchmark_connection_pool FALSE)
+        windeployqt_post_build(benchmark_thread_pool FALSE)
+        windeployqt_post_build(benchmark_cache FALSE)
+        windeployqt_post_build(benchmark_connection_pool FALSE)
     endif()
 endif()
 
@@ -950,7 +952,7 @@ include(GNUInstallDirs)
 
 install(TARGETS SoulCoreKit soul_core soul_data soul_base soul_logging soul_network
                 soul_utils soul_configuration soul_storage soul_async
-                soul_event soul_auth soul_mq soul_orm soul_ui soul_di soul_plugin
+                soul_event soul_auth soul_mq soul_orm soul_rpc soul_ui soul_di soul_plugin
         EXPORT SoulCoreKitTargets
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}

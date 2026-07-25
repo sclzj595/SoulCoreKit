@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_AUTH_TOKEN_MANAGER_H
+#ifndef SOUL_AUTH_TOKEN_MANAGER_H
 #define SOUL_AUTH_TOKEN_MANAGER_H
 
 #include <QString>
@@ -140,7 +140,7 @@ public:
      */
     static bool validateTokenFormat(const QString& token);
 
-    bool init() override;
+    Result<void> init() override;
     void shutdown() override;
 
 private:

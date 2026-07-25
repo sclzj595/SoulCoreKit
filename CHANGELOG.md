@@ -5,6 +5,55 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-07-25
+
+### Added
+
+- **SoulRPC Framework**: Complete RPC framework for distributed service communication
+  - `ISerializer` abstraction with `JsonSerializer` implementation (JSON serialization/deserialization with type-tagged variant support)
+  - `IRpcTransport` transport abstraction with `HttpTransport` implementation (HTTP-based RPC using QNetworkAccessManager)
+  - `ServiceDispatcher` server-side dispatcher (thread-safe service registration and dispatch)
+  - `ClientProxy` client-side proxy (synchronous RPC calls with automatic UUID request ID generation)
+  - `IServiceRegistry` / `InMemoryServiceRegistry` service discovery (instance registration and lookup)
+  - `LoadBalancer` with round-robin and random selection strategies
+  - Full test suite: serialization, dispatch, proxy, registry, load balancing, value types
+
+- **CI/CD Pipeline**: Automated build, test, lint, and release workflows
+  - `.github/workflows/ci.yml` — Multi-platform CI (Ubuntu/Windows), build + test + lint + coverage
+  - `.github/workflows/lint.yml` — Clang-Tidy + CppCheck static analysis pipeline
+  - `.github/workflows/release.yml` — Multi-platform release pipeline on version tags
+
+- **CMake Presets**: `CMakePresets.json` with `default`, `test`, `lint`, `release` configurations
+- **Clang-Tidy Configuration**: `.clang-tidy` with LLVM style + modernize/readability/cppcoreguidelines checks
+- **Architecture Decision Records**: 5 ADRs documenting key design decisions
+  - ADR-001: Error Handling Boundary Rules (bool vs Result<T>)
+  - ADR-002: Module Dependency Rules (5-layer architecture)
+  - ADR-003: Memory Management Policy (smart pointers + Qt parent-child)
+  - ADR-004: ORM Multi-Database Architecture (Strategy pattern)
+  - ADR-005: Thread Safety Policy (4-level classification)
+
+### Changed
+
+- **Error Handling Overhaul**: Replaced all 19 blanket `catch (...)` blocks with specific `catch (const std::exception&)` + fallback, preserving diagnostic information
+- **Raw Pointer Cleanup**: Replaced 6 raw `new` allocations without parent with `std::unique_ptr` using Qt `deleteLater` deleters
+- **Result<T> Adoption**: Converted 5 public APIs from `bool` to `Result<void>` in AuthManager and TaskRunner
+- **CMake Integration**: Added `soul_rpc` library with 6 source files, 7 headers, Qt6::Network dependency
+
+### Fixed
+
+- **CRITICAL**: `buildUpdateSql` SET clause placeholders conflicted with WHERE clause for PostgreSQL — fixed with `startIndex` parameter
+- **CRITICAL**: `getUpdateBindValues()` missing — added method returning SET + update_time + WHERE values in correct order
+- **CRITICAL**: `buildValueClause` placeholder index not cumulative — fixed with `int& index` reference parameter
+- **CRITICAL**: `cleanupWidgetAnimations` called `widget->setGraphicsEffect(nullptr)` in `destroyed` handler (UB) — removed widget method call
+- **CRITICAL**: `buildUpdateSql` hardcoded `?` and `deleted=0` — now uses `placeholder()` and `SoftDeleteConfig`
+- **MAJOR**: 19 `catch (...)` blocks now preserve exception diagnostic info
+- **MAJOR**: 6 raw `new` allocations now use RAII with smart pointers
+- **MAJOR**: 5 `bool`-returning public APIs now return `Result<void>`
+
+### Removed
+
+- Zero: No features removed. All changes are additive or bug-fix.
+
 ## [1.5.1] - 2026-07-25
 
 ### Architecture

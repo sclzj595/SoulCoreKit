@@ -11,14 +11,14 @@
 namespace sc {
 namespace ui {
 
-class GlassWidget : public QWidget, public IGlassEffect {
+class GlassWidget : public ::QWidget, public IGlassEffect {
     Q_OBJECT
     Q_PROPERTY(int blurRadius READ blurRadius WRITE setBlurRadius)
     Q_PROPERTY(qreal glassOpacity READ opacity WRITE setOpacity)
-    Q_PROPERTY(QColor tintColor READ tintColor WRITE setTintColor)
+    Q_PROPERTY(::QColor tintColor READ tintColor WRITE setTintColor)
 
 public:
-    explicit GlassWidget(QWidget* parent = nullptr);
+    explicit GlassWidget(::QWidget* parent = nullptr);
     ~GlassWidget() override = default;
 
     void setBlurRadius(int radius) override;
@@ -27,25 +27,26 @@ public:
     void setOpacity(qreal opacity) override;
     qreal opacity() const override;
 
-    void setTintColor(const QColor& color) override;
-    QColor tintColor() const override;
+    void setTintColor(const ::QColor& color) override;
+    ::QColor tintColor() const override;
 
     void update() override;
 
 protected:
-    void paintEvent(QPaintEvent* event) override;
-    void resizeEvent(QResizeEvent* event) override;
-    void moveEvent(QMoveEvent* event) override;
+    void paintEvent(::QPaintEvent* event) override;
+    void resizeEvent(::QResizeEvent* event) override;
+    void moveEvent(::QMoveEvent* event) override;
 
 private:
     void updateBackground();
 
     int m_blurRadius;
     qreal m_opacity;
-    QColor m_tintColor;
-    QPixmap m_blurredBackground;
+    ::QColor m_tintColor;
+    ::QPixmap m_blurredBackground;
 };
 
+}
 }
 
 #endif

@@ -26,7 +26,7 @@ public:
     int increment() { return ++m_counter; }
     int getCounter() const { return m_counter; }
 private:
-    int m_counter;
+    std::atomic<int> m_counter;
 };
 
 class GlobalSingleton : public sc::Singleton<GlobalSingleton> {

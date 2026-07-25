@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_UI_IGLASS_EFFECT_H
+#ifndef SOUL_UI_IGLASS_EFFECT_H
 #define SOUL_UI_IGLASS_EFFECT_H
 
 #include <QColor>
@@ -16,8 +16,8 @@ public:
     virtual void setOpacity(qreal opacity) = 0;
     virtual qreal opacity() const = 0;
 
-    virtual void setTintColor(const QColor& color) = 0;
-    virtual QColor tintColor() const = 0;
+    virtual void setTintColor(const ::QColor& color) = 0;
+    virtual ::QColor tintColor() const = 0;
 
     virtual void update() = 0;
 };

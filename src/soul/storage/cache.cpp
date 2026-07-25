@@ -1,4 +1,4 @@
-﻿#include "soul/storage/cache.h"
+#include "soul/storage/cache.h"
 #include "soul/logging/log_macros.h"
 #include "soul/core/error.h"
 #include <mutex>
@@ -80,7 +80,7 @@ Result<QByteArray> DiskCache::get(const QString& key) {
     }
 
     if (isExpired(key)) {
-        remove(key);
+        (void)remove(key);
         return Error(ErrorCode::NotFound, "Cache key expired");
     }
 

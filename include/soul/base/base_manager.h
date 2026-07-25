@@ -1,7 +1,8 @@
-﻿#ifndef SOUL_BASE_BASE_MANAGER_H
+#ifndef SOUL_BASE_BASE_MANAGER_H
 #define SOUL_BASE_BASE_MANAGER_H
 
 #include "soul/base/base_object.h"
+#include "soul/core/result.h"
 
 namespace sc {
 
@@ -16,9 +17,9 @@ namespace sc {
  * @code
  * class MyManager : public BaseManager {
  * public:
- *     bool init() override {
+ *     Result<void> init() override {
  *         // 初始化逻辑
- *         return true;
+ *         return Ok();
  *     }
  *     void shutdown() override {
  *         // 清理逻辑
@@ -26,8 +27,8 @@ namespace sc {
  * };
  *
  * MyManager manager;
- * manager.init();
- * // 使用...
+ * auto result = manager.init();
+ * if (result.isOk()) { ... }
  * manager.shutdown();
  * @endcode
  *
@@ -48,9 +49,9 @@ public:
      * 子类应重写此方法实现初始化逻辑。
      * 默认实现将 m_initialized 设置为 true。
      *
-     * @return 初始化成功返回 true，失败返回 false
+     * @return 初始化成功返回 Ok()，失败返回带错误信息的 Error
      */
-    virtual bool init();
+    [[nodiscard]] virtual Result<void> init();
 
     /**
      * @brief 清理管理器

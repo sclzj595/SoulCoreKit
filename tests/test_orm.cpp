@@ -406,4 +406,5 @@ void TestQueryWrapper::testSqliteLimitSyntax() {
     QVERIFY(sql.contains("LIMIT 10 OFFSET 20"));
 }
 
+QTEST_MAIN(TestSQLiteRepository)
 #include "test_orm.moc"

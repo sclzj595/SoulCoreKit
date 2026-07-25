@@ -1,4 +1,4 @@
-﻿#include "soul/network/http_client.h"
+#include "soul/network/http_client.h"
 #include <memory>
 #include <atomic>
 #include <QCoreApplication>
@@ -8,6 +8,7 @@
 #include <QEventLoop>
 #include <QTimer>
 #include <QThread>
+#include <QPointer>
 #include "soul/logging/logger.h"
 
 namespace sc {
@@ -106,13 +107,20 @@ Result<HttpResponse> HttpClient::send(const HttpRequest& request) {
         QEventLoop loop;
         bool timedOut = false;
 
-        QTimer::singleShot(mutableRequest.timeout(), &loop, [&loop, &timedOut, reply]() {
+        QTimer timer;
+        timer.setSingleShot(true);
+        QPointer<QNetworkReply> replyGuard(reply);
+        QObject::connect(&timer, &QTimer::timeout, [&loop, &timedOut, replyGuard]() {
             timedOut = true;
-            reply->abort();
+            if (replyGuard) replyGuard->abort();
             loop.quit();
         });
+        timer.start(mutableRequest.timeout());
 
-        QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+        QObject::connect(reply, &QNetworkReply::finished, [&loop, &timer]() {
+            timer.stop();
+            loop.quit();
+        });
 
         loop.exec();
 
@@ -180,14 +188,16 @@ void HttpClient::sendAsync(const HttpRequest& request, ResponseCallback callback
         QTimer* timer = new QTimer(this);
         timer->setSingleShot(true);
 
-        connect(timer, &QTimer::timeout, [reply, timedOut]() {
+        QPointer<QNetworkReply> replyGuard(reply);
+        connect(timer, &QTimer::timeout, [replyGuard, timedOut]() {
             timedOut->store(true);
-            reply->abort();
+            if (replyGuard) replyGuard->abort();
         });
         timer->start(mutableRequest.timeout());
 
         QObject::connect(reply, &QNetworkReply::finished, [this, reply, callback, interceptorsCopy,
             retryPolicyCopy, maxRetries, retryCount, mutableRequest, timer, timedOut]() {
+            timer->stop();
             timer->deleteLater();
 
             bool isTimedOut = timedOut->load();

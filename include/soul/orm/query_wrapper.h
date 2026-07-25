@@ -28,6 +28,10 @@ struct Condition {
     std::vector<QVariant> inValues;
     int openParens = 0;
     int closeParens = 0;
+
+    Condition() = default;
+    Condition(const QString& col, SqlKeyword o, const QVariant& val)
+        : column(col), op(o), value(val) {}
 };
 
 class QueryWrapper {

@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_UI_IVIEW_H
+#ifndef SOUL_UI_IVIEW_H
 #define SOUL_UI_IVIEW_H
 
 #include <QWidget>
@@ -25,7 +25,7 @@ public:
      * @brief 获取底层 QWidget
      * @return QWidget 指针
      */
-    virtual QWidget* widget() = 0;
+    virtual ::QWidget* widget() = 0;
 
     /**
      * @brief 显示视图
@@ -46,13 +46,13 @@ public:
      * @brief 设置视图标题
      * @param title 标题文本
      */
-    virtual void setTitle(const QString& title) = 0;
+    virtual void setTitle(const ::QString& title) = 0;
 
     /**
      * @brief 获取视图标题
      * @return 标题文本
      */
-    virtual QString title() const = 0;
+    virtual ::QString title() const = 0;
 
     /**
      * @brief 设置视图尺寸
@@ -65,7 +65,7 @@ public:
      * @brief 获取视图尺寸
      * @return 尺寸
      */
-    virtual QSize size() const = 0;
+    virtual ::QSize size() const = 0;
 
     /**
      * @brief 设置视图位置
@@ -78,7 +78,7 @@ public:
      * @brief 获取视图位置
      * @return 位置
      */
-    virtual QPoint position() const = 0;
+    virtual ::QPoint position() const = 0;
 };
 
 }

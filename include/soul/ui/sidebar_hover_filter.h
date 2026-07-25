@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_UI_SIDEBAR_HOVER_FILTER_H
+#ifndef SOUL_UI_SIDEBAR_HOVER_FILTER_H
 #define SOUL_UI_SIDEBAR_HOVER_FILTER_H
 
 #include <QObject>
@@ -6,13 +6,13 @@
 
 namespace sc {
 
-class SideBarHoverFilter : public QObject {
+class SideBarHoverFilter : public ::QObject {
     Q_OBJECT
 public:
-    explicit SideBarHoverFilter(QObject* parent = nullptr) : QObject(parent) {}
+    explicit SideBarHoverFilter(::QObject* parent = nullptr) : ::QObject(parent) {}
 
 protected:
-    bool eventFilter(QObject* obj, QEvent* event) override;
+    bool eventFilter(::QObject* obj, ::QEvent* event) override;
 };
 
 }

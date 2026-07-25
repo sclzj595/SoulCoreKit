@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file core/inetwork.h
  * @brief 网络接口抽象
  * @details 定义网络通信的统一接口，支持 HTTP/TCP/WebSocket 等协议
@@ -42,7 +42,7 @@ public:
     virtual void addInterceptor(std::shared_ptr<IInterceptor<NetworkMessage, NetworkMessage>> interceptor) = 0;
 
     std::string interfaceName() const override {
-        return "INetwork";
+        return "sc::network::INetwork";
     }
 };
 

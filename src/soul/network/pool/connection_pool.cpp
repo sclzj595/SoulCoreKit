@@ -1,4 +1,4 @@
-﻿#include "soul/network/pool/connection_pool.h"
+#include "soul/network/pool/connection_pool.h"
 #include "soul/network/factory/network_factory.h"
 #include <mutex>
 #include <chrono>
@@ -26,48 +26,60 @@ ConnectionPool::~ConnectionPool() {
 
 std::shared_ptr<INetwork> ConnectionPool::acquire(const QUrl& url) {
     std::lock_guard<std::mutex> lock(m_mutex);
-    
+
     std::string key = url.toString().toStdString();
     auto& pool = m_pools[key];
-    
-    while (!pool.empty()) {
-        ConnectionEntry entry = pool.front();
-        pool.pop();
-        
-        if (entry.connection->isConnected()) {
+
+    // Try to find an available (not in-use) connection
+    for (auto& entry : pool) {
+        if (!entry.inUse && entry.connection && entry.connection->isConnected()) {
             entry.inUse = true;
             entry.lastUsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::steady_clock::now().time_since_epoch()).count();
-            pool.push(entry);
             return entry.connection;
         }
     }
-    
-    return createConnection(url);
+
+    // Count total connections across all pools
+    int totalConnections = 0;
+    for (const auto& pair : m_pools) {
+        totalConnections += static_cast<int>(pair.second.size());
+    }
+
+    if (totalConnections >= m_config.maxConnections) {
+        return nullptr;
+    }
+
+    // Create a new connection and add it to the pool
+    auto network = NetworkFactory::instance().create(url);
+    if (!network) {
+        return nullptr;
+    }
+    network->connectTo(url);
+
+    ConnectionEntry entry;
+    entry.connection = network;
+    entry.inUse = true;
+    entry.lastUsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+    pool.push_back(std::move(entry));
+
+    return network;
 }
 
 void ConnectionPool::release(std::shared_ptr<INetwork> connection) {
+    if (!connection) return;
+
     std::lock_guard<std::mutex> lock(m_mutex);
-    
+
     for (auto& pair : m_pools) {
-        auto& pool = pair.second;
-        std::queue<ConnectionEntry> temp;
-        
-        while (!pool.empty()) {
-            ConnectionEntry entry = pool.front();
-            pool.pop();
-            
+        for (auto& entry : pair.second) {
             if (entry.connection == connection) {
                 entry.inUse = false;
                 entry.lastUsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::steady_clock::now().time_since_epoch()).count();
+                return;
             }
-            temp.push(entry);
-        }
-        
-        while (!temp.empty()) {
-            pool.push(temp.front());
-            temp.pop();
         }
     }
 }
@@ -76,10 +88,10 @@ void ConnectionPool::closeAll() {
     std::lock_guard<std::mutex> lock(m_mutex);
     for (auto& pair : m_pools) {
         auto& pool = pair.second;
-        while (!pool.empty()) {
-            auto entry = pool.front();
-            pool.pop();
-            entry.connection->disconnect();
+        for (auto& entry : pool) {
+            if (entry.connection) {
+                entry.connection->disconnect();
+            }
         }
     }
     m_pools.clear();
@@ -106,25 +118,19 @@ void ConnectionPool::cleanupIdleConnections() {
     std::lock_guard<std::mutex> lock(m_mutex);
     auto now = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now().time_since_epoch()).count());
-    
+
     for (auto& pair : m_pools) {
         auto& pool = pair.second;
-        std::queue<ConnectionEntry> temp;
-        
-        while (!pool.empty()) {
-            ConnectionEntry entry = pool.front();
-            pool.pop();
-            
-            if (!entry.inUse && (now - entry.lastUsedTime) > static_cast<uint64_t>(m_config.idleTimeoutMs)) {
-                entry.connection->disconnect();
+        auto it = pool.begin();
+        while (it != pool.end()) {
+            if (!it->inUse && (now - it->lastUsedTime) > static_cast<uint64_t>(m_config.idleTimeoutMs)) {
+                if (it->connection) {
+                    it->connection->disconnect();
+                }
+                it = pool.erase(it);
             } else {
-                temp.push(entry);
+                ++it;
             }
-        }
-        
-        while (!temp.empty()) {
-            pool.push(temp.front());
-            temp.pop();
         }
     }
 }

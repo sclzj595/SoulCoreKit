@@ -1,0 +1,183 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-linux:
+    name: Build Linux
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [appimage, deb]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.5.3'
+          host: 'linux'
+          target: 'desktop'
+          arch: 'gcc_64'
+          modules: 'qtwebsockets'
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build g++ libssl-dev
+
+      - name: Configure
+        run: |
+          cmake -S . -B build-release \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTS=ON \
+            -DENABLE_WARNINGS=ON \
+            -DENABLE_LTO=ON
+
+      - name: Build
+        run: cmake --build build-release -j$(nproc)
+
+      - name: Run tests
+        run: |
+          cd build-release
+          ctest --output-on-failure
+
+      - name: Package
+        run: |
+          cd build-release
+          cmake --install . --prefix install
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-build-${{ matrix.target }}
+          path: build-release/install
+          retention-days: 7
+
+  build-windows:
+    name: Build Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.5.3'
+          host: 'windows'
+          target: 'desktop'
+          arch: 'win64_msvc2019_64'
+          modules: 'qtwebsockets'
+
+      - name: Configure
+        run: |
+          cmake -S . -B build-release `
+            -G "Visual Studio 16 2019" `
+            -A x64 `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DBUILD_TESTS=ON `
+            -DENABLE_WARNINGS=ON
+
+      - name: Build
+        run: cmake --build build-release --config Release --parallel
+
+      - name: Run tests
+        run: |
+          cd build-release
+          ctest -C Release --output-on-failure
+
+      - name: Package
+        run: |
+          cd build-release
+          cmake --install . --prefix install
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: build-release/install
+          retention-days: 7
+
+  build-macos:
+    name: Build macOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.5.3'
+          host: 'mac'
+          target: 'desktop'
+          arch: 'clang_64'
+          modules: 'qtwebsockets'
+
+      - name: Configure
+        run: |
+          cmake -S . -B build-release \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTS=ON \
+            -DENABLE_WARNINGS=ON \
+            -DENABLE_LTO=ON
+
+      - name: Build
+        run: cmake --build build-release -j$(sysctl -n hw.ncpu)
+
+      - name: Run tests
+        run: |
+          cd build-release
+          ctest --output-on-failure
+
+      - name: Package
+        run: |
+          cd build-release
+          cmake --install . --prefix install
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build
+          path: build-release/install
+          retention-days: 7
+
+  create-release:
+    name: Create Release
+    needs: [build-linux, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Display structure
+        run: ls -R
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body: |
+            ## SoulCoreKit ${{ github.ref_name }}
+
+            ### New Features
+            - Full cross-platform support (Linux, Windows, macOS)
+            - Qt6-based framework with comprehensive module suite
+            - High-performance async I/O and networking
+
+            ### Downloads
+            - Linux AppImage: `linux-build-appimage`
+            - Linux DEB: `linux-build-deb`
+            - Windows: `windows-build`
+            - macOS: `macos-build`
+
+            ### Upgrade Notes
+            - See [CHANGELOG.md](https://github.com/soulcore/SoulCoreKit/blob/main/CHANGELOG.md) for detailed changes
+          draft: false
+          prerelease: false

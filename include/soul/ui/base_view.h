@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_UI_BASE_VIEW_H
+#ifndef SOUL_UI_BASE_VIEW_H
 #define SOUL_UI_BASE_VIEW_H
 
 #include "i_view.h"
@@ -27,14 +27,14 @@ namespace sc {
  *
  * @see IView, Page, Window
  */
-class BaseView : public QWidget, public IView {
+class BaseView : public ::QWidget, public IView {
     Q_OBJECT
 public:
     /**
      * @brief 构造函数
      * @param parent 父窗口
      */
-    explicit BaseView(QWidget* parent = nullptr);
+    explicit BaseView(::QWidget* parent = nullptr);
 
     /**
      * @brief 析构函数
@@ -45,7 +45,7 @@ public:
      * @brief 获取底层 QWidget
      * @return QWidget 指针
      */
-    QWidget* widget() override;
+    ::QWidget* widget() override;
 
     /**
      * @brief 显示视图
@@ -66,13 +66,13 @@ public:
      * @brief 设置视图标题
      * @param title 标题文本
      */
-    void setTitle(const QString& title) override;
+    void setTitle(const ::QString& title) override;
 
     /**
      * @brief 获取视图标题
      * @return 标题文本
      */
-    QString title() const override;
+    ::QString title() const override;
 
     /**
      * @brief 设置视图尺寸
@@ -85,7 +85,7 @@ public:
      * @brief 获取视图尺寸
      * @return 尺寸
      */
-    QSize size() const override;
+    ::QSize size() const override;
 
     /**
      * @brief 设置视图位置
@@ -98,7 +98,7 @@ public:
      * @brief 获取视图位置
      * @return 位置
      */
-    QPoint position() const override;
+    ::QPoint position() const override;
 
 protected:
     /**

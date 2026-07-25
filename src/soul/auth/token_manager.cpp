@@ -1,4 +1,4 @@
-﻿#include "soul/auth/token_manager.h"
+#include "soul/auth/token_manager.h"
 #include "soul/core/time.h"
 #include "soul/utils/json/json_utils.h"
 #include "soul/utils/crypto/crypto_utils.h"
@@ -11,9 +11,9 @@ namespace sc {
 TokenManager::TokenManager() {
 }
 
-bool TokenManager::init() {
+Result<void> TokenManager::init() {
     m_initialized = true;
-    return true;
+    return Ok();
 }
 
 void TokenManager::shutdown() {

@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_STORAGE_CACHE_H
+#ifndef SOUL_STORAGE_CACHE_H
 #define SOUL_STORAGE_CACHE_H
 
 #include <QString>
@@ -51,10 +51,10 @@ public:
         auto it = m_cache.find(key);
         if (it != m_cache.end()) {
             m_list.erase(it->second.listIt);
-            m_currentSize -= it->second.entry.value.size();
+            m_cache.erase(it);
         }
 
-        if (m_currentSize >= m_maxSize && m_maxSize > 0) {
+        if (m_maxSize > 0 && m_cache.size() >= m_maxSize) {
             evict();
         }
 
@@ -66,7 +66,6 @@ public:
             entry.hasTtl = true;
         }
         m_cache[key] = {entry, listIt};
-        m_currentSize += value.size();
 
         return {};
     }
@@ -82,7 +81,6 @@ public:
         const CacheEntry& entry = it->second.entry;
         if (entry.hasTtl && std::chrono::steady_clock::now() > entry.expiry) {
             m_list.erase(it->second.listIt);
-            m_currentSize -= entry.value.size();
             m_cache.erase(it);
             return Error(ErrorCode::NotFound, "Cache key expired");
         }
@@ -115,7 +113,6 @@ public:
             return Error(ErrorCode::NotFound, "Cache key not found");
         }
 
-        m_currentSize -= it->second.entry.value.size();
         m_list.erase(it->second.listIt);
         m_cache.erase(it);
         return {};
@@ -125,12 +122,11 @@ public:
         std::lock_guard<std::mutex> lock(m_mutex);
         m_cache.clear();
         m_list.clear();
-        m_currentSize = 0;
     }
 
     size_t size() const override {
         std::lock_guard<std::mutex> lock(m_mutex);
-        return m_currentSize;
+        return m_cache.size();
     }
 
     size_t maxSize() const override {
@@ -139,29 +135,26 @@ public:
 
 private:
     void evict() {
-        while (!m_list.empty()) {
-            const K& key = m_list.back();
-            auto it = m_cache.find(key);
+        if (m_list.empty()) return;
 
-            if (it != m_cache.end()) {
-                const CacheEntry& entry = it->second.entry;
-                if (!entry.hasTtl || std::chrono::steady_clock::now() > entry.expiry) {
-                    m_currentSize -= entry.value.size();
-                    m_cache.erase(it);
-                    m_list.pop_back();
-                    return;
-                }
+        const K& key = m_list.back();
+        auto it = m_cache.find(key);
 
-                m_list.splice(m_list.begin(), m_list, it->second.listIt);
+        if (it != m_cache.end()) {
+            const CacheEntry& entry = it->second.entry;
+            if (!entry.hasTtl || std::chrono::steady_clock::now() > entry.expiry) {
+                m_cache.erase(it);
+                m_list.pop_back();
+                return;
             }
-
-            m_list.pop_back();
         }
+
+        m_cache.erase(it);
+        m_list.pop_back();
     }
 
     mutable std::mutex m_mutex;
     size_t m_maxSize;
-    size_t m_currentSize = 0;
 
     struct CacheNode {
         CacheEntry entry;

@@ -1,7 +1,8 @@
-﻿#ifndef SOUL_ASYNC_TASK_RUNNER_H
+#ifndef SOUL_ASYNC_TASK_RUNNER_H
 #define SOUL_ASYNC_TASK_RUNNER_H
 
 #include <QObject>
+#include <exception>
 #include <functional>
 #include <memory>
 #include <atomic>
@@ -31,6 +32,8 @@ public:
                 auto result = (*task)();
                 promise.addResult(std::move(result));
                 promise.finish();
+            } catch (const std::exception&) {
+                promise.setException(std::current_exception());
             } catch (...) {
                 promise.setException(std::current_exception());
             }
@@ -46,6 +49,7 @@ public:
         QThreadPool::globalInstance()->start([this, func = std::forward<F>(func)]() {
             try {
                 func();
+            } catch (const std::exception&) {
             } catch (...) {
             }
             m_activeTasks.fetch_sub(1);
@@ -53,7 +57,7 @@ public:
     }
 
     int activeTaskCount() const;
-    bool waitForAll(int msecs = -1);
+    Result<void> waitForAll(int msecs = -1);
 
 signals:
     void taskStarted();

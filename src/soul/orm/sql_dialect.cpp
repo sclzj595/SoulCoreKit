@@ -43,7 +43,9 @@ public:
     QString getCurrentTimestampFunction() const override { return QStringLiteral("CURRENT_TIMESTAMP"); }
     QString getNowFunction() const override { return QStringLiteral("datetime('now')"); }
     QString getConcatFunction(const std::vector<QString>& args) const override {
-        return args.empty() ? QStringLiteral("''") : args.join(" || ");
+        if (args.empty()) return QStringLiteral("''");
+        QStringList list(args.begin(), args.end());
+        return list.join(" || ");
     }
     QString getLikeEscapeClause() const override { return QStringLiteral("ESCAPE '\\'"); }
     QString getCreateTableSuffix() const override { return {}; }
@@ -106,7 +108,8 @@ public:
     QString getCurrentTimestampFunction() const override { return QStringLiteral("CURRENT_TIMESTAMP"); }
     QString getNowFunction() const override { return QStringLiteral("NOW()"); }
     QString getConcatFunction(const std::vector<QString>& args) const override {
-        return QStringLiteral("CONCAT(%1)").arg(args.join(", "));
+        QStringList list(args.begin(), args.end());
+        return QStringLiteral("CONCAT(%1)").arg(list.join(", "));
     }
     QString getLikeEscapeClause() const override { return {}; }
     QString getCreateTableSuffix() const override { return QStringLiteral("ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"); }
@@ -171,7 +174,9 @@ public:
     QString getCurrentTimestampFunction() const override { return QStringLiteral("CURRENT_TIMESTAMP"); }
     QString getNowFunction() const override { return QStringLiteral("NOW()"); }
     QString getConcatFunction(const std::vector<QString>& args) const override {
-        return args.empty() ? QStringLiteral("''") : args.join(" || ");
+        if (args.empty()) return QStringLiteral("''");
+        QStringList list(args.begin(), args.end());
+        return list.join(" || ");
     }
     QString getLikeEscapeClause() const override { return {}; }
     QString getCreateTableSuffix() const override { return {}; }

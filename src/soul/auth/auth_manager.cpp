@@ -1,4 +1,4 @@
-﻿#include "soul/auth/auth_manager.h"
+#include "soul/auth/auth_manager.h"
 #include "soul/network/session.h"
 #include "soul/storage/memory_storage.h"
 #include "soul/utils/json/json_utils.h"
@@ -7,16 +7,20 @@
 namespace sc {
 
 AuthManager::AuthManager() : BaseManager() {
+    m_storage.open("auth");
 }
 
-bool AuthManager::init() {
+Result<void> AuthManager::init() {
     QMutexLocker lock(&m_mutex);
     if (m_initialized) {
-        return true;
+        return Ok();
     }
-    loadAuthState();
+    auto loadResult = loadAuthState();
+    if (!loadResult.isOk()) {
+        return loadResult.unwrapErr();
+    }
     m_initialized = true;
-    return true;
+    return Ok();
 }
 
 void AuthManager::shutdown() {
@@ -86,7 +90,6 @@ void AuthManager::logout() {
     }
 
     sc::network::Session::instance().clear();
-    saveAuthState();
     notifyAuthStateChanged(false);
 }
 
@@ -168,19 +171,13 @@ void AuthManager::setAuthStateCallback(AuthStateCallback callback) {
     m_authStateCallback = callback;
 }
 
-bool AuthManager::loadAuthState() {
-    MemoryStorage storage;
-    auto result = storage.open("auth");
-    if (!result.isOk()) {
-        return false;
-    }
-
-    auto tokenResult = storage.get("auth_token");
-    QString token = tokenResult.unwrapOr("");
+Result<void> AuthManager::loadAuthState() {
+    auto result = m_storage.get("auth_token");
+    QString token = result.unwrapOr("");
     if (!token.isEmpty()) {
-        QString username = storage.get("auth_username").unwrapOr("");
-        QString role = storage.get("auth_role").unwrapOr("");
-        QString refreshToken = storage.get("auth_refresh_token").unwrapOr("");
+        QString username = m_storage.get("auth_username").unwrapOr("");
+        QString role = m_storage.get("auth_role").unwrapOr("");
+        QString refreshToken = m_storage.get("auth_refresh_token").unwrapOr("");
 
         {
             QMutexLocker lock(&m_mutex);
@@ -194,16 +191,10 @@ bool AuthManager::loadAuthState() {
         sc::network::Session::instance().setToken(token);
     }
 
-    return true;
+    return {};
 }
 
-bool AuthManager::saveAuthState() {
-    MemoryStorage storage;
-    auto result = storage.open("auth");
-    if (!result.isOk()) {
-        return false;
-    }
-
+Result<void> AuthManager::saveAuthState() {
     QString token, username, role, refreshToken;
     bool authenticated;
     {
@@ -216,18 +207,18 @@ bool AuthManager::saveAuthState() {
     }
 
     if (authenticated) {
-        storage.put("auth_token", token);
-        storage.put("auth_username", username);
-        storage.put("auth_role", role);
-        storage.put("auth_refresh_token", refreshToken);
+        m_storage.put("auth_token", token);
+        m_storage.put("auth_username", username);
+        m_storage.put("auth_role", role);
+        m_storage.put("auth_refresh_token", refreshToken);
     } else {
-        storage.remove("auth_token");
-        storage.remove("auth_username");
-        storage.remove("auth_role");
-        storage.remove("auth_refresh_token");
+        m_storage.remove("auth_token");
+        m_storage.remove("auth_username");
+        m_storage.remove("auth_role");
+        m_storage.remove("auth_refresh_token");
     }
 
-    return true;
+    return {};
 }
 
 void AuthManager::notifyAuthStateChanged(bool authenticated) {
