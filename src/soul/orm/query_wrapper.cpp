@@ -1,4 +1,5 @@
-﻿#include <functional>
+#include <functional>
+#include <QDateTime>
 #include "soul/orm/query_wrapper.h"
 
 namespace sc {
@@ -59,20 +60,26 @@ QueryWrapper& QueryWrapper::likeRight(const QString& column, const QString& valu
 }
 
 QueryWrapper& QueryWrapper::in(const QString& column, const std::vector<QVariant>& values) {
-    QStringList placeholders;
-    for (size_t i = 0; i < values.size(); ++i) {
-        placeholders << "?";
+    Condition cond;
+    cond.column = column;
+    cond.op = SqlKeyword::IN;
+    cond.inValues = values;
+    if (!values.empty()) {
+        cond.value = values.front();
     }
-    m_conditions.push_back({column, SqlKeyword::IN, placeholders.join(",")});
+    m_conditions.push_back(cond);
     return *this;
 }
 
 QueryWrapper& QueryWrapper::notIn(const QString& column, const std::vector<QVariant>& values) {
-    QStringList placeholders;
-    for (size_t i = 0; i < values.size(); ++i) {
-        placeholders << "?";
+    Condition cond;
+    cond.column = column;
+    cond.op = SqlKeyword::NOT_IN;
+    cond.inValues = values;
+    if (!values.empty()) {
+        cond.value = values.front();
     }
-    m_conditions.push_back({column, SqlKeyword::NOT_IN, placeholders.join(",")});
+    m_conditions.push_back(cond);
     return *this;
 }
 
@@ -86,11 +93,35 @@ QueryWrapper& QueryWrapper::isNotNull(const QString& column) {
     return *this;
 }
 
-QueryWrapper& QueryWrapper::and_(const std::function<void(QueryWrapper&)>&) {
+QueryWrapper& QueryWrapper::and_(const std::function<void(QueryWrapper&)>& func) {
+    QueryWrapper sub;
+    func(sub);
+    if (!sub.m_conditions.empty()) {
+        if (sub.m_conditions.size() > 1) {
+            sub.m_conditions.front().openParens += 1;
+            sub.m_conditions.back().closeParens += 1;
+        }
+        for (auto& cond : sub.m_conditions) {
+            cond.logic = SqlKeyword::AND;
+            m_conditions.push_back(std::move(cond));
+        }
+    }
     return *this;
 }
 
-QueryWrapper& QueryWrapper::or_(const std::function<void(QueryWrapper&)>&) {
+QueryWrapper& QueryWrapper::or_(const std::function<void(QueryWrapper&)>& func) {
+    QueryWrapper sub;
+    func(sub);
+    if (!sub.m_conditions.empty()) {
+        if (sub.m_conditions.size() > 1) {
+            sub.m_conditions.front().openParens += 1;
+            sub.m_conditions.back().closeParens += 1;
+        }
+        sub.m_conditions.front().logic = SqlKeyword::OR;
+        for (auto& cond : sub.m_conditions) {
+            m_conditions.push_back(std::move(cond));
+        }
+    }
     return *this;
 }
 
@@ -114,104 +145,181 @@ QueryWrapper& QueryWrapper::offset(int offset) {
     return *this;
 }
 
-QString QueryWrapper::buildSelectSql(const QString& tableName) const {
-    QString sql = "SELECT * FROM " + tableName + " WHERE deleted = 0";
+QString QueryWrapper::placeholder(int index) const {
+    if (m_dialect) {
+        return m_dialect->convertPlaceholder(index);
+    }
+    return QStringLiteral("?");
+}
 
-    if (!m_conditions.empty()) {
-        for (const auto& cond : m_conditions) {
-            sql += " AND " + cond.column + " " + opToString(cond.op);
-            if (cond.op != SqlKeyword::IS_NULL && cond.op != SqlKeyword::IS_NOT_NULL) {
-                sql += " ?";
-            }
-        }
+QString QueryWrapper::buildSelectSql(const QString& tableName) const {
+    static const SoftDeleteConfig defaultSd;
+    const SoftDeleteConfig* sd = m_dialect ? &m_dialect->softDeleteConfig() : &defaultSd;
+
+    QString sql = "SELECT * FROM " + tableName;
+    if (sd->enabled) {
+        sql += " WHERE " + sd->columnName + " = " + sd->logicNotDeletedValue;
+        appendConditions(sql);
+    } else {
+        appendConditions(sql);
     }
 
     if (!m_groupBy.empty()) {
-        QStringList groupByList;
-        for (const auto& item : m_groupBy) {
-            groupByList << item;
-        }
-        sql += " GROUP BY " + groupByList.join(", ");
+        sql += " GROUP BY " + m_groupBy.join(", ");
     }
 
     if (!m_orderBy.empty()) {
-        QStringList orderByList;
-        for (const auto& item : m_orderBy) {
-            orderByList << item;
+        sql += " ORDER BY " + m_orderBy.join(", ");
+    }
+
+    if (m_limit > 0 || m_offset > 0) {
+        QString limitOffset;
+        if (m_dialect) {
+            limitOffset = m_dialect->buildLimitOffset(m_limit, m_offset);
+        } else {
+            if (m_limit > 0 && m_offset > 0) {
+                limitOffset = QStringLiteral("LIMIT %1 OFFSET %2").arg(m_limit).arg(m_offset);
+            } else if (m_limit > 0) {
+                limitOffset = QStringLiteral("LIMIT %1").arg(m_limit);
+            } else {
+                limitOffset = QStringLiteral("OFFSET %1").arg(m_offset);
+            }
         }
-        sql += " ORDER BY " + orderByList.join(", ");
-    }
-
-    if (m_limit > 0) {
-        sql += " LIMIT " + QString::number(m_limit);
-    }
-
-    if (m_offset > 0) {
-        sql += " OFFSET " + QString::number(m_offset);
+        sql += " " + limitOffset;
     }
 
     return sql;
 }
 
 QString QueryWrapper::buildCountSql(const QString& tableName) const {
-    QString sql = "SELECT COUNT(*) FROM " + tableName + " WHERE deleted = 0";
+    static const SoftDeleteConfig defaultSd;
+    const SoftDeleteConfig* sd = m_dialect ? &m_dialect->softDeleteConfig() : &defaultSd;
 
-    if (!m_conditions.empty()) {
-        for (const auto& cond : m_conditions) {
-            sql += " AND " + cond.column + " " + opToString(cond.op);
-            if (cond.op != SqlKeyword::IS_NULL && cond.op != SqlKeyword::IS_NOT_NULL) {
-                sql += " ?";
-            }
-        }
+    QString sql = "SELECT COUNT(*) FROM " + tableName;
+    if (sd->enabled) {
+        sql += " WHERE " + sd->columnName + " = " + sd->logicNotDeletedValue;
+        appendConditions(sql);
+    } else {
+        appendConditions(sql);
     }
-
     return sql;
 }
 
 QString QueryWrapper::buildDeleteSql(const QString& tableName) const {
-    QString sql = "UPDATE " + tableName + " SET deleted = 1 WHERE deleted = 0";
+    static const SoftDeleteConfig defaultSd;
+    const SoftDeleteConfig* sd = m_dialect ? &m_dialect->softDeleteConfig() : &defaultSd;
 
-    if (!m_conditions.empty()) {
-        for (const auto& cond : m_conditions) {
-            sql += " AND " + cond.column + " " + opToString(cond.op);
-            if (cond.op != SqlKeyword::IS_NULL && cond.op != SqlKeyword::IS_NOT_NULL) {
-                sql += " ?";
-            }
-        }
+    QString sql;
+    if (sd->enabled) {
+        sql = "UPDATE " + tableName + " SET " + sd->columnName + " = " +
+              sd->logicDeletedValue + " WHERE " + sd->columnName + " = " + sd->logicNotDeletedValue;
+    } else {
+        sql = "DELETE FROM " + tableName;
     }
-
+    appendConditions(sql);
     return sql;
 }
 
 QString QueryWrapper::buildUpdateSql(const QString& tableName, const std::map<QString, QVariant>& updates) const {
+    static const SoftDeleteConfig defaultSd;
+    const SoftDeleteConfig* sd = m_dialect ? &m_dialect->softDeleteConfig() : &defaultSd;
+
     QString sql = "UPDATE " + tableName + " SET ";
     QStringList setParts;
+    int paramIndex = 1;
     for (const auto& pair : updates) {
-        setParts << pair.first + " = ?";
+        setParts << pair.first + " = " + placeholder(paramIndex++);
     }
     sql += setParts.join(", ");
-    sql += ", update_time = ?";
-    sql += " WHERE deleted = 0";
+    sql += ", update_time = " + placeholder(paramIndex++);
+    if (sd->enabled) {
+        sql += " WHERE " + sd->columnName + " = " + sd->logicNotDeletedValue;
+    }
+    appendConditions(sql, paramIndex);
+    return sql;
+}
 
-    if (!m_conditions.empty()) {
-        for (const auto& cond : m_conditions) {
-            sql += " AND " + cond.column + " " + opToString(cond.op);
-            if (cond.op != SqlKeyword::IS_NULL && cond.op != SqlKeyword::IS_NOT_NULL) {
-                sql += " ?";
-            }
+void QueryWrapper::appendConditions(QString& sql, int startIndex) const {
+    if (m_conditions.empty()) return;
+
+    bool hasOr = false;
+    for (const auto& cond : m_conditions) {
+        if (cond.logic == SqlKeyword::OR) {
+            hasOr = true;
+            break;
         }
     }
 
-    return sql;
+    if (hasOr) {
+        sql += " AND (";
+    } else {
+        sql += " AND ";
+    }
+
+    int placeholderIndex = startIndex;
+    for (size_t i = 0; i < m_conditions.size(); ++i) {
+        const auto& cond = m_conditions[i];
+
+        if (i == 0) {
+            for (int p = 0; p < cond.openParens; ++p) sql += "(";
+            sql += cond.column + " " + opToString(cond.op) + buildValueClause(cond, placeholderIndex);
+        } else {
+            QString logicStr = (cond.logic == SqlKeyword::OR) ? " OR " : " AND ";
+            sql += logicStr;
+            for (int p = 0; p < cond.openParens; ++p) sql += "(";
+            sql += cond.column + " " + opToString(cond.op) + buildValueClause(cond, placeholderIndex);
+        }
+
+        for (int p = 0; p < cond.closeParens; ++p) sql += ")";
+    }
+
+    if (hasOr) {
+        sql += ")";
+    }
+}
+
+QString QueryWrapper::buildValueClause(const Condition& cond, int& index) const {
+    if (cond.op == SqlKeyword::IS_NULL || cond.op == SqlKeyword::IS_NOT_NULL) {
+        return QString();
+    }
+    if (cond.op == SqlKeyword::IN || cond.op == SqlKeyword::NOT_IN) {
+        QStringList placeholders;
+        int count = cond.inValues.empty() ? 1 : static_cast<int>(cond.inValues.size());
+        for (int i = 0; i < count; ++i) {
+            placeholders << placeholder(index++);
+        }
+        return "(" + placeholders.join(",") + ")";
+    }
+    return placeholder(index++);
 }
 
 std::vector<QVariant> QueryWrapper::getBindValues() const {
     std::vector<QVariant> values;
     for (const auto& cond : m_conditions) {
-        if (cond.op != SqlKeyword::IS_NULL && cond.op != SqlKeyword::IS_NOT_NULL) {
+        if (cond.op == SqlKeyword::IS_NULL || cond.op == SqlKeyword::IS_NOT_NULL) {
+            continue;
+        }
+        if (cond.op == SqlKeyword::IN || cond.op == SqlKeyword::NOT_IN) {
+            if (!cond.inValues.empty()) {
+                values.insert(values.end(), cond.inValues.begin(), cond.inValues.end());
+            } else {
+                values.push_back(cond.value);
+            }
+        } else {
             values.push_back(cond.value);
         }
     }
+    return values;
+}
+
+std::vector<QVariant> QueryWrapper::getUpdateBindValues(const std::map<QString, QVariant>& updates) const {
+    std::vector<QVariant> values;
+    for (const auto& pair : updates) {
+        values.push_back(pair.second);
+    }
+    values.push_back(QDateTime::currentDateTime().toString(Qt::ISODate));
+    auto condValues = getBindValues();
+    values.insert(values.end(), condValues.begin(), condValues.end());
     return values;
 }
 

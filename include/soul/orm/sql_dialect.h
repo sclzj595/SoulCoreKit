@@ -12,6 +12,13 @@ namespace orm {
 
 enum class SqlDialectType { SQLite, MySQL, PostgreSQL, MSSQL, Oracle };
 
+struct SoftDeleteConfig {
+    bool enabled = true;
+    QString columnName = QStringLiteral("deleted");
+    QString logicNotDeletedValue = QStringLiteral("0");
+    QString logicDeletedValue = QStringLiteral("1");
+};
+
 class ISqlDialect {
 public:
     virtual ~ISqlDialect() = default;
@@ -33,6 +40,10 @@ public:
     virtual QString getCreateTableSuffix() const = 0;
     virtual QString getDropTableIfExists(const QString& tableName) const = 0;
     virtual QString convertPlaceholder(int index) const = 0;
+
+    virtual const SoftDeleteConfig& softDeleteConfig() const = 0;
+    virtual void setSoftDeleteConfig(SoftDeleteConfig config) = 0;
+
     static std::unique_ptr<ISqlDialect> create(SqlDialectType type);
 };
 

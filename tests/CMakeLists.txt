@@ -235,6 +235,20 @@ target_link_libraries(test_plugin PRIVATE
 
 copy_qt_dll(test_plugin TRUE)
 
+add_executable(test_data
+    test_data.cpp
+)
+
+target_link_libraries(test_data PRIVATE
+    Qt6::Test
+    Qt6::Core
+    Qt6::Sql
+    soul_data
+    soul_core
+)
+
+copy_qt_dll(test_data TRUE)
+
 add_test(NAME test_configuration COMMAND test_configuration)
 add_test(NAME test_core COMMAND test_core)
 add_test(NAME test_utils COMMAND test_utils)
@@ -252,3 +266,59 @@ add_test(NAME test_typed_event_bus COMMAND test_typed_event_bus)
 add_test(NAME test_cache COMMAND test_cache)
 add_test(NAME test_async COMMAND test_async)
 add_test(NAME test_auth COMMAND test_auth)
+add_test(NAME test_data COMMAND test_data)
+
+add_executable(test_orm
+    test_orm.cpp
+)
+
+target_link_libraries(test_orm PRIVATE
+    Qt6::Test
+    Qt6::Core
+    Qt6::Sql
+    soul_orm
+    soul_data
+    soul_core
+    soul_logging
+)
+
+copy_qt_dll(test_orm TRUE)
+
+add_executable(test_mq
+    test_mq.cpp
+)
+
+target_link_libraries(test_mq PRIVATE
+    Qt6::Test
+    Qt6::Core
+    Qt6::Network
+    soul_mq
+    soul_core
+    soul_logging
+    soul_async
+)
+
+copy_qt_dll(test_mq TRUE)
+
+add_executable(test_ui
+    test_ui.cpp
+)
+
+target_link_libraries(test_ui PRIVATE
+    Qt6::Test
+    Qt6::Core
+    soul_ui
+    soul_core
+    soul_base
+    soul_configuration
+)
+
+if(TARGET Qt6::Widgets)
+    target_link_libraries(test_ui PRIVATE Qt6::Widgets)
+endif()
+
+copy_qt_dll(test_ui TRUE)
+
+add_test(NAME test_orm COMMAND test_orm)
+add_test(NAME test_mq COMMAND test_mq)
+add_test(NAME test_ui COMMAND test_ui)

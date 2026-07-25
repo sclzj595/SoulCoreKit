@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_DATA_CONNECTION_POOL_H
+#ifndef SOUL_DATA_CONNECTION_POOL_H
 #define SOUL_DATA_CONNECTION_POOL_H
 
 #include <QString>
@@ -7,15 +7,16 @@
 #include <memory>
 #include <mutex>
 #include <chrono>
+#include <functional>
 #include "soul/core/result.h"
 #include "soul/data/database_driver.h"
 
 namespace sc {
 namespace data {
 
-class ConnectionPool {
+class DbConnectionPool {
 public:
-    virtual ~ConnectionPool() = default;
+    virtual ~DbConnectionPool() = default;
     virtual Result<std::unique_ptr<IDatabaseDriver>> acquire() = 0;
     virtual void release(std::unique_ptr<IDatabaseDriver> driver) = 0;
     virtual int getPoolSize() const = 0;
@@ -23,9 +24,18 @@ public:
     virtual void closeAll() = 0;
 };
 
-class DefaultConnectionPool : public ConnectionPool {
+class DefaultDbConnectionPool : public DbConnectionPool {
 public:
-    DefaultConnectionPool(const ConnectionConfig& config, int minSize = 2, int maxSize = 10) : m_config(config), m_minSize(minSize), m_maxSize(maxSize) {}
+    DefaultDbConnectionPool(const ConnectionConfig& config, int minSize = 2, int maxSize = 10)
+        : m_config(config), m_minSize(minSize), m_maxSize(maxSize),
+          m_factory([this]() -> std::unique_ptr<IDatabaseDriver> {
+              return DatabaseDriverFactory::instance().create(m_config.type);
+          }) {}
+
+    using DriverFactory = std::function<std::unique_ptr<IDatabaseDriver>()>;
+
+    DefaultDbConnectionPool(DriverFactory factory, int minSize = 2, int maxSize = 10)
+        : m_minSize(minSize), m_maxSize(maxSize), m_factory(std::move(factory)) {}
 
     Result<std::unique_ptr<IDatabaseDriver>> acquire() override {
         std::lock_guard<std::mutex> lock(m_mutex);
@@ -36,14 +46,17 @@ public:
             return Result<std::unique_ptr<IDatabaseDriver>>::ok(std::move(conn));
         }
         if (m_totalCount < m_maxSize) {
-            auto driver = DatabaseDriverFactory::instance().create(m_config.type);
+            auto driver = m_factory ? m_factory() : nullptr;
             if (driver) {
-                auto result = driver->open(m_config);
-                if (result.isOk()) {
-                    m_totalCount++;
-                    m_activeCount++;
-                    return Result<std::unique_ptr<IDatabaseDriver>>::ok(std::move(driver));
+                if (!driver->isConnected()) {
+                    auto result = driver->open(m_config);
+                    if (!result.isOk()) {
+                        return Error(ErrorCode::DatabaseError, "Failed to create connection");
+                    }
                 }
+                m_totalCount++;
+                m_activeCount++;
+                return Result<std::unique_ptr<IDatabaseDriver>>::ok(std::move(driver));
             }
             return Error(ErrorCode::DatabaseError, "Failed to create connection");
         }
@@ -52,10 +65,16 @@ public:
 
     void release(std::unique_ptr<IDatabaseDriver> driver) override {
         std::lock_guard<std::mutex> lock(m_mutex);
+        if (m_activeCount > 0) {
+            m_activeCount--;
+        }
         if (driver && driver->isConnected()) {
             m_connections.push_back(std::move(driver));
+        } else {
+            if (m_totalCount > 0) {
+                m_totalCount--;
+            }
         }
-        m_activeCount--;
     }
 
     int getPoolSize() const override { return m_totalCount; }
@@ -67,6 +86,8 @@ public:
         m_activeCount = 0;
     }
 
+    bool initialize() { return true; }
+
 private:
     ConnectionConfig m_config;
     int m_minSize;
@@ -75,6 +96,7 @@ private:
     int m_activeCount = 0;
     mutable std::mutex m_mutex;
     std::vector<std::unique_ptr<IDatabaseDriver>> m_connections;
+    DriverFactory m_factory;
 };
 
 } // namespace data

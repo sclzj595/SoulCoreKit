@@ -1,4 +1,4 @@
-﻿#include "soul/ui/sidebar.h"
+#include "soul/ui/sidebar.h"
 #include "soul/ui/sidebar_hover_filter.h"
 #include "soul/ui/animation.h"
 #include "soul/ui/theme.h"
@@ -9,6 +9,7 @@
 #include <QPushButton>
 #include <QLabel>
 #include <QHBoxLayout>
+#include <memory>
 
 namespace sc {
 
@@ -111,12 +112,12 @@ void SideBar::paintEvent(QPaintEvent* event) {
         QSize size = rect().size();
         QPixmap source = parent->grab(QRect(pos, size));
 
-        QGraphicsBlurEffect* blurEffect = new QGraphicsBlurEffect();
+        auto blurEffect = std::make_unique<QGraphicsBlurEffect>();
         blurEffect->setBlurRadius(15);
 
         QGraphicsScene scene;
         QGraphicsPixmapItem* item = scene.addPixmap(source);
-        item->setGraphicsEffect(blurEffect);
+        item->setGraphicsEffect(blurEffect.get());
 
         QPixmap blurredBackground(size);
         blurredBackground.fill(Qt::transparent);
@@ -124,8 +125,7 @@ void SideBar::paintEvent(QPaintEvent* event) {
         scene.render(&bgPainter);
 
         painter.drawPixmap(rect(), blurredBackground);
-
-        delete blurEffect;
+        blurEffect.release();
     }
 
     const Style& s = Theme::instance().style();

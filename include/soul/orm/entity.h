@@ -1,15 +1,11 @@
-﻿#ifndef SOUL_ORM_ENTITY_H
+#ifndef SOUL_ORM_ENTITY_H
 #define SOUL_ORM_ENTITY_H
 
 #include <QString>
 #include <QVariant>
 #include <QDateTime>
+#include <QtGlobal>
 #include <map>
-#include <QObject>
-
-#define TABLE(name) static QString TABLE_NAME() { return QStringLiteral(#name); }
-#define ID QString id;
-#define COLUMN(name, type) type name;
 
 namespace sc {
 namespace orm {
@@ -17,7 +13,7 @@ namespace orm {
 struct FieldMeta {
     QString name;
     QString columnName;
-    QString type;
+    QString typeName;
     bool isPrimaryKey = false;
     bool isAutoIncrement = false;
     bool isNullable = true;
@@ -30,15 +26,15 @@ struct TableMeta {
     QString primaryKey = "id";
 };
 
-class BaseEntity {
+template<typename Derived>
+class Entity {
 public:
-    virtual ~BaseEntity() = default;
     QString id;
     QDateTime createTime;
     QDateTime updateTime;
     int deleted = 0;
 
-    virtual TableMeta getTableMeta() const = 0;
+    virtual ~Entity() = default;
 
     virtual void beforeInsert() {
         createTime = QDateTime::currentDateTime();
@@ -49,30 +45,40 @@ public:
         updateTime = QDateTime::currentDateTime();
     }
 
+    virtual TableMeta getTableMeta() const {
+        return Derived::tableMeta();
+    }
+
     virtual QVariant getProperty(const QString& name) const {
-        Q_UNUSED(name);
-        return QVariant();
-    }
-
-    virtual void setProperty(const QString& name, const QVariant& value) {
-        Q_UNUSED(name);
-        Q_UNUSED(value);
-    }
-};
-
-template<typename Derived>
-class Entity : public BaseEntity {
-public:
-    QVariant getProperty(const QString& name) const override {
-        const Derived* derived = static_cast<const Derived*>(this);
+        const Derived* derived = dynamic_cast<const Derived*>(this);
+        Q_ASSERT(derived && "Entity::getProperty: invalid derived cast");
+        if (!derived) return QVariant();
         return derived->getPropertyImpl(name);
     }
 
-    void setProperty(const QString& name, const QVariant& value) override {
-        Derived* derived = static_cast<Derived*>(this);
+    virtual void setProperty(const QString& name, const QVariant& value) {
+        Derived* derived = dynamic_cast<Derived*>(this);
+        Q_ASSERT(derived && "Entity::setProperty: invalid derived cast");
+        if (!derived) return;
         derived->setPropertyImpl(name, value);
     }
 };
+
+#define SC_TABLE(className, tableName) \
+    static QString TABLE_NAME() { return QStringLiteral(tableName); }
+
+#define SC_FIELD(type, name) type name;
+#define SC_FIELD_N(type, name, columnName) type name;
+#define SC_FIELD_NOTNULL(type, name) type name;
+#define SC_FIELD_DEFAULT(type, name, defaultValue) type name;
+
+#define SC_TABLE_META(className, tableName) \
+    TableMeta className::tableMeta() { \
+        TableMeta meta; \
+        meta.tableName = QStringLiteral(tableName); \
+        meta.primaryKey = "id"; \
+        return meta; \
+    }
 
 } // namespace orm
 } // namespace sc

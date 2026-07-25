@@ -4,15 +4,16 @@
 #include "soul/logging/logger.h"
 #include "soul/logging/console_sink.h"
 #include "soul/core/time.h"
-#include "soul/core/singleton.h"
 
 namespace sc {
 
 Logger::Logger() : m_sink(std::make_shared<CompositeSink>()) {
     m_sink->addSink(std::make_shared<ConsoleSink>());
-    SingletonRegistry::instance().registerShutdown([this]() {
-        this->shutdown();
-    });
+}
+
+Logger& Logger::instance() {
+    static Logger inst;
+    return inst;
 }
 
 void Logger::setLogLevel(LogLevel level) {
@@ -39,6 +40,10 @@ void Logger::log(LogLevel level, const std::string& message) {
     log(level, message, "", "");
 }
 
+void Logger::log(LogLevel level, const QString& message) {
+    log(level, message.toStdString());
+}
+
 void Logger::log(LogLevel level, const std::string& message,
                  const std::string& module, const std::string& operation) {
     std::lock_guard<std::mutex> lock(m_mutex);
@@ -53,6 +58,11 @@ void Logger::log(LogLevel level, const std::string& message,
     record.timestamp = Time::nowString("yyyy-MM-dd HH:mm:ss.zzz");
 
     m_sink->log(record);
+}
+
+void Logger::log(LogLevel level, const QString& message,
+                 const QString& module, const QString& operation) {
+    log(level, message.toStdString(), module.toStdString(), operation.toStdString());
 }
 
 void Logger::flush() {

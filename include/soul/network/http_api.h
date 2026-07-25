@@ -1,12 +1,20 @@
-﻿#ifndef SOUL_NETWORK_HTTP_API_H
+﻿/**
+ * @file http_api.h
+ * @brief HTTP API 链式调用封装
+ * @details 泛型模板类，提供类型安全的 HTTP API 调用封装，支持 GET/POST/PUT/DELETE 和 JSON 响应
+ * @author SoulCoreKit Team
+ * @date 2026-07-20
+ * @version 1.0.0
+ * @copyright MIT License
+ */
+
+#ifndef SOUL_NETWORK_HTTP_API_H
 #define SOUL_NETWORK_HTTP_API_H
 
-#include "soul/network/network_global.h"
 #include "soul/network/http_client.h"
 #include "soul/network/http_request.h"
 #include "soul/network/http_response.h"
 #include "soul/core/result.h"
-#include "soul/core/error.h"
 #include <functional>
 #include <memory>
 
@@ -149,7 +157,7 @@ public:
      */
     template<typename T>
     HttpApi& onSuccess(std::function<void(const T&)> callback) {
-        m_successCallback = [callback](const Result<HttpResponse>& result) {
+        m_successCallback = [callback, this](const Result<HttpResponse>& result) {
             if (result.isOk()) {
                 T data = parseResponse<T>(result.unwrap());
                 callback(data);
@@ -237,7 +245,6 @@ private:
     HttpRequest m_request;
     std::function<void(const QJsonDocument&)> m_jsonCallback;
     std::function<void(const Error&)> m_failureCallback;
-    std::function<void(const Result<HttpResponse>&)> m_successCallback;
 };
 
 } // namespace network

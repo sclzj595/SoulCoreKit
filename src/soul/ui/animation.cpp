@@ -1,9 +1,10 @@
-﻿#include "soul/ui/animation.h"
+#include "soul/ui/animation.h"
 #include "soul/ui/design_constants.h"
 #include <QParallelAnimationGroup>
 #include <QSequentialAnimationGroup>
 #include <QGraphicsOpacityEffect>
 #include <QMap>
+#include <memory>
 
 namespace sc {
 
@@ -22,10 +23,6 @@ namespace {
             s_animationCache.remove(widget);
         }
         if (s_glowEffectCache.contains(widget)) {
-            QGraphicsDropShadowEffect* effect = s_glowEffectCache[widget];
-            if (effect) {
-                delete effect;
-            }
             s_glowEffectCache.remove(widget);
         }
     }
@@ -164,19 +161,19 @@ void Animation::stopBreathing(QWidget* widget) {
 void Animation::applyGlow(QWidget* widget, const QColor& color, int duration) {
     QGraphicsDropShadowEffect* existingEffect = s_glowEffectCache.value(widget, nullptr);
     if (existingEffect) {
-        delete existingEffect;
         s_glowEffectCache.remove(widget);
+        widget->setGraphicsEffect(nullptr);
     }
 
-    QGraphicsDropShadowEffect* glowEffect = new QGraphicsDropShadowEffect();
+    auto glowEffect = std::make_unique<QGraphicsDropShadowEffect>();
     glowEffect->setColor(color);
     glowEffect->setBlurRadius(0);
     glowEffect->setOffset(0);
-    widget->setGraphicsEffect(glowEffect);
-    
-    s_glowEffectCache[widget] = glowEffect;
+    widget->setGraphicsEffect(glowEffect.get());
+    s_glowEffectCache[widget] = glowEffect.get();
+    QGraphicsDropShadowEffect* effectPtr = glowEffect.release();
 
-    QPropertyAnimation* animation = new QPropertyAnimation(glowEffect, "blurRadius");
+    QPropertyAnimation* animation = new QPropertyAnimation(effectPtr, "blurRadius");
     animation->setDuration(duration);
     animation->setStartValue(0);
     animation->setEndValue(design::GLOW_MAX_BLUR_RADIUS);
@@ -196,9 +193,8 @@ void Animation::removeGlow(QWidget* widget) {
         animation->setStartValue(effect->blurRadius());
         animation->setEndValue(0);
         animation->setEasingCurve(QEasingCurve::InOutQuad);
-        QObject::connect(animation, &QPropertyAnimation::finished, [effect, widget]() {
+        QObject::connect(animation, &QPropertyAnimation::finished, [widget]() {
             widget->setGraphicsEffect(nullptr);
-            delete effect;
             s_glowEffectCache.remove(widget);
         });
         animation->start(QAbstractAnimation::DeleteWhenStopped);
@@ -210,8 +206,8 @@ void Animation::removeGlow(QWidget* widget) {
             animation->setStartValue(dynamic_cast<QGraphicsDropShadowEffect*>(graphicsEffect)->blurRadius());
             animation->setEndValue(0);
             animation->setEasingCurve(QEasingCurve::InOutQuad);
-            QObject::connect(animation, &QPropertyAnimation::finished, [graphicsEffect]() {
-                delete graphicsEffect;
+            QObject::connect(animation, &QPropertyAnimation::finished, [widget]() {
+                widget->setGraphicsEffect(nullptr);
             });
             animation->start(QAbstractAnimation::DeleteWhenStopped);
         }
