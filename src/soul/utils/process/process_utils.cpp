@@ -27,21 +27,24 @@ bool ProcessUtils::execute(const QString& program, const QStringList& arguments,
 
 bool ProcessUtils::executeAsync(const QString& program, const QStringList& arguments,
                                 std::function<void(int exitCode, const QString& output)> callback) {
+    // Capture the raw pointer before moving ownership into the lambda so that
+    // start() can be invoked safely after the unique_ptr has been moved.
     auto process = std::unique_ptr<QProcess, void(*)(QProcess*)>(
         new QProcess(),
         [](QProcess* p) { p->deleteLater(); }
     );
+    QProcess* rawPtr = process.get();
     if (callback) {
-        QObject::connect(process.get(), QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+        QObject::connect(rawPtr, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
                          [process = std::move(process), callback](int exitCode, QProcess::ExitStatus) {
             QString output = process->readAllStandardOutput();
             callback(exitCode, output);
         });
     } else {
-        QObject::connect(process.get(), &QProcess::finished, [process = std::move(process)]() {
+        QObject::connect(rawPtr, &QProcess::finished, [process = std::move(process)]() {
         });
     }
-    process->start(program, arguments);
+    rawPtr->start(program, arguments);
     return true;
 }
 

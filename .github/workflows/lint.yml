@@ -76,3 +76,31 @@ jobs:
           name: cppcheck-report
           path: cppcheck-report.txt
           retention-days: 30
+
+  # Regression guard: enforce that every blanket catch (...) carries a
+  # justification comment (// Blanket catch: <reason>) in its surrounding
+  # lines. Prevents silent exception swallowing from sneaking back in.
+  # See docs/v1.7.0/01_stabilization.md §3.1 item 6.
+  blanket-catch-guard:
+    name: Blanket-Catch Guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check blanket catches have justification
+        run: |
+          set -euo pipefail
+          errors=0
+          while IFS=: read -r file lineno _; do
+            if ! sed -n "$((lineno-1)),$((lineno+2))p" "$file" | grep -q "Blanket catch:"; then
+              echo "::error file=$file,line=$lineno::Blanket catch without justification comment"
+              echo "  -> $file:$lineno"
+              errors=$((errors+1))
+            fi
+          done < <(grep -rn "catch\s*(\s*\.\.\.\s*)" src/ tests/ || true)
+          if [ "$errors" -gt 0 ]; then
+            echo "ERROR: Found $errors blanket catch(es) without justification."
+            echo "Add '// Blanket catch: <reason>' on a line adjacent to catch (...)."
+            exit 1
+          fi
+          echo "OK: All blanket catches are justified."

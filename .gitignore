@@ -54,6 +54,12 @@ qrc_*
 # Log files
 *.log
 *.txt.log
+# Build/test log outputs (root-level)
+/build_*_log*.txt
+/test_*_output.txt
+/*_log.txt
+/*_log*.txt
+/*_output.txt
 
 # Configuration files
 .env

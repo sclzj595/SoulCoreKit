@@ -1,0 +1,137 @@
+name: ThreadSanitizer
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  # 支持手动触发,便于按需验证
+  workflow_dispatch:
+
+# ThreadSanitizer 仅在 Linux + GCC/Clang 下支持
+# 与 ci.yml 中的 ASAN/UBSAN 互斥,使用独立工作流避免冲突
+jobs:
+  tsan:
+    name: ThreadSanitizer (Linux GCC)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.5.3'
+          host: 'linux'
+          target: 'desktop'
+          arch: 'gcc_64'
+          modules: 'qtwebsockets'
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build g++ lcov libssl-dev
+
+      - name: Verify TSan support
+        run: |
+          echo "GCC version:"
+          g++ --version
+          echo ""
+          echo "Verifying TSan linker support..."
+          echo 'int main(){return 0;}' > /tmp/tsan_check.cpp
+          if g++ -fsanitize=thread /tmp/tsan_check.cpp -o /tmp/tsan_check 2>/tmp/tsan_err.log; then
+            echo "OK: TSan supported"
+          else
+            echo "FAIL: TSan not supported"
+            cat /tmp/tsan_err.log
+            exit 1
+          fi
+
+      - name: Configure with TSan
+        run: |
+          cmake -S . -B build-tsan \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DBUILD_TESTS=ON \
+            -DENABLE_WARNINGS=OFF \
+            -DENABLE_SANITIZERS=OFF \
+            -DENABLE_TSAN=ON \
+            -DENABLE_LTO=OFF \
+            -DENABLE_COVERAGE=OFF
+
+      - name: Build with TSan
+        run: cmake --build build-tsan -j$(nproc)
+
+      - name: Run multithreaded tests under TSan
+        env:
+          # suppression 文件路径(相对于源码根)
+          TSAN_OPTIONS: >-
+            suppressions=${{ github.workspace }}/cmake/tsan_suppressions.txt
+            second_deadlock_stack=1
+            report_bugs=1
+            report_thread_leaks=0
+            halt_on_error=1
+            exitcode=66
+          # 限制 TSan 内存,避免 CI OOM
+          TSAN_SYMBOLIZER_PATH: /usr/bin/llvm-symbolizer
+        run: |
+          cd build-tsan
+          # 仅运行涉及多线程的测试,避免在单线程测试上浪费时间
+          # 列表与 ADR-005 §4 Enforcement 对应
+          MULTITHREADED_TESTS="\
+            test_async|\
+            test_event_bus|\
+            test_typed_event_bus|\
+            test_data|\
+            test_network|\
+            test_di|\
+            test_plugin|\
+            test_cache|\
+            test_orm|\
+            test_mq|\
+            test_rpc"
+
+          echo "Running multithreaded tests under TSan..."
+          echo "Tests: ${MULTITHREADED_TESTS}"
+          echo ""
+
+          # 使用 ctest -R 过滤测试,--output-on-failure 显示失败详情
+          ctest -R "${MULTITHREADED_TESTS}" --output-on-failure --timeout 120
+
+      - name: Upload TSan reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tsan-report
+          path: |
+            build-tsan/Testing/Temporary/LastTest.log
+            build-tsan/tsan.log
+          retention-days: 30
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## ThreadSanitizer Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "✅ All multithreaded tests passed under TSan with zero data races." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ TSan detected data races or tests failed. Review the report artifact." >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Tests covered** (per ADR-005 §4 Enforcement):" >> $GITHUB_STEP_SUMMARY
+          echo "- test_async (ThreadPool, Future)" >> $GITHUB_STEP_SUMMARY
+          echo "- test_event_bus (EventBus sync/async dispatch)" >> $GITHUB_STEP_SUMMARY
+          echo "- test_typed_event_bus (TypedEventBus async handlers)" >> $GITHUB_STEP_SUMMARY
+          echo "- test_data (DbConnectionPool)" >> $GITHUB_STEP_SUMMARY
+          echo "- test_network (ConnectionPool, RAII guards)" >> $GITHUB_STEP_SUMMARY
+          echo "- test_di (Container recursive_mutex, Scoped lifetime)" >> $GITHUB_STEP_SUMMARY
+          echo "- test_plugin (PluginManager lifecycle)" >> $GITHUB_STEP_SUMMARY
+          echo "- test_cache (Cache module)" >> $GITHUB_STEP_SUMMARY
+          echo "- test_orm (SqlRepository, connection pool integration)" >> $GITHUB_STEP_SUMMARY
+          echo "- test_mq (MQ async operations)" >> $GITHUB_STEP_SUMMARY
+          echo "- test_rpc (RPC dispatcher, client proxy)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Suppression file**: \`cmake/tsan_suppressions.txt\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Exit code 66**: TSan detected a race and halted." >> $GITHUB_STEP_SUMMARY

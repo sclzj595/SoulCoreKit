@@ -1,4 +1,4 @@
-﻿#include "soul/utils/string/string_utils.h"
+#include "soul/utils/string/string_utils.h"
 #include <QStringList>
 #include <cstdarg>
 #include <cstdio>
@@ -12,11 +12,21 @@ QString trim(const QString& str) {
 }
 
 QString trimLeft(const QString& str) {
-    return str.trimmed();
+    int n = str.size();
+    int i = 0;
+    while (i < n && str[i].isSpace()) {
+        ++i;
+    }
+    return str.mid(i);
 }
 
 QString trimRight(const QString& str) {
-    return str.trimmed();
+    int n = str.size();
+    int i = n - 1;
+    while (i >= 0 && str[i].isSpace()) {
+        --i;
+    }
+    return str.left(i + 1);
 }
 
 
@@ -29,6 +39,10 @@ QString toUpper(const QString& str) {
 }
 
 bool startsWith(const QString& str, const QString& prefix) {
+    // 空前缀仅在空字符串上匹配(避免空前缀匹配所有字符串)
+    if (prefix.isEmpty()) {
+        return str.isEmpty();
+    }
     return str.startsWith(prefix);
 }
 

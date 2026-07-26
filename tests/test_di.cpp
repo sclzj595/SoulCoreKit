@@ -48,6 +48,7 @@ class TestDI : public QObject {
 private slots:
     void initTestCase();
     void cleanupTestCase();
+    void init();
 
     void testBindAndResolveTransient();
     void testBindAndResolveSingleton();
@@ -70,6 +71,13 @@ void TestDI::initTestCase()
 void TestDI::cleanupTestCase()
 {
     sc::di::Module::shutdown();
+}
+
+void TestDI::init()
+{
+    // Clear container before each test to avoid AlreadyExists errors from
+    // duplicate registrations across tests (bind now returns Result<void>).
+    sc::di::Container::instance().clear();
 }
 
 void TestDI::testBindAndResolveTransient()

@@ -1,4 +1,5 @@
 ﻿#include <QTest>
+#include <stdexcept>
 #include "soul/network/core/inetwork.h"
 #include "soul/network/core/network_message.h"
 #include "soul/network/core/network_state.h"
@@ -39,6 +40,8 @@ private slots:
     void testWsClientAdapterWithPolicy();
     void testConnectionPool();
     void testConnectionPoolMaxConnections();
+    void testConnectionPoolAcquireGuarded();
+    void testConnectionPoolGuardAutoReleases();
 };
 
 void TestNetwork::testNetworkMessageFields() {
@@ -265,14 +268,63 @@ void TestNetwork::testConnectionPoolMaxConnections() {
     sc::network::ConnectionPool::Config config;
     config.maxConnections = 5;
     sc::network::ConnectionPool pool(config);
-    
+
     QCOMPARE(pool.config().maxConnections, 5);
-    
+
     for (int i = 0; i < 5; ++i) {
         auto conn = pool.acquire(QUrl("http://localhost"));
         QVERIFY(conn != nullptr);
     }
-    
+
+    pool.closeAll();
+}
+
+void TestNetwork::testConnectionPoolAcquireGuarded() {
+    // acquireGuarded returns a Result<ConnectionGuard>; guard auto-releases on scope exit.
+    sc::network::ConnectionPool::Config config;
+    config.maxConnections = 3;
+    sc::network::ConnectionPool pool(config);
+
+    {
+        auto result = pool.acquireGuarded(QUrl("http://localhost"));
+        QVERIFY(result.isOk());
+        auto guard = std::move(result.unwrap());
+        QVERIFY(guard);
+        QVERIFY(guard.connection() != nullptr);
+        // Guard releases on scope exit
+    }
+
+    // After guard destruction, the connection should be back in the pool
+    // available for re-acquisition.
+    auto result2 = pool.acquireGuarded(QUrl("http://localhost"));
+    QVERIFY(result2.isOk());
+    QVERIFY(result2.unwrap());
+
+    pool.closeAll();
+}
+
+void TestNetwork::testConnectionPoolGuardAutoReleases() {
+    // Verify RAII semantics: even when an exception is thrown, the guard
+    // must release the connection back to the pool.
+    sc::network::ConnectionPool::Config config;
+    config.maxConnections = 1;  // Tight capacity to make leakage observable
+    sc::network::ConnectionPool pool(config);
+
+    // Acquire via guard, then throw. Guard must release on exception unwind.
+    try {
+        auto result = pool.acquireGuarded(QUrl("http://localhost"));
+        QVERIFY(result.isOk());
+        auto guard = std::move(result.unwrap());
+        throw std::runtime_error("simulated failure");
+    } catch (const std::runtime_error&) {
+        // Guard destructed during stack unwinding, connection released.
+    }
+
+    // If the guard leaked (did not release), this second acquire would time out
+    // and return ResourceExhausted. With correct RAII it should succeed.
+    auto second = pool.acquireGuarded(QUrl("http://localhost"));
+    QVERIFY2(second.isOk(), "ConnectionGuard failed to release connection on exception path");
+
     pool.closeAll();
 }
 

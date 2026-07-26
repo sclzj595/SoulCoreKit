@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_DI_MODULE_H
+#ifndef SOUL_DI_MODULE_H
 #define SOUL_DI_MODULE_H
 
 #include <memory>
@@ -22,7 +22,10 @@ std::shared_ptr<T> wrapSingleton() {
 
 template<typename T>
 void registerSingleton() {
-    Container::instance().bindInstance(&Singleton<T>::instance());
+    auto result = Container::instance().bindInstance(&Singleton<T>::instance());
+    if (!result.isOk()) {
+        // Type already registered — safe to ignore for singleton registration
+    }
 }
 
 } // namespace di

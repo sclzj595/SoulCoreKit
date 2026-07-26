@@ -1,4 +1,4 @@
-﻿#include <algorithm>
+#include <algorithm>
 #include <filesystem>
 #include <mutex>
 #include <string>
@@ -10,6 +10,7 @@
 #endif
 
 #include "soul/plugin/plugin_manager.h"
+#include "soul/logging/logger.h"
 
 namespace sc {
 namespace plugin {
@@ -257,7 +258,13 @@ void PluginManager::loadAllPlugins(const std::string& directory)
             loadPlugin(entry.path().string());
         }
     }
+    catch (const std::exception& e) {
+        Logger::instance().error(std::string("PluginManager::loadAllPlugins failed: ") + e.what());
+    }
     catch (...) {
+        // Blanket catch: top-level barrier in plugin loading loop.
+        // A single plugin failure must not abort loading of remaining plugins.
+        Logger::instance().error("PluginManager::loadAllPlugins unknown exception");
     }
 }
 

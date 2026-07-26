@@ -107,6 +107,19 @@ target_link_libraries(test_cache PRIVATE
 
 windeployqt_post_build(test_cache TRUE)
 
+add_executable(test_soul_cache
+    test_soul_cache.cpp
+)
+
+target_link_libraries(test_soul_cache PRIVATE
+    Qt6::Test
+    Qt6::Core
+    soul_cache
+    soul_core
+)
+
+windeployqt_post_build(test_soul_cache TRUE)
+
 add_executable(test_async
     test_async.cpp
 )
@@ -264,6 +277,7 @@ add_test(NAME test_http_request COMMAND test_http_request)
 add_test(NAME test_network COMMAND test_network)
 add_test(NAME test_typed_event_bus COMMAND test_typed_event_bus)
 add_test(NAME test_cache COMMAND test_cache)
+add_test(NAME test_soul_cache COMMAND test_soul_cache)
 add_test(NAME test_async COMMAND test_async)
 add_test(NAME test_auth COMMAND test_auth)
 add_test(NAME test_data COMMAND test_data)
@@ -338,3 +352,19 @@ target_link_libraries(test_rpc PRIVATE
 windeployqt_post_build(test_rpc TRUE)
 
 add_test(NAME test_rpc COMMAND test_rpc)
+
+add_executable(test_observability
+    test_observability.cpp
+)
+
+target_link_libraries(test_observability PRIVATE
+    Qt6::Test
+    Qt6::Core
+    soul_observability
+    soul_logging
+    soul_core
+)
+
+windeployqt_post_build(test_observability TRUE)
+
+add_test(NAME test_observability COMMAND test_observability)

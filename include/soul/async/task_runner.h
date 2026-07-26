@@ -6,7 +6,10 @@
 #include <functional>
 #include <memory>
 #include <atomic>
+#include <type_traits>
+#include "soul/core/result.h"
 #include "soul/async/future.h"
+#include "soul/async/future_detail.h"
 
 namespace sc {
 
@@ -23,19 +26,22 @@ public:
         QPromise<ResultType> promise;
         auto future = promise.future();
 
-        auto task = std::make_shared<std::packaged_task<ResultType()>>(std::forward<F>(func));
-        auto futureResult = task->get_future();
-
         m_activeTasks.fetch_add(1);
-        QThreadPool::globalInstance()->start([this, task = std::move(task), promise = std::move(promise)]() mutable {
+        QThreadPool::globalInstance()->start([this, func = std::forward<F>(func), promise = std::move(promise)]() mutable {
             try {
-                auto result = (*task)();
-                promise.addResult(std::move(result));
-                promise.finish();
+                if constexpr (std::is_void_v<ResultType>) {
+                    func();
+                    promise.finish();
+                } else {
+                    promise.addResult(func());
+                    promise.finish();
+                }
             } catch (const std::exception&) {
                 promise.setException(std::current_exception());
+                promise.finish();
             } catch (...) {
                 promise.setException(std::current_exception());
+                promise.finish();
             }
             m_activeTasks.fetch_sub(1);
         });
@@ -49,8 +55,10 @@ public:
         QThreadPool::globalInstance()->start([this, func = std::forward<F>(func)]() {
             try {
                 func();
-            } catch (const std::exception&) {
+            } catch (const std::exception& e) {
+                detail::logAsyncException("TaskRunner::runAsync task", e.what());
             } catch (...) {
+                detail::logAsyncUnknownException("TaskRunner::runAsync task");
             }
             m_activeTasks.fetch_sub(1);
         });

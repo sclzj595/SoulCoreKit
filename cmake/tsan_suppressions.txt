@@ -1,0 +1,79 @@
+# ThreadSanitizer Suppression File — SoulCoreKit
+#
+# 用法:
+#   TSAN_OPTIONS=suppressions=${CMAKE_SOURCE_DIR}/cmake/tsan_suppressions.txt \
+#                second_deadlock_stack=1 \
+#                report_bugs=1 \
+#                report_thread_leaks=0 \
+#   ctest --output-on-failure
+#
+# 维护原则:
+# 1. 每个 suppression 必须有明确的理由(标注 Qt/第三方/已知误报)
+# 2. 不允许用于掩盖真实的数据竞争 — 真实竞争必须修复
+# 3. 定期复检(每季度),移除已 upstream 修复的误报
+# 4. 每条 suppression 至少包含: race/|deadlock/ 前缀 + 函数/库匹配 + 注释
+# 5. 模式必须尽可能具体,避免使用通配符匹配整个类(如 race:QString::*)
+#
+# 格式参考: https://github.com/google/sanitizers/wiki/ThreadSanitizerSuppressions
+
+# ============================================================
+# Qt 内部已知误报(Qt 6.5.x)
+# ============================================================
+# 这些函数 Qt 内部使用 Q_GLOBAL_STATIC/QMutex 保护,但 TSan 无法识别
+
+# Qt meta type 注册(首次使用时存在非原子读改写,Qt 保证线程安全)
+race:QMetaType::registerType*
+race:QMetaType::registerNormalizedType*
+
+# Q_GLOBAL_STATIC 宏内部的双重检查锁定
+race:QGlobalStatic<*
+
+# QObject 信号槽连接建立时的 meta-object 静态初始化
+race:QMetaObject::activate*
+race:QObjectPrivate::connectImpl*
+
+# QSqlDatabase driver 注册(首次连接的静态状态)
+race:QSqlDatabasePrivate::addDatabase*
+race:QSqlDatabasePrivate::registerDriver*
+
+# QFactoryLoader 加载插件时的静态状态
+race:QFactoryLoader::updateDir*
+
+# ============================================================
+# SoulCoreKit Singleton 初始化(Meyers' Singleton)
+# ============================================================
+# C++11 保证局部静态变量初始化是线程安全的
+# ADR-005 §Singleton Thread Safety 明确允许此模式
+# 注意: 仅抑制 *instance* 入口,内部状态仍需正确同步
+
+race:sc::Logger::instance()*
+race:sc::ThreadPool::instance()*
+race:sc::Singleton<*
+
+# ============================================================
+# 标准库已知误报
+# ============================================================
+
+# std::call_once 在 GCC < 11 上的实现存在已知 TSan 误报
+# GCC 11+ 已修复,此处保留用于老工具链兼容
+race:__gthread_once*
+race:__once_proxy*
+
+# ============================================================
+# 测试辅助代码
+# ============================================================
+
+# QTest 框架内部的静态状态(不影响测试逻辑)
+race:QTest::qExec*
+race:QTestResult::*report*
+
+# ============================================================
+# 注意:以下类别禁止加入 suppression
+# ============================================================
+# - 禁止: race:std::shared_ptr*  (太宽泛,会掩盖真实竞争)
+# - 禁止: race:QString::*          (太宽泛,会掩盖真实竞争)
+# - 禁止: race:std::mutex*         (会掩盖锁使用错误)
+# - 禁止: race:sc::*               (会掩盖 SoulCoreKit 真实 bug)
+#
+# 如遇上述类别的误报,必须精确定位到具体函数后再添加 suppression,
+# 并在注释中说明为什么是误报而非真实 bug。

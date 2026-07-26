@@ -3,6 +3,7 @@
 #include <QNetworkReply>
 #include <QEventLoop>
 #include <QTimer>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QUrl>
@@ -29,7 +30,13 @@ Result<RpcResponse> HttpTransport::sendRequest(const RpcRequest& request) {
         return Result<RpcResponse>(Error(ErrorCode::NetworkError, "Transport not running"));
     }
 
-    QUrl url(m_baseUrl + "/rpc/" + request.serviceName + "/" + request.methodName);
+    // URL 编码 serviceName/methodName,防止路径/查询注入
+    // 例如 serviceName="a/b?c=d" 会被编码为 "a%2Fb%3Fc%3Dd",不会破坏 URL 结构
+    const QString encodedService = QString::fromUtf8(
+        QUrl::toPercentEncoding(request.serviceName));
+    const QString encodedMethod = QString::fromUtf8(
+        QUrl::toPercentEncoding(request.methodName));
+    QUrl url(m_baseUrl + "/rpc/" + encodedService + "/" + encodedMethod);
     QNetworkRequest qrequest(url);
     qrequest.setHeader(QNetworkRequest::ContentTypeHeader, m_serializer->contentType());
 
@@ -37,7 +44,24 @@ Result<RpcResponse> HttpTransport::sendRequest(const RpcRequest& request) {
         qrequest.setRawHeader(it.key().toUtf8(), it.value().toUtf8());
     }
 
-    QByteArray body = m_serializer->serialize(request.params);
+    // 构造 RPC envelope:包含 service/method/requestId/params
+    // requestId 必须在请求体中,服务端才能将响应关联到请求
+    QJsonObject envelope;
+    envelope["service"] = request.serviceName;
+    envelope["method"] = request.methodName;
+    envelope["requestId"] = request.requestId;
+    // params 由序列化器输出 JSON,解析后嵌入 envelope(保持序列化器抽象)
+    const QByteArray paramsJson = m_serializer->serialize(request.params);
+    const QJsonDocument paramsDoc = QJsonDocument::fromJson(paramsJson);
+    if (paramsDoc.isObject()) {
+        envelope["params"] = paramsDoc.object();
+    } else if (paramsDoc.isArray()) {
+        envelope["params"] = paramsDoc.array();
+    } else {
+        // params 不是对象/数组(可能是基础类型),作为 QJsonValue 直接嵌入
+        envelope["params"] = QJsonValue(QString::fromUtf8(paramsJson));
+    }
+    const QByteArray body = QJsonDocument(envelope).toJson(QJsonDocument::Compact);
 
     QNetworkReply* reply = m_manager->post(qrequest, body);
 
@@ -120,10 +144,6 @@ void HttpTransport::setSerializer(std::shared_ptr<ISerializer> serializer) {
 
 std::shared_ptr<ISerializer> HttpTransport::getSerializer() const {
     return m_serializer;
-}
-
-void HttpTransport::setConnectTimeout(int ms) {
-    m_connectTimeout = ms;
 }
 
 void HttpTransport::setReadTimeout(int ms) {

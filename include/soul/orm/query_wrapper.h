@@ -7,10 +7,11 @@
 #include <map>
 #include <memory>
 #include <functional>
-#include "soul/orm/sql_dialect.h"
 
 namespace sc {
 namespace orm {
+
+class ISqlDialect;
 
 enum class SqlKeyword {
     EQ, NE, GT, GE, LT, LE,
@@ -65,6 +66,11 @@ public:
     QueryWrapper& limit(int size);
     QueryWrapper& offset(int offset);
 
+    // Escape hatch for intentional full-table UPDATE/DELETE.
+    // Default false: buildUpdateSql/buildDeleteSql throw std::runtime_error
+    // when no WHERE clause would be generated, preventing accidental mass mutation.
+    QueryWrapper& allowFullTableOperation(bool allow = true);
+
     QString buildSelectSql(const QString& tableName) const;
     QString buildCountSql(const QString& tableName) const;
     QString buildDeleteSql(const QString& tableName) const;
@@ -82,6 +88,7 @@ private:
     std::vector<QString> m_groupBy;
     int m_limit = -1;
     int m_offset = -1;
+    bool m_allowFullTable = false;
     ISqlDialect* m_dialect = nullptr;
 
     QString opToString(SqlKeyword op) const;

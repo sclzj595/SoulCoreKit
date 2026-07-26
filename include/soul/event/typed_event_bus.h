@@ -1,6 +1,11 @@
-﻿#ifndef SOUL_EVENT_TYPED_EVENT_BUS_H
+#ifndef SOUL_EVENT_TYPED_EVENT_BUS_H
 #define SOUL_EVENT_TYPED_EVENT_BUS_H
 
+// 注意: 本头文件为模板实现,以下原重头文件已通过 detail 帮助函数隔离:
+//   - "soul/async/thread_pool.h": ThreadPool::instance().start() 调用
+//   - "soul/logging/logger.h":    Logger::instance().error() 调用
+// 实现见 typed_event_bus_detail.cpp,避免每个包含 typed_event_bus.h 的 TU
+// 都传递依赖 thread_pool.h + logger.h。
 #include <string>
 #include <functional>
 #include <unordered_map>
@@ -12,8 +17,7 @@
 #include <utility>
 #include <atomic>
 #include "soul/event/event_bus.h"
-#include "soul/async/thread_pool.h"
-#include "soul/logging/logger.h"
+#include "soul/event/typed_event_bus_detail.h"
 
 namespace sc {
 
@@ -46,7 +50,9 @@ public:
     using HandlerBase = std::function<void(const std::any&)>;
 
     static std::shared_ptr<TypedEventBus> create() {
-        return std::shared_ptr<TypedEventBus>(new TypedEventBus());
+        // unique_ptr -> shared_ptr: exception-safe equivalent of make_shared,
+        // while keeping constructor private (make_shared cannot access it).
+        return std::unique_ptr<TypedEventBus>(new TypedEventBus());
     }
 
     ~TypedEventBus() = default;
@@ -70,24 +76,24 @@ public:
 
                 if (policy == DispatchPolicy::Async) {
                     T valueCopy = value;
-                    ThreadPool::instance().start([typedHandler, valueCopy]() {
+                    detail::dispatchAsync([typedHandler, valueCopy]() {
                         try {
                             (*typedHandler)(valueCopy);
                         } catch (const std::exception& e) {
-                            Logger::instance().error("Async handler exception: " + std::string(e.what()), "EventBus");
+                            detail::logEventBusException("Async handler exception: " + std::string(e.what()), "EventBus");
                         } catch (...) {
-                            Logger::instance().error("Async handler unknown exception", "EventBus");
+                            detail::logEventBusUnknownException("EventBus");
                         }
                     });
                 } else {
                     (*typedHandler)(value);
                 }
             } catch (const std::bad_any_cast&) {
-                Logger::instance().error("Type mismatch in handler", "EventBus");
+                detail::logEventBusException("Type mismatch in handler", "EventBus");
             } catch (const std::exception& e) {
-                Logger::instance().error("Handler exception: " + std::string(e.what()), "EventBus");
+                detail::logEventBusException("Handler exception: " + std::string(e.what()), "EventBus");
             } catch (...) {
-                Logger::instance().error("Handler unknown exception", "EventBus");
+                detail::logEventBusUnknownException("EventBus");
             }
         };
 

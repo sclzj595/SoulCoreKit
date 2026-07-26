@@ -74,10 +74,14 @@ public:
     }
 
     template<typename T>
-    void bind(std::function<T*()> creator, Lifetime lifetime = Lifetime::Transient)
+    Result<void> bind(std::function<T*()> creator, Lifetime lifetime = Lifetime::Transient)
     {
         std::lock_guard<std::recursive_mutex> lock(m_mutex);
         auto typeIdx = std::type_index(typeid(T));
+        if (m_registrations.find(typeIdx) != m_registrations.end()) {
+            return Result<void>(Error(ErrorCode::AlreadyExists,
+                "DI: type already registered"));
+        }
         auto& info = m_registrations[typeIdx];
         info.lifetime = lifetime;
         info.creator = [creator](const std::unordered_map<std::type_index, void*>&) -> void* {
@@ -88,13 +92,18 @@ public:
         info.initialized = false;
         info.initFlag = std::make_shared<std::atomic<bool>>(false);
         info.deleter = [](void* ptr) { delete static_cast<T*>(ptr); };
+        return Ok();
     }
 
     template<typename T>
-    void bindInstance(T* instance)
+    Result<void> bindInstance(T* instance)
     {
         std::lock_guard<std::recursive_mutex> lock(m_mutex);
         auto typeIdx = std::type_index(typeid(T));
+        if (m_registrations.find(typeIdx) != m_registrations.end()) {
+            return Result<void>(Error(ErrorCode::AlreadyExists,
+                "DI: type already registered"));
+        }
         auto& info = m_registrations[typeIdx];
         info.lifetime = Lifetime::Singleton;
         info.creator = nullptr;
@@ -104,13 +113,18 @@ public:
         info.owned = false;
         info.initFlag = std::make_shared<std::atomic<bool>>(true);
         info.deleter = [](void*) {};
+        return Ok();
     }
 
     template<typename T>
-    void bindSingleton(std::function<T*()> creator)
+    Result<void> bindSingleton(std::function<T*()> creator)
     {
         std::lock_guard<std::recursive_mutex> lock(m_mutex);
         auto typeIdx = std::type_index(typeid(T));
+        if (m_registrations.find(typeIdx) != m_registrations.end()) {
+            return Result<void>(Error(ErrorCode::AlreadyExists,
+                "DI: type already registered"));
+        }
         auto& info = m_registrations[typeIdx];
         info.lifetime = Lifetime::Singleton;
         info.creator = [creator](const std::unordered_map<std::type_index, void*>&) -> void* {
@@ -121,6 +135,7 @@ public:
         info.initialized = false;
         info.initFlag = std::make_shared<std::atomic<bool>>(false);
         info.deleter = [](void* ptr) { delete static_cast<T*>(ptr); };
+        return Ok();
     }
 
     template<typename T>

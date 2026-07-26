@@ -27,7 +27,6 @@ public:
     void setSerializer(std::shared_ptr<ISerializer> serializer);
     std::shared_ptr<ISerializer> getSerializer() const;
 
-    void setConnectTimeout(int ms);
     void setReadTimeout(int ms);
 
 private:
@@ -35,7 +34,6 @@ private:
     QMap<QString, QString> m_headers;
     QNetworkAccessManager* m_manager;
     std::shared_ptr<ISerializer> m_serializer;
-    int m_connectTimeout = 5000;
     int m_readTimeout = 30000;
     bool m_running = false;
 };

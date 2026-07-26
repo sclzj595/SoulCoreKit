@@ -505,6 +505,6 @@ SoulCoreKit uses GitHub Actions for continuous integration across all supported 
 ---
 
 **Project**: SoulCoreKit  
-**Version**: 1.5.0 (Full Data Layer + Architecture Consolidation)  
+**Version**: 1.7.0 (Observability + Cache + ORM Enhanced + MQ Real Integration)  
 **Maintainer**: SoulCoreKit Team  
 **Contact**: soulcorekit@gmail.com

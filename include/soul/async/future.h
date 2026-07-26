@@ -1,13 +1,17 @@
 #ifndef SOUL_ASYNC_FUTURE_H
 #define SOUL_ASYNC_FUTURE_H
 
+// 注意: 本头文件为模板实现,以下 Qt 头文件无法前向声明:
+//   - <QFuture>:    QFuture<T> 作为成员变量(值类型,需要完整定义)
+//   - <QThreadPool>: 调用 QThreadPool::globalInstance() 静态方法(需要完整定义)
+// <QFutureWatcher> 已移除(未使用);soul/logging/logger.h 已通过 detail 帮助函数隔离,
+// 避免每个包含 future.h 的 TU 都传递依赖 logger.h。
 #include <QFuture>
-#include <QFutureWatcher>
 #include <QThreadPool>
 #include <functional>
 #include <memory>
 #include <vector>
-#include "soul/core/result.h"
+#include "soul/async/future_detail.h"
 
 namespace sc {
 
@@ -28,7 +32,10 @@ public:
     void waitForFinished() {
         try {
             m_future.waitForFinished();
+        } catch (const std::exception& e) {
+            detail::logAsyncException("Future::waitForFinished", e.what());
         } catch (...) {
+            detail::logAsyncUnknownException("Future::waitForFinished");
         }
         executeCallbacks();
     }
@@ -60,7 +67,7 @@ public:
             }
         }
 
-        auto promisePtr = std::shared_ptr<QPromise<U>>(new QPromise<U>());
+        auto promisePtr = std::make_shared<QPromise<U>>();
         promisePtr->start();
         auto future = promisePtr->future();
 
@@ -89,7 +96,10 @@ public:
         if (m_future.isFinished()) {
             try {
                 func(m_future.result());
+            } catch (const std::exception& e) {
+                detail::logAsyncException("Future::onSuccess callback", e.what());
             } catch (...) {
+                detail::logAsyncUnknownException("Future::onSuccess callback");
             }
             return;
         }
@@ -136,7 +146,10 @@ private:
                 for (auto& cb : m_data->successCallbacks) {
                     cb(result);
                 }
+            } catch (const std::exception& e) {
+                detail::logAsyncException("Future::executeCallbacks success", e.what());
             } catch (...) {
+                detail::logAsyncUnknownException("Future::executeCallbacks success");
             }
             m_data->successCallbacks.clear();
         }
@@ -164,7 +177,7 @@ template<typename F>
 Future<std::invoke_result_t<F>> async(F&& func) {
     using ResultType = std::invoke_result_t<F>;
 
-    auto promisePtr = std::shared_ptr<QPromise<ResultType>>(new QPromise<ResultType>());
+    auto promisePtr = std::make_shared<QPromise<ResultType>>();
     promisePtr->start();
     auto future = promisePtr->future();
 
@@ -185,7 +198,7 @@ template<typename F>
 Future<std::invoke_result_t<F>> asyncOnThreadPool(F&& func) {
     using ResultType = std::invoke_result_t<F>;
 
-    auto promisePtr = std::shared_ptr<QPromise<ResultType>>(new QPromise<ResultType>());
+    auto promisePtr = std::make_shared<QPromise<ResultType>>();
     promisePtr->start();
     auto future = promisePtr->future();
 

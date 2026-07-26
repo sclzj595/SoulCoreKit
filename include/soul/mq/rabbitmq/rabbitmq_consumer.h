@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_MQ_RABBITMQ_CONSUMER_H
+#ifndef SOUL_MQ_RABBITMQ_CONSUMER_H
 #define SOUL_MQ_RABBITMQ_CONSUMER_H
 
 #include <QObject>
@@ -35,7 +35,7 @@ private slots:
 private:
     std::weak_ptr<RabbitMQConnection> m_connection;
     mutable QMutex m_mutex;
-    std::map<QString, ConsumeCallback> m_subscriptions;
+    std::map<QString, QString> m_subscriptions;  ///< topic → queueName 映射
     bool m_running = false;
     int m_prefetchCount = 1;
 

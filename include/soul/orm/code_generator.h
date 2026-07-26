@@ -51,7 +51,7 @@ public:
         lines << "";
         lines << "class " + def.className + " : public Entity<" + def.className + "> {";
         lines << "public:";
-        lines << "    SC_TABLE(\"" + def.tableName + "\")";
+        lines << "    SC_TABLE(\"" + escapeCppString(def.tableName) + "\")";
         lines << "";
 
         for (const auto& field : def.fields) {
@@ -63,22 +63,22 @@ public:
         lines << "";
         lines << "    static TableMeta tableMeta() {";
         lines << "        TableMeta meta;";
-        lines << "        meta.tableName = QStringLiteral(\"" + def.tableName + "\");";
+        lines << "        meta.tableName = QStringLiteral(\"" + escapeCppString(def.tableName) + "\");";
         lines << "        meta.primaryKey = \"id\";";
 
         for (const auto& field : def.fields) {
             lines << "        {";
             lines << "            FieldMeta fm;";
-            lines << "            fm.name = \"" + field.name + "\";";
-            lines << "            fm.columnName = \"" + field.columnName + "\";";
-            lines << "            fm.typeName = \"" + field.typeName + "\";";
+            lines << "            fm.name = \"" + escapeCppString(field.name) + "\";";
+            lines << "            fm.columnName = \"" + escapeCppString(field.columnName) + "\";";
+            lines << "            fm.typeName = \"" + escapeCppString(field.typeName) + "\";";
             lines << "            fm.isPrimaryKey = " + QString(field.isPrimaryKey ? "true" : "false") + ";";
             lines << "            fm.isAutoIncrement = " + QString(field.isAutoIncrement ? "true" : "false") + ";";
             lines << "            fm.isNullable = " + QString(field.isNullable ? "true" : "false") + ";";
             if (!field.defaultValue.isEmpty()) {
-                lines << "            fm.defaultValue = \"" + field.defaultValue + "\";";
+                lines << "            fm.defaultValue = \"" + escapeCppString(field.defaultValue) + "\";";
             }
-            lines << "            meta.fields[\"" + field.name + "\"] = fm;";
+            lines << "            meta.fields[\"" + escapeCppString(field.name) + "\"] = fm;";
             lines << "        }";
         }
 
@@ -90,7 +90,7 @@ public:
         lines << "        if (name == \"id\") return id;";
         for (const auto& field : def.fields) {
             if (!field.isPrimaryKey) {
-                lines << "        if (name == \"" + field.name + "\") return " + field.name + ";";
+                lines << "        if (name == \"" + escapeCppString(field.name) + "\") return " + field.name + ";";
             }
         }
         lines << "        return QVariant();";
@@ -102,15 +102,15 @@ public:
         for (const auto& field : def.fields) {
             if (!field.isPrimaryKey) {
                 if (field.typeName == "int") {
-                    lines << "        if (name == \"" + field.name + "\") " + field.name + " = value.toInt();";
+                    lines << "        if (name == \"" + escapeCppString(field.name) + "\") " + field.name + " = value.toInt();";
                 } else if (field.typeName == "QString") {
-                    lines << "        if (name == \"" + field.name + "\") " + field.name + " = value.toString();";
+                    lines << "        if (name == \"" + escapeCppString(field.name) + "\") " + field.name + " = value.toString();";
                 } else if (field.typeName == "double" || field.typeName == "qreal") {
-                    lines << "        if (name == \"" + field.name + "\") " + field.name + " = value.toDouble();";
+                    lines << "        if (name == \"" + escapeCppString(field.name) + "\") " + field.name + " = value.toDouble();";
                 } else if (field.typeName == "bool") {
-                    lines << "        if (name == \"" + field.name + "\") " + field.name + " = value.toBool();";
+                    lines << "        if (name == \"" + escapeCppString(field.name) + "\") " + field.name + " = value.toBool();";
                 } else {
-                    lines << "        if (name == \"" + field.name + "\") " + field.name + " = value.value<" + field.typeName + ">();";
+                    lines << "        if (name == \"" + escapeCppString(field.name) + "\") " + field.name + " = value.value<" + field.typeName + ">();";
                 }
             }
         }
@@ -123,15 +123,15 @@ public:
         for (const auto& field : def.fields) {
             if (!field.isPrimaryKey) {
                 if (field.typeName == "int") {
-                    lines << "        entity." + field.name + " = record.value(\"" + field.columnName + "\").toInt();";
+                    lines << "        entity." + field.name + " = record.value(\"" + escapeCppString(field.columnName) + "\").toInt();";
                 } else if (field.typeName == "QString") {
-                    lines << "        entity." + field.name + " = record.value(\"" + field.columnName + "\").toString();";
+                    lines << "        entity." + field.name + " = record.value(\"" + escapeCppString(field.columnName) + "\").toString();";
                 } else if (field.typeName == "double" || field.typeName == "qreal") {
-                    lines << "        entity." + field.name + " = record.value(\"" + field.columnName + "\").toDouble();";
+                    lines << "        entity." + field.name + " = record.value(\"" + escapeCppString(field.columnName) + "\").toDouble();";
                 } else if (field.typeName == "bool") {
-                    lines << "        entity." + field.name + " = record.value(\"" + field.columnName + "\").toBool();";
+                    lines << "        entity." + field.name + " = record.value(\"" + escapeCppString(field.columnName) + "\").toBool();";
                 } else {
-                    lines << "        entity." + field.name + " = record.value(\"" + field.columnName + "\").value<" + field.typeName + ">();";
+                    lines << "        entity." + field.name + " = record.value(\"" + escapeCppString(field.columnName) + "\").value<" + field.typeName + ">();";
                 }
             }
         }
@@ -298,17 +298,18 @@ public:
 
     QString generateCreateTableSql(const EntityDefinition& def) {
         QStringList lines;
-        lines << "CREATE TABLE IF NOT EXISTS " + def.tableName + " (";
-        lines << "    id TEXT PRIMARY KEY,";
+        // 使用 quoteIdentifier 转义表名和列名,防止 SQL 注入
+        lines << "CREATE TABLE IF NOT EXISTS " + quoteIdentifier(def.tableName) + " (";
+        lines << "    \"id\" TEXT PRIMARY KEY,";
         for (const auto& field : def.fields) {
             if (!field.isPrimaryKey) {
-                lines << "    " + field.columnName + " " + mapTypeToSql(field.typeName)
+                lines << "    " + quoteIdentifier(field.columnName) + " " + mapTypeToSql(field.typeName)
                       + (field.isNullable ? "" : " NOT NULL") + ",";
             }
         }
-        lines << "    create_time TEXT NOT NULL,";
-        lines << "    update_time TEXT NOT NULL,";
-        lines << "    deleted INTEGER NOT NULL DEFAULT 0";
+        lines << "    \"create_time\" TEXT NOT NULL,";
+        lines << "    \"update_time\" TEXT NOT NULL,";
+        lines << "    \"deleted\" INTEGER NOT NULL DEFAULT 0";
         lines << ")";
         return lines.join("\n");
     }
@@ -322,6 +323,32 @@ private:
         if (type == "QString") return "TEXT";
         if (type == "QByteArray") return "BLOB";
         return "TEXT";
+    }
+
+    /**
+     * @brief 转义 SQL 标识符(表名/列名),防止 SQL 注入
+     * @details 使用双引号包裹标识符,并将内部双引号转义为两个双引号(SQL 标准)
+     * @param name 原始标识符
+     * @return 转义后的标识符,如 "user""table"
+     */
+    QString quoteIdentifier(const QString& name) {
+        return QStringLiteral("\"") + name.replace(QStringLiteral("\""), QStringLiteral("\"\"")) + QStringLiteral("\"");
+    }
+
+    /**
+     * @brief 转义 C++ 字符串字面量内容,防止代码注入
+     * @details 转义反斜杠、双引号、换行符等特殊字符,使字符串可安全嵌入 "..." 中
+     * @param str 原始字符串
+     * @return 转义后的字符串内容(不含外层双引号)
+     */
+    QString escapeCppString(const QString& str) {
+        QString escaped = str;
+        escaped.replace(QStringLiteral("\\"), QStringLiteral("\\\\"))
+               .replace(QStringLiteral("\""), QStringLiteral("\\\""))
+               .replace(QStringLiteral("\n"), QStringLiteral("\\n"))
+               .replace(QStringLiteral("\t"), QStringLiteral("\\t"))
+               .replace(QStringLiteral("\r"), QStringLiteral("\\r"));
+        return escaped;
     }
 };
 

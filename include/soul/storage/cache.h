@@ -3,6 +3,8 @@
 
 #include <QString>
 #include <QByteArray>
+// <QHash> is required to provide std::hash<QString> specialization used by
+// std::unordered_map<QString, ...> members below. Do NOT remove.
 #include <QHash>
 #include <unordered_map>
 #include <list>
