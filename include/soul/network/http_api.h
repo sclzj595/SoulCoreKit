@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file http_api.h
  * @brief HTTP API 链式调用封装
  * @details 泛型模板类，提供类型安全的 HTTP API 调用封装，支持 GET/POST/PUT/DELETE 和 JSON 响应
@@ -150,23 +150,6 @@ public:
     }
 
     /**
-     * @brief 设置成功回调（泛型类型）
-     * @tparam T 响应数据类型
-     * @param callback 成功回调函数
-     * @return 当前 HttpApi 对象引用（链式调用）
-     */
-    template<typename T>
-    HttpApi& onSuccess(std::function<void(const T&)> callback) {
-        m_successCallback = [callback, this](const Result<HttpResponse>& result) {
-            if (result.isOk()) {
-                T data = parseResponse<T>(result.unwrap());
-                callback(data);
-            }
-        };
-        return *this;
-    }
-
-    /**
      * @brief 设置成功回调（JSON 文档）
      * @param callback 成功回调函数
      * @return 当前 HttpApi 对象引用（链式调用）
@@ -194,9 +177,7 @@ public:
             if (result.isOk()) {
                 const HttpResponse& response = result.unwrap();
                 if (response.isSuccess()) {
-                    if (m_successCallback) {
-                        m_successCallback(result);
-                    } else if (m_jsonCallback) {
+                    if (m_jsonCallback) {
                         m_jsonCallback(response.json());
                     }
                 } else {
@@ -229,18 +210,6 @@ public:
     }
 
 private:
-    /**
-     * @brief 解析响应数据（默认实现，子类可重写）
-     * @tparam T 目标类型
-     * @param response HTTP 响应
-     * @return 解析后的数据
-     */
-    template<typename T>
-    T parseResponse(const HttpResponse& response) {
-        Q_UNUSED(response);
-        return T();
-    }
-
     std::shared_ptr<HttpClient> m_client;
     HttpRequest m_request;
     std::function<void(const QJsonDocument&)> m_jsonCallback;

@@ -32,7 +32,7 @@
 | **Modular Architecture** | 16 independent modules, combine as needed, low coupling and high cohesion |
 | **Plugin System** | C-ABI boundary interface for dynamic library loading (DLL/SO/DYLIB), ABI version compatibility checking, support plugin lifecycle management |
 | **Dependency Injection** | Factory function registration pattern with DCLP thread-safe `resolve()`, supports Transient/Singleton/Scoped lifetimes |
-| **Protocol-Agnostic Network** | Unified HTTP/TCP/WebSocket/MQTT/Bluetooth/Serial interface with strategy pattern and interceptor chain, using `sc::network` nested namespace |
+| **Protocol-Agnostic Network** | Unified HTTP/TCP/WebSocket/MQTT/Bluetooth/Serial interface with strategy pattern and interceptor chain, using `sc::network` nested namespace. **Client-focused**: provides HttpClient/WebSocket/TcpClient; server-side components (HttpServer/WebSocketServer) are out of scope for the scaffold — integrate your own server library (e.g. QtHttpServer) when needed. |
 | **Event-Driven Architecture** | Publish-subscribe based event bus with Qt signal bridging |
 | **Async Task Framework** | Thread pool based async execution with coroutine-style programming |
 | **Unified Error Handling** | `Result<T>` pattern for type-safe error propagation |
@@ -143,6 +143,72 @@ cmake --build . --config Release
 # Install (optional)
 cmake --install .
 ```
+
+### Quick Start (5 Minutes to a Running App)
+
+SoulCoreKit 对标 SpringBoot 的 `@SpringBootApplication`,提供声明式脚手架入口。三步搭起一个进程:
+
+**Step 1: CMakeLists.txt 接入脚手架**
+
+```cmake
+cmake_minimum_required(VERSION 3.16)
+project(MyApp VERSION 1.0.0 LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+find_package(Qt6 REQUIRED COMPONENTS Core)
+add_subdirectory(SoulCoreKit)
+
+add_executable(MyApp main.cpp)
+target_link_libraries(MyApp PRIVATE SoulCoreKit)  # 纯后端,无 UI
+# 需要 UI 时: target_link_libraries(MyApp PRIVATE SoulCoreKit SoulCoreKitUi)
+```
+
+**Step 2: main.cpp 三行启动进程**
+
+```cpp
+#include "soul/soul.h"   // 一行接入 Foundation Layer
+
+class MyModule : public sc::Module {
+public:
+    MyModule() : sc::Module("MyModule") {}
+    sc::Result<void> init() override {
+        SC_INFO("Hello SoulCoreKit!");
+        return {};
+    }
+};
+
+int main(int argc, char* argv[]) {
+    MyModule myModule;
+    sc::Scaffold scaffold(argc, argv);
+    scaffold.use(myModule);          // 声明式注册模块
+    return scaffold.run();           // 自动 init -> start -> 事件循环 -> stop -> cleanup
+}
+```
+
+**Step 3: 构建运行**
+
+```bash
+mkdir build && cd build
+cmake .. -DCMAKE_PREFIX_PATH=/path/to/Qt6
+cmake --build .
+./MyApp   # 看到日志 "Hello SoulCoreKit!" 即启动成功
+```
+
+**聚合头文件按需引入**(对标 SpringBoot starter):
+
+| 头文件 | 包含能力 |
+|--------|----------|
+| `#include "soul/soul.h"` | Foundation: Core/DI/Logging/Configuration(默认) |
+| `#include "soul/soul_async.h"` | 异步: ThreadPool/TaskRunner/Future/Promise |
+| `#include "soul/soul_event.h"` | 事件总线: EventBus/TypedEventBus |
+| `#include "soul/soul_network.h"` | 网络: HttpClient/WebSocket/TcpClient(仅 client) |
+| `#include "soul/soul_storage.h"` | 存储: FileStorage/Sqlite/Cache |
+| `#include "soul/soul_orm.h"` | ORM: SqlRepository/多数据库方言 |
+| `#include "soul/soul_mq.h"` | 消息队列: RabbitMQ 适配器 |
+| `#include "soul/soul_rpc.h"` | RPC: 服务分发 |
+| `#include "soul/ui/soul_ui.h"` | UI: Widgets/QSS/玻璃效果(需链接 SoulCoreKitUi) |
 
 ### Integration with Your Project
 
@@ -505,6 +571,6 @@ SoulCoreKit uses GitHub Actions for continuous integration across all supported 
 ---
 
 **Project**: SoulCoreKit  
-**Version**: 1.5.0 (Full Data Layer + Architecture Consolidation)  
+**Version**: 1.7.0 (Observability + Cache + ORM Enhanced + MQ Real Integration)  
 **Maintainer**: SoulCoreKit Team  
 **Contact**: soulcorekit@gmail.com

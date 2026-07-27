@@ -1,4 +1,4 @@
-﻿#include "soul/network/http/http_client_adapter.h"
+#include "soul/network/http/http_client_adapter.h"
 #include "soul/network/http_response.h"
 #include "soul/network/http_request.h"
 
@@ -28,7 +28,10 @@ Result<NetworkMessage> HttpClientAdapter::doSend(const NetworkMessage& message) 
     auto httpRequest = convertToHttpRequest(message);
     auto result = m_client->send(httpRequest);
     if (result.isErr()) {
-        return result.unwrapErr();
+        NetworkMessage errorMsg;
+        errorMsg.statusCode = 0;
+        errorMsg.message = result.unwrapErr().message();
+        return errorMsg;
     }
     return convertToNetworkMessage(result.unwrap());
 }

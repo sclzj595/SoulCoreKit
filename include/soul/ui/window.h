@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_UI_WINDOW_H
+#ifndef SOUL_UI_WINDOW_H
 #define SOUL_UI_WINDOW_H
 
 #include <QMainWindow>
@@ -7,20 +7,20 @@
 
 namespace sc {
 
-class Window : public QMainWindow {
+class Window : public ::QMainWindow {
     Q_OBJECT
     Q_PROPERTY(bool frameless READ isFrameless WRITE setFrameless)
     Q_PROPERTY(bool glassEffect READ hasGlassEffect WRITE setGlassEffect)
     Q_PROPERTY(bool glowBorder READ hasGlowBorder WRITE setGlowBorder)
 
 public:
-    explicit Window(QWidget* parent = nullptr);
+    explicit Window(::QWidget* parent = nullptr);
     ~Window() override = default;
 
-    void setTitle(const QString& title);
-    QString title() const;
+    void setTitle(const ::QString& title);
+    ::QString title() const;
 
-    void setWindowIcon(const QIcon& icon);
+    void setWindowIcon(const ::QIcon& icon);
 
     void showCentered();
     void showFullScreen();
@@ -43,8 +43,8 @@ public:
     void setBlurRadius(int radius);
     int blurRadius() const;
 
-    void setTintColor(const QColor& color);
-    QColor tintColor() const;
+    void setTintColor(const ::QColor& color);
+    ::QColor tintColor() const;
 
 signals:
     void windowClosed();
@@ -52,22 +52,22 @@ signals:
     void windowMaximized();
 
 protected:
-    void closeEvent(QCloseEvent* event) override;
-    void changeEvent(QEvent* event) override;
-    void paintEvent(QPaintEvent* event) override;
-    void mousePressEvent(QMouseEvent* event) override;
-    void mouseMoveEvent(QMouseEvent* event) override;
+    void closeEvent(::QCloseEvent* event) override;
+    void changeEvent(::QEvent* event) override;
+    void paintEvent(::QPaintEvent* event) override;
+    void mousePressEvent(::QMouseEvent* event) override;
+    void mouseMoveEvent(::QMouseEvent* event) override;
 
 private:
     void updateStyle();
 
-    QString m_title;
+    ::QString m_title;
     bool m_frameless;
     bool m_glassEffect;
     bool m_glowBorder;
     int m_blurRadius;
-    QColor m_tintColor;
-    QPoint m_dragPosition;
+    ::QColor m_tintColor;
+    ::QPoint m_dragPosition;
 };
 
 }

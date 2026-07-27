@@ -1,4 +1,4 @@
-﻿#include "soul/utils/file/file_utils.h"
+#include "soul/utils/file/file_utils.h"
 #include <QFile>
 #include <QFileInfo>
 #include <QDir>
@@ -31,7 +31,17 @@ bool createDirectories(const QString& path) {
 }
 
 bool remove(const QString& path) {
+    // Windows 上 QTemporaryFile 可能以只读属性创建,需先清除只读属性
+#ifdef Q_OS_WIN
+    QFile file(path);
+    if (file.exists() && !file.remove()) {
+        file.setPermissions(QFile::ReadOwner | QFile::WriteOwner | QFile::ReadUser | QFile::WriteUser);
+        return file.remove();
+    }
+    return true;
+#else
     return QFile::remove(path);
+#endif
 }
 
 bool removeRecursively(const QString& path) {
@@ -81,7 +91,13 @@ QString suffix(const QString& path) {
 
 QString directory(const QString& path) {
     QFileInfo info(path);
-    return info.path();
+    QString dir = info.path();
+    // 根路径("/"或"\\")或 Windows 盘符根("C:")返回空字符串
+    if (dir == "/" || dir == "\\" ||
+        (dir.length() == 2 && dir[1] == QLatin1Char(':'))) {
+        return QString();
+    }
+    return dir;
 }
 
 QString joinPath(const QString& path1, const QString& path2) {

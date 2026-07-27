@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_UI_GLASS_EFFECT_CACHE_H
+#ifndef SOUL_UI_GLASS_EFFECT_CACHE_H
 #define SOUL_UI_GLASS_EFFECT_CACHE_H
 
 #include <QPixmap>
@@ -16,25 +16,29 @@ namespace sc {
 class GlassEffectCache {
 public:
     struct BlurContext {
-        QGraphicsScene scene;
-        QGraphicsBlurEffect blurEffect;
-        QGraphicsPixmapItem* pixmapItem = nullptr;
-        QPixmap cachedResult;
-        QSize lastSize;
+        ::QGraphicsScene scene;
+        ::QGraphicsBlurEffect blurEffect;
+        ::QGraphicsPixmapItem* pixmapItem = nullptr;
+        ::QPixmap cachedResult;
+        ::QSize lastSize;
         int lastBlurRadius = -1;
 
         BlurContext() {
-            blurEffect.setBlurHints(QGraphicsBlurEffect::PerformanceHint);
+            blurEffect.setBlurHints(::QGraphicsBlurEffect::PerformanceHint);
         }
 
         ~BlurContext() {
+            // 必须先从 scene 摘除再 delete,否则 scene 析构时会再次 delete
+            // 已释放的 pixmapItem,导致 double-free / UB(与 apply() 中处理保持一致)。
             if (pixmapItem) {
+                scene.removeItem(pixmapItem);
                 delete pixmapItem;
+                pixmapItem = nullptr;
             }
         }
 
-        QPixmap apply(const QPixmap& source, int blurRadius) {
-            if (source.isNull()) return QPixmap();
+        ::QPixmap apply(const ::QPixmap& source, int blurRadius) {
+            if (source.isNull()) return ::QPixmap();
 
             bool needUpdate = cachedResult.isNull() ||
                               lastSize != source.size() ||
@@ -53,10 +57,10 @@ public:
             pixmapItem = scene.addPixmap(source);
             pixmapItem->setGraphicsEffect(&blurEffect);
 
-            cachedResult = QPixmap(source.size());
+            cachedResult = ::QPixmap(source.size());
             cachedResult.fill(Qt::transparent);
 
-            QPainter painter(&cachedResult);
+            ::QPainter painter(&cachedResult);
             scene.render(&painter);
 
             lastSize = source.size();
@@ -66,8 +70,8 @@ public:
         }
 
         void invalidate() {
-            cachedResult = QPixmap();
-            lastSize = QSize();
+            cachedResult = ::QPixmap();
+            lastSize = ::QSize();
             lastBlurRadius = -1;
         }
     };
@@ -77,7 +81,7 @@ public:
         return cache;
     }
 
-    QPixmap blur(const QPixmap& source, int blurRadius) {
+    ::QPixmap blur(const ::QPixmap& source, int blurRadius) {
         std::lock_guard<std::mutex> lock(m_mutex);
 
         size_t key = hashKey(source.size(), blurRadius);
@@ -107,7 +111,7 @@ private:
     GlassEffectCache(const GlassEffectCache&) = delete;
     GlassEffectCache& operator=(const GlassEffectCache&) = delete;
 
-    size_t hashKey(const QSize& size, int blurRadius) const {
+    size_t hashKey(const ::QSize& size, int blurRadius) const {
         return static_cast<size_t>(size.width()) * 31 +
                static_cast<size_t>(size.height()) * 31 +
                static_cast<size_t>(blurRadius);

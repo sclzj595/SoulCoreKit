@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(SoulCoreKit VERSION 1.5.0 LANGUAGES CXX)
+project(SoulCoreKit VERSION 1.8.0 LANGUAGES CXX)
 
 include(GenerateExportHeader)
 
@@ -19,6 +19,7 @@ option(BUILD_DOCS "Build documentation" OFF)
 option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
 option(ENABLE_WARNINGS "Enable compiler warnings" ON)
 option(ENABLE_SANITIZERS "Enable sanitizers (ASAN/UBSAN)" OFF)
+option(ENABLE_TSAN "Enable ThreadSanitizer (TSan)" OFF)
 option(ENABLE_LTO "Enable Link-Time Optimization" OFF)
 option(ENABLE_COVERAGE "Enable code coverage" OFF)
 option(ENABLE_IPO "Enable Inter-Procedural Optimization" OFF)
@@ -79,6 +80,21 @@ if(ENABLE_SANITIZERS)
     endif()
 endif()
 
+# ThreadSanitizer (TSan) — 仅在 GCC/Clang 下支持,与 ASAN 互斥
+# 用法: cmake -DENABLE_TSAN=ON -DENABLE_SANITIZERS=OFF -DBUILD_TESTS=ON ...
+# 配套: TSAN_OPTIONS=suppressions=${CMAKE_SOURCE_DIR}/cmake/tsan_suppressions.txt
+if(ENABLE_TSAN)
+    if(MSVC)
+        message(FATAL_ERROR "ThreadSanitizer is not supported on MSVC. Use Linux/macOS with GCC or Clang.")
+    endif()
+    if(ENABLE_SANITIZERS)
+        message(FATAL_ERROR "ENABLE_TSAN and ENABLE_SANITIZERS are mutually exclusive. Disable ENABLE_SANITIZERS.")
+    endif()
+    add_compile_options(-fsanitize=thread -g -O1 -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=thread)
+    message(STATUS "ThreadSanitizer enabled (compile + link)")
+endif()
+
 if(ENABLE_LTO OR ENABLE_IPO)
     include(CheckIPOSupported)
     check_ipo_supported(RESULT ipo_supported OUTPUT ipo_output)
@@ -133,70 +149,27 @@ endif()
 if(WIN32)
     get_target_property(QT6_CORE_LOCATION Qt6::Core IMPORTED_LOCATION)
     get_filename_component(QT6_BIN_DIR ${QT6_CORE_LOCATION} DIRECTORY)
+    find_program(WINDEPLOYQT_EXECUTABLE NAMES windeployqt HINTS "${QT6_BIN_DIR}")
 endif()
 
-function(copy_qt_dll TARGET_NAME COPY_TEST_DLL)
+function(windeployqt_post_build TARGET_NAME IS_TEST)
     if(NOT WIN32)
         return()
     endif()
 
-    add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${QT6_BIN_DIR}/Qt6Core.dll"
-            "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6Core.dll"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${QT6_BIN_DIR}/Qt6Network.dll"
-            "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6Network.dll"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${QT6_BIN_DIR}/Qt6Sql.dll"
-            "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6Sql.dll"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${QT6_BIN_DIR}/Qt6Widgets.dll"
-            "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6Widgets.dll"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${QT6_BIN_DIR}/Qt6Gui.dll"
-            "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6Gui.dll"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${QT6_BIN_DIR}/Qt6WebSockets.dll"
-            "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6WebSockets.dll"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${QT6_BIN_DIR}/Qt6Xml.dll"
-            "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6Xml.dll"
-        COMMENT "Copying Qt6 DLLs to ${TARGET_NAME} output directory"
-    )
-
-    if(COPY_TEST_DLL)
-        add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${QT6_BIN_DIR}/Qt6Test.dll"
-                "$<TARGET_FILE_DIR:${TARGET_NAME}>/Qt6Test.dll"
-            COMMENT "Copying Qt6Test.dll to ${TARGET_NAME} output directory"
-        )
+    if(NOT WINDEPLOYQT_EXECUTABLE)
+        message(WARNING "windeployqt not found! Set WINDEPLOYQT_EXECUTABLE or ensure Qt bin dir is in PATH")
+        return()
     endif()
 
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-        add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${QT6_BIN_DIR}/libgcc_s_seh-1.dll"
-                "$<TARGET_FILE_DIR:${TARGET_NAME}>/libgcc_s_seh-1.dll"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${QT6_BIN_DIR}/libstdc++-6.dll"
-                "$<TARGET_FILE_DIR:${TARGET_NAME}>/libstdc++-6.dll"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${QT6_BIN_DIR}/libwinpthread-1.dll"
-                "$<TARGET_FILE_DIR:${TARGET_NAME}>/libwinpthread-1.dll"
-            COMMENT "Copying MinGW runtime DLLs to ${TARGET_NAME} output directory"
-        )
-    endif()
-
-    set(QT6_PLUGINS_DIR "${QT6_BIN_DIR}/../plugins")
     add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory
-            "$<TARGET_FILE_DIR:${TARGET_NAME}>/sqldrivers"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${QT6_PLUGINS_DIR}/sqldrivers/qsqlite.dll"
-            "$<TARGET_FILE_DIR:${TARGET_NAME}>/sqldrivers/qsqlite.dll"
-        COMMENT "Copying Qt6 SQL drivers to ${TARGET_NAME} output directory"
+        COMMAND "${WINDEPLOYQT_EXECUTABLE}"
+            "--debug"
+            "--no-translations"
+            "--no-system-d3d-compiler"
+            $<$<BOOL:${IS_TEST}>:--test>
+            "$<TARGET_FILE:${TARGET_NAME}>"
+        COMMENT "Deploying Qt dependencies for ${TARGET_NAME}"
     )
 endfunction()
 
@@ -212,6 +185,8 @@ set(SOUL_CORE_HEADERS
     include/soul/core/environment.h
     include/soul/core/platform.h
     include/soul/core/application.h
+    include/soul/core/module.h
+    include/soul/core/scaffold.h
 )
 
 set(SOUL_DI_HEADERS
@@ -243,6 +218,7 @@ set(SOUL_CORE_SOURCES
     src/soul/core/environment.cpp
     src/soul/core/platform.cpp
     src/soul/core/application.cpp
+    src/soul/core/scaffold.cpp
 )
 
 set(SOUL_BASE_HEADERS
@@ -418,10 +394,23 @@ set(SOUL_STORAGE_SOURCES
     src/soul/storage/settings.cpp
 )
 
+set(SOUL_CACHE_HEADERS
+    include/soul/cache/icache.h
+    include/soul/cache/size_estimator.h
+    include/soul/cache/memory_cache.h
+    include/soul/cache/disk_cache.h
+    include/soul/cache/multi_level_cache.h
+)
+
+set(SOUL_CACHE_SOURCES
+    src/soul/cache/disk_cache.cpp
+)
+
 set(SOUL_ASYNC_HEADERS
     include/soul/async/async_runner.h
     include/soul/async/task.h
     include/soul/async/future.h
+    include/soul/async/future_detail.h
     include/soul/async/promise.h
     include/soul/async/dispatcher.h
     include/soul/async/cancelable_task.h
@@ -436,12 +425,14 @@ set(SOUL_ASYNC_SOURCES
     src/soul/async/cancelable_task.cpp
     src/soul/async/thread_pool.cpp
     src/soul/async/task_runner.cpp
+    src/soul/async/future_detail.cpp
 )
 
 set(SOUL_EVENT_HEADERS
     include/soul/event/i_event.h
     include/soul/event/event_bus.h
     include/soul/event/typed_event_bus.h
+    include/soul/event/typed_event_bus_detail.h
     include/soul/event/event_priority.h
     include/soul/event/subscription.h
     include/soul/event/i_message_bus.h
@@ -452,6 +443,7 @@ set(SOUL_EVENT_SOURCES
     src/soul/event/event_bus.cpp
     src/soul/event/subscription.cpp
     src/soul/event/qt_signal_adapter.cpp
+    src/soul/event/typed_event_bus_detail.cpp
 )
 
 set(SOUL_AUTH_HEADERS
@@ -697,6 +689,24 @@ target_link_libraries(soul_storage PUBLIC
     soul_core
 )
 
+add_library(soul_cache STATIC
+    ${SOUL_CACHE_HEADERS}
+    ${SOUL_CACHE_SOURCES}
+)
+
+target_include_directories(soul_cache PUBLIC
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
+
+target_link_libraries(soul_cache PUBLIC
+    Qt6::Core
+    soul_core
+)
+target_link_libraries(soul_cache PRIVATE
+    soul_logging
+)
+
 add_library(soul_async STATIC
     ${SOUL_ASYNC_HEADERS}
     ${SOUL_ASYNC_SOURCES}
@@ -712,6 +722,12 @@ target_link_libraries(soul_async PUBLIC
     soul_core
 )
 
+# soul_logging 改为 PRIVATE:future.h/task_runner.h 已通过 future_detail.cpp
+# 隔离 Logger 调用,不再传递依赖 logger.h 到下游 TU。
+target_link_libraries(soul_async PRIVATE
+    soul_logging
+)
+
 add_library(soul_event STATIC
     ${SOUL_EVENT_HEADERS}
     ${SOUL_EVENT_SOURCES}
@@ -722,10 +738,16 @@ target_include_directories(soul_event PUBLIC
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
+# soul_async 改为 PRIVATE:typed_event_bus.h 已通过 typed_event_bus_detail.cpp
+# 隔离 ThreadPool::instance().start() 调用,不再传递依赖 thread_pool.h 到下游 TU。
+# soul_logging 为 PRIVATE:typed_event_bus_detail.cpp 使用 Logger。
 target_link_libraries(soul_event PUBLIC
     Qt6::Core
     soul_core
+)
+target_link_libraries(soul_event PRIVATE
     soul_async
+    soul_logging
 )
 
 add_library(soul_auth STATIC
@@ -751,6 +773,8 @@ set(SOUL_MQ_HEADERS
     include/soul/mq/imq_consumer.h
     include/soul/mq/imq_connection.h
     include/soul/mq/mq_factory.h
+    include/soul/mq/iamqp_backend.h
+    include/soul/mq/inmemory_amqp_backend.h
     include/soul/mq/rabbitmq/rabbitmq_connection.h
     include/soul/mq/rabbitmq/rabbitmq_producer.h
     include/soul/mq/rabbitmq/rabbitmq_consumer.h
@@ -759,6 +783,7 @@ set(SOUL_MQ_HEADERS
 
 set(SOUL_MQ_SOURCES
     src/soul/mq/mq_factory.cpp
+    src/soul/mq/inmemory_amqp_backend.cpp
     src/soul/mq/rabbitmq/rabbitmq_connection.cpp
     src/soul/mq/rabbitmq/rabbitmq_producer.cpp
     src/soul/mq/rabbitmq/rabbitmq_consumer.cpp
@@ -783,20 +808,66 @@ target_link_libraries(soul_mq PUBLIC
     soul_async
 )
 
+# RabbitMQ 真实后端(amqpcpp): 可选编译
+# 启用方式: cmake -DENABLE_RABBITMQ=ON ...
+# 平台限制: amqpcpp 的 linux_tcp 仅支持 Linux/macOS;
+#   Windows 平台需使用 Boost.Asio 后端(暂未集成,计划 v1.8.0)
+#   Windows 用户请使用 InMemory 后端(默认)进行开发测试
+# 详见 docs/v1.7.0/06_mq_real_integration_design.md
+option(ENABLE_RABBITMQ "Enable real RabbitMQ backend via amqpcpp (Linux/macOS only, requires network)" OFF)
+if(ENABLE_RABBITMQ)
+    if(WIN32)
+        message(FATAL_ERROR
+            "ENABLE_RABBITMQ is not supported on Windows. "
+            "amqpcpp linux_tcp requires Linux/macOS. "
+            "Please use InMemory backend (default) on Windows, "
+            "or build on Linux/macOS for production RabbitMQ integration. "
+            "Windows Boost.Asio backend is planned for v1.8.0.")
+    endif()
+
+    message(STATUS "ENABLE_RABBITMQ=ON: fetching amqpcpp and enabling real AMQP backend")
+    include(FetchContent)
+    FetchContent_Declare(
+        amqpcpp
+        GIT_REPOSITORY https://github.com/CopernicaMarketingSoftware/AMQP-CPP.git
+        GIT_TAG        v4.3.27
+        GIT_SHALLOW    TRUE
+    )
+    set(AMQP-CPP_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+    set(AMQP-CPP_LINUX_TCP ON CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(amqpcpp)
+
+    target_sources(soul_mq PRIVATE
+        include/soul/mq/amqpcpp_backend.h
+        src/soul/mq/amqpcpp_backend.cpp
+    )
+    target_link_libraries(soul_mq PRIVATE amqpcpp)
+    target_compile_definitions(soul_mq PUBLIC SOUL_ENABLE_RABBITMQ=1)
+endif()
+
 set(SOUL_ORM_HEADERS
     include/soul/orm/entity.h
+    include/soul/orm/column.h
     include/soul/orm/query_wrapper.h
+    include/soul/orm/typed_query_wrapper.h
     include/soul/orm/sql_dialect.h
     include/soul/orm/base_repository.h
     include/soul/orm/sqlite_repository.h
     include/soul/orm/entities.h
     include/soul/orm/module.h
+    include/soul/orm/read_write_repository.h
+    include/soul/orm/code_generator.h
+    include/soul/orm/cached_repository.h
+    include/soul/orm/reflection.h
+    include/soul/orm/reflection_macros.h
+    include/soul/orm/migration.h
 )
 
 set(SOUL_ORM_SOURCES
     src/soul/orm/query_wrapper.cpp
     src/soul/orm/sql_dialect.cpp
     src/soul/orm/module.cpp
+    src/soul/orm/migration.cpp
 )
 
 add_library(soul_orm STATIC
@@ -815,6 +886,80 @@ target_link_libraries(soul_orm PUBLIC
     soul_core
     soul_logging
     soul_data
+    soul_cache
+)
+
+# ============================================================================
+# soul_observability 模块 — Metrics / Tracing / JsonSink
+# ============================================================================
+
+set(SOUL_OBSERVABILITY_HEADERS
+    include/soul/observability/metrics.h
+    include/soul/observability/tracing.h
+    include/soul/observability/json_sink.h
+)
+
+set(SOUL_OBSERVABILITY_SOURCES
+    src/soul/observability/metrics.cpp
+    src/soul/observability/tracing.cpp
+    src/soul/observability/json_sink.cpp
+)
+
+add_library(soul_observability STATIC
+    ${SOUL_OBSERVABILITY_HEADERS}
+    ${SOUL_OBSERVABILITY_SOURCES}
+)
+
+target_include_directories(soul_observability PUBLIC
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
+
+target_link_libraries(soul_observability PUBLIC
+    Qt6::Core
+    soul_core
+    soul_logging
+)
+
+set(SOUL_RPC_SOURCES
+    src/soul/rpc/iserializer.cpp
+    src/soul/rpc/irpc_transport.cpp
+    src/soul/rpc/service_dispatcher.cpp
+    src/soul/rpc/client_proxy.cpp
+    src/soul/rpc/service_registry.cpp
+    src/soul/rpc/http_transport.cpp
+)
+
+set(SOUL_RPC_HEADERS
+    include/soul/rpc/iserializer.h
+    include/soul/rpc/irpc_transport.h
+    include/soul/rpc/service_dispatcher.h
+    include/soul/rpc/client_proxy.h
+    include/soul/rpc/service_registry.h
+    include/soul/rpc/http_transport.h
+    include/soul/soul_rpc.h
+)
+
+add_library(soul_rpc STATIC
+    ${SOUL_RPC_SOURCES}
+    ${SOUL_RPC_HEADERS}
+)
+
+target_include_directories(soul_rpc PUBLIC
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
+
+target_link_libraries(soul_rpc PUBLIC
+    Qt6::Core
+    Qt6::Network
+    soul_core
+)
+
+set_target_properties(soul_rpc PROPERTIES
+    VERSION ${PROJECT_VERSION}
+    SOVERSION ${PROJECT_VERSION_MAJOR}
+    PUBLIC_HEADER "${SOUL_RPC_HEADERS}"
 )
 
 add_library(soul_ui STATIC
@@ -883,8 +1028,15 @@ target_link_libraries(soul_plugin PUBLIC
     Qt6::Core
     soul_core
     soul_di
+    soul_logging
 )
 
+# ============================================================================
+# 顶层聚合 INTERFACE 库
+# ============================================================================
+# 设计原则: 严格遵循"轻量骨架"定位,SoulCoreKit 核心库默认不包含 UI 模块,
+# 避免纯后端项目(CLI 工具/服务进程/Headless 服务)被迫引入 Qt Widgets/Gui 依赖。
+# 需要 UI 的项目显式链接 SoulCoreKitUi。
 add_library(SoulCoreKit INTERFACE)
 
 target_link_libraries(SoulCoreKit INTERFACE
@@ -896,14 +1048,24 @@ target_link_libraries(SoulCoreKit INTERFACE
     soul_utils
     soul_configuration
     soul_storage
+    soul_cache
     soul_async
     soul_event
     soul_auth
     soul_mq
     soul_orm
-    soul_ui
+    soul_rpc
+    soul_observability
     soul_di
     soul_plugin
+)
+
+# SoulCoreKitUi: 包含 UI 模块的聚合库(可选)。
+# 用法: target_link_libraries(MyApp PRIVATE SoulCoreKit SoulCoreKitUi)
+add_library(SoulCoreKitUi INTERFACE)
+target_link_libraries(SoulCoreKitUi INTERFACE
+    SoulCoreKit
+    soul_ui
 )
 
 if(BUILD_EXAMPLES)
@@ -911,6 +1073,7 @@ if(BUILD_EXAMPLES)
 endif()
 
 if(BUILD_TESTS)
+    enable_testing()
     add_subdirectory(tests)
 endif()
 
@@ -940,17 +1103,19 @@ if(BUILD_BENCHMARKS)
     )
 
     if(WIN32)
-        copy_qt_dll(benchmark_thread_pool FALSE)
-        copy_qt_dll(benchmark_cache FALSE)
-        copy_qt_dll(benchmark_connection_pool FALSE)
+        windeployqt_post_build(benchmark_thread_pool FALSE)
+        windeployqt_post_build(benchmark_cache FALSE)
+        windeployqt_post_build(benchmark_connection_pool FALSE)
     endif()
 endif()
 
 include(GNUInstallDirs)
 
-install(TARGETS SoulCoreKit soul_core soul_data soul_base soul_logging soul_network
-                soul_utils soul_configuration soul_storage soul_async
-                soul_event soul_auth soul_mq soul_orm soul_ui soul_di soul_plugin
+install(TARGETS SoulCoreKit SoulCoreKitUi
+                soul_core soul_data soul_base soul_logging soul_network
+                soul_utils soul_configuration soul_storage soul_cache soul_async
+                soul_event soul_auth soul_mq soul_orm soul_rpc soul_ui soul_di soul_plugin
+                soul_observability
         EXPORT SoulCoreKitTargets
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}

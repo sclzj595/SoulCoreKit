@@ -10,7 +10,7 @@ target_link_libraries(test_result PRIVATE
     soul_core
 )
 
-copy_qt_dll(test_result TRUE)
+windeployqt_post_build(test_result TRUE)
 
 add_executable(test_event_bus
     test_event_bus.cpp
@@ -23,7 +23,7 @@ target_link_libraries(test_event_bus PRIVATE
     soul_core
 )
 
-copy_qt_dll(test_event_bus TRUE)
+windeployqt_post_build(test_event_bus TRUE)
 
 add_executable(test_logger
     test_logger.cpp
@@ -36,7 +36,7 @@ target_link_libraries(test_logger PRIVATE
     soul_core
 )
 
-copy_qt_dll(test_logger TRUE)
+windeployqt_post_build(test_logger TRUE)
 
 add_executable(test_storage
     test_storage.cpp
@@ -49,7 +49,7 @@ target_link_libraries(test_storage PRIVATE
     soul_core
 )
 
-copy_qt_dll(test_storage TRUE)
+windeployqt_post_build(test_storage TRUE)
 
 add_executable(test_http_request
     test_http_request.cpp
@@ -62,7 +62,7 @@ target_link_libraries(test_http_request PRIVATE
     soul_core
 )
 
-copy_qt_dll(test_http_request TRUE)
+windeployqt_post_build(test_http_request TRUE)
 
 add_executable(test_network
     test_network.cpp
@@ -77,7 +77,7 @@ target_link_libraries(test_network PRIVATE
     soul_logging
 )
 
-copy_qt_dll(test_network TRUE)
+windeployqt_post_build(test_network TRUE)
 
 add_executable(test_typed_event_bus
     test_typed_event_bus.cpp
@@ -92,7 +92,7 @@ target_link_libraries(test_typed_event_bus PRIVATE
     soul_logging
 )
 
-copy_qt_dll(test_typed_event_bus TRUE)
+windeployqt_post_build(test_typed_event_bus TRUE)
 
 add_executable(test_cache
     test_cache.cpp
@@ -105,7 +105,20 @@ target_link_libraries(test_cache PRIVATE
     soul_core
 )
 
-copy_qt_dll(test_cache TRUE)
+windeployqt_post_build(test_cache TRUE)
+
+add_executable(test_soul_cache
+    test_soul_cache.cpp
+)
+
+target_link_libraries(test_soul_cache PRIVATE
+    Qt6::Test
+    Qt6::Core
+    soul_cache
+    soul_core
+)
+
+windeployqt_post_build(test_soul_cache TRUE)
 
 add_executable(test_async
     test_async.cpp
@@ -118,7 +131,7 @@ target_link_libraries(test_async PRIVATE
     soul_core
 )
 
-copy_qt_dll(test_async TRUE)
+windeployqt_post_build(test_async TRUE)
 
 add_executable(test_auth
     test_auth.cpp
@@ -139,7 +152,7 @@ target_link_libraries(test_auth PRIVATE
     soul_core
 )
 
-copy_qt_dll(test_auth TRUE)
+windeployqt_post_build(test_auth TRUE)
 
 add_executable(test_configuration
     test_configuration.cpp
@@ -152,7 +165,7 @@ target_link_libraries(test_configuration PRIVATE
     soul_core
 )
 
-copy_qt_dll(test_configuration TRUE)
+windeployqt_post_build(test_configuration TRUE)
 
 add_executable(test_core
     test_core.cpp
@@ -164,7 +177,7 @@ target_link_libraries(test_core PRIVATE
     soul_core
 )
 
-copy_qt_dll(test_core TRUE)
+windeployqt_post_build(test_core TRUE)
 
 add_executable(test_utils
     test_utils.cpp
@@ -179,7 +192,7 @@ target_link_libraries(test_utils PRIVATE
     soul_core
 )
 
-copy_qt_dll(test_utils TRUE)
+windeployqt_post_build(test_utils TRUE)
 
 add_executable(test_base
     test_base.cpp
@@ -206,7 +219,7 @@ if(TARGET Qt6::Widgets)
     target_link_libraries(test_base PRIVATE Qt6::Widgets)
 endif()
 
-copy_qt_dll(test_base TRUE)
+windeployqt_post_build(test_base TRUE)
 
 add_executable(test_di
     test_di.cpp
@@ -219,7 +232,7 @@ target_link_libraries(test_di PRIVATE
     soul_core
 )
 
-copy_qt_dll(test_di TRUE)
+windeployqt_post_build(test_di TRUE)
 
 add_executable(test_plugin
     test_plugin.cpp
@@ -233,7 +246,7 @@ target_link_libraries(test_plugin PRIVATE
     soul_core
 )
 
-copy_qt_dll(test_plugin TRUE)
+windeployqt_post_build(test_plugin TRUE)
 
 add_executable(test_data
     test_data.cpp
@@ -247,7 +260,7 @@ target_link_libraries(test_data PRIVATE
     soul_core
 )
 
-copy_qt_dll(test_data TRUE)
+windeployqt_post_build(test_data TRUE)
 
 add_test(NAME test_configuration COMMAND test_configuration)
 add_test(NAME test_core COMMAND test_core)
@@ -264,6 +277,7 @@ add_test(NAME test_http_request COMMAND test_http_request)
 add_test(NAME test_network COMMAND test_network)
 add_test(NAME test_typed_event_bus COMMAND test_typed_event_bus)
 add_test(NAME test_cache COMMAND test_cache)
+add_test(NAME test_soul_cache COMMAND test_soul_cache)
 add_test(NAME test_async COMMAND test_async)
 add_test(NAME test_auth COMMAND test_auth)
 add_test(NAME test_data COMMAND test_data)
@@ -282,7 +296,7 @@ target_link_libraries(test_orm PRIVATE
     soul_logging
 )
 
-copy_qt_dll(test_orm TRUE)
+windeployqt_post_build(test_orm TRUE)
 
 add_executable(test_mq
     test_mq.cpp
@@ -298,7 +312,7 @@ target_link_libraries(test_mq PRIVATE
     soul_async
 )
 
-copy_qt_dll(test_mq TRUE)
+windeployqt_post_build(test_mq TRUE)
 
 add_executable(test_ui
     test_ui.cpp
@@ -317,8 +331,40 @@ if(TARGET Qt6::Widgets)
     target_link_libraries(test_ui PRIVATE Qt6::Widgets)
 endif()
 
-copy_qt_dll(test_ui TRUE)
+windeployqt_post_build(test_ui TRUE)
 
 add_test(NAME test_orm COMMAND test_orm)
 add_test(NAME test_mq COMMAND test_mq)
 add_test(NAME test_ui COMMAND test_ui)
+
+add_executable(test_rpc
+    test_rpc.cpp
+)
+
+target_link_libraries(test_rpc PRIVATE
+    Qt6::Test
+    Qt6::Core
+    Qt6::Network
+    soul_rpc
+    soul_core
+)
+
+windeployqt_post_build(test_rpc TRUE)
+
+add_test(NAME test_rpc COMMAND test_rpc)
+
+add_executable(test_observability
+    test_observability.cpp
+)
+
+target_link_libraries(test_observability PRIVATE
+    Qt6::Test
+    Qt6::Core
+    soul_observability
+    soul_logging
+    soul_core
+)
+
+windeployqt_post_build(test_observability TRUE)
+
+add_test(NAME test_observability COMMAND test_observability)

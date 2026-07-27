@@ -1,0 +1,103 @@
+---
+Checks: >
+  llvm-*,
+  clang-*,
+  cert-*,
+  performance-*,
+  readability-*,
+  modernize-*,
+  bugprone-*
+WarningsAsErrors: ''
+HeaderFilterRegex: 'include/soul/.*\.h$'
+FormatStyle: file
+UseColor: true
+
+CheckOptions:
+  - key: readability-identifier-length.MinimumVariableLength
+    value: '2'
+  - key: readability-identifier-length.MinimumParameterLength
+    value: '2'
+  - key: readability-identifier-length.MinimumMemberNameLength
+    value: '2'
+  - key: readability-identifier-length.MinimumGlobalConstantLength
+    value: '3'
+  - key: readability-function-cognitive-complexity.Threshold
+    value: '25'
+  - key: readability-function-size.LineThreshold
+    value: '100'
+  - key: readability-function-size.StatementThreshold
+    value: '80'
+  - key: readability-function-size.NestedThreshold
+    value: '5'
+  - key: readability-magic-numbers.IgnoredIntegerFilenames
+    value: 'test_.*\.cpp$'
+  - key: readability-magic-numbers.IgnoredFloatingPointFilenames
+    value: 'test_.*\.cpp$'
+  - key: readability-magic-numbers.IgnorePowersOf2Integer
+    value: 'true'
+  - key: readability-magic-numbers.IgnorePowersOf2Float
+    value: 'true'
+  - key: readability-magic-numbers.IgnoreAllZero
+    value: 'true'
+  - key: readability-magic-numbers.IgnoreZeroFloat
+    value: 'true'
+  - key: readability-magic-numbers.IgnoreCXXNamedCast
+    value: 'true'
+  - key: readability-magic-numbers.IgnoreCXXReinterpretCast
+    value: 'true'
+  - key: readability-magic-numbers.IgnoreCXXStaticCast
+    value: 'true'
+  - key: readability-magic-numbers.IgnoreCXXFunctionalCast
+    value: 'true'
+  - key: readability-magic-numbers.IgnoreCXXThrowExpr
+    value: 'true'
+  - key: readability-magic-numbers.IgnoreCXXNewExpr
+    value: 'true'
+  - key: readability-magic-numbers.IgnoreCXXDeleteExpr
+    value: 'true'
+  - key: readability-magic-numbers.IgnoreCXXThisExpr
+    value: 'true'
+  - key: readability-magic-numbers.IgnoreCXXDynamicCast
+    value: 'true'
+  - key: readability-magic-numbers.IgnoreCXXConstCast
+    value: 'true'
+  - key: readability-magic-numbers.IgnoreCXXBoolLiteralExpr
+    value: 'true'
+  - key: readability-magic-numbers.IgnoreCXXNullPtrLiteralExpr
+    value: 'true'
+  - key: readability-magic-numbers.IgnoreCXXStringLiteral
+    value: 'true'
+  - key: readability-simplify-boolean-expr.ChainedConditionalReturn
+    value: 'true'
+  - key: readability-simplify-boolean-expr.ChainedConditionalAssignment
+    value: 'true'
+  - key: modernize-use-nullptr.NullptrMacros
+    value: 'NULL,0'
+  - key: modernize-use-nullptr.NullptrRedundancy
+    value: 'true'
+  - key: modernize-use-emplace.ForceTemporary
+    value: 'true'
+  - key: modernize-use-emplace.SmartPtr
+    value: 'false'
+  - key: modernize-use-emplace.AllowMoveOnly
+    value: 'false'
+  - key: modernize-use-emplace.AllowForward
+    value: 'false'
+  - key: modernize-use-emplace.CheckTypeTrait
+    value: 'true'
+  - key: modernize-use-nodiscard.ReplacementString
+    value: '[[nodiscard]]'
+  - key: modernize-use-uncaught-exceptions.ReplaceWithCatch
+    value: 'true'
+  - key: performance-unnecessary-copy-initialization.AllowFullyQualifiedTypes
+    value: 'false'
+  - key: performance-unnecessary-copy-initialization.PointerToConstRef
+    value: 'true'
+  - key: performance-unnecessary-copy-initialization.UseConstCopy
+    value: 'true'
+  - key: readability-qualified-auto.ConstToConstRef
+    value: 'true'
+  - key: readability-qualified-auto.ConstRefToConst
+    value: 'true'
+  - key: readability-qualified-auto.PointerToConstRef
+    value: 'true'

@@ -2,6 +2,8 @@
 #include "soul/event/typed_event_bus.h"
 #include "soul/event/event_bus.h"
 #include <QThread>
+#include <atomic>
+#include <chrono>
 
 class TestTypedEventBus : public QObject {
     Q_OBJECT
@@ -94,25 +96,27 @@ void TestTypedEventBus::testRAIIAutoUnsubscribe() {
 
 void TestTypedEventBus::testAsyncDispatch() {
     auto bus = sc::TypedEventBus::create();
-    int receivedCount = 0;
-    bool asyncCompleted = false;
+    // TSan-safe: handler runs on ThreadPool worker thread, main thread polls —
+    // both variables must be atomic to establish happens-before.
+    std::atomic<int> receivedCount{0};
+    std::atomic<bool> asyncCompleted{false};
 
     auto sub = bus->subscribe<UserEvent>("user.login", [&receivedCount, &asyncCompleted](const UserEvent&) {
-        receivedCount++;
-        asyncCompleted = true;
+        receivedCount.fetch_add(1, std::memory_order_release);
+        asyncCompleted.store(true, std::memory_order_release);
     }, sc::DispatchPolicy::Async);
 
     bus->publish("user.login", UserEvent{1, "AsyncTest"});
 
     QElapsedTimer timer;
     timer.start();
-    while (!asyncCompleted && timer.elapsed() < 2000) {
+    while (!asyncCompleted.load(std::memory_order_acquire) && timer.elapsed() < 2000) {
         QCoreApplication::processEvents();
         QThread::msleep(20);
     }
 
-    QVERIFY(asyncCompleted);
-    QCOMPARE(receivedCount, 1);
+    QVERIFY(asyncCompleted.load(std::memory_order_acquire));
+    QCOMPARE(receivedCount.load(std::memory_order_acquire), 1);
 }
 
 void TestTypedEventBus::testSubscriberCount() {

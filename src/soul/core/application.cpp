@@ -1,4 +1,4 @@
-﻿#include "soul/core/application.h"
+#include "soul/core/application.h"
 #include "soul/logging/log_macros.h"
 #include <mutex>
 #include <string>
@@ -42,6 +42,8 @@ int Application::run() {
         return -1;
 
     } catch (...) {
+        // Blanket catch: application entry-point last-resort barrier.
+        // Translates any unknown exception into a deterministic exit code.
         if (m_unhandledExceptionHandler) {
             m_unhandledExceptionHandler();
         } else {

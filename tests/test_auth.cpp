@@ -1,4 +1,4 @@
-﻿#include <QTest>
+#include <QTest>
 #include "soul/auth/auth_manager.h"
 
 using namespace sc;
@@ -119,17 +119,26 @@ void TestAuthManager::testAuthStateCallback() {
 }
 
 void TestAuthManager::testLoadAndSaveAuthState() {
+    // 验证 saveAuthState + loadAuthState 往返:登录后保存,再加载应保持登录态
     AuthManager::instance().login("testuser", "password");
-    bool saved = AuthManager::instance().saveAuthState();
-    QVERIFY(saved);
-    
-    AuthManager::instance().logout();
-    QVERIFY(!AuthManager::instance().isAuthenticated());
-    
-    bool loaded = AuthManager::instance().loadAuthState();
-    QVERIFY(loaded);
+    auto saved = AuthManager::instance().saveAuthState();
+    QVERIFY(saved.isOk());
+    QVERIFY(AuthManager::instance().isAuthenticated());
+
+    // loadAuthState 在已登录状态下应保持登录态并恢复同一用户
+    auto loaded = AuthManager::instance().loadAuthState();
+    QVERIFY(loaded.isOk());
     QVERIFY(AuthManager::instance().isAuthenticated());
     QCOMPARE(AuthManager::instance().currentUser().username, QString("testuser"));
+
+    // V-6 安全修复:logout() 必须清除 storage,防止重启后恢复登录态
+    AuthManager::instance().logout();
+    QVERIFY(!AuthManager::instance().isAuthenticated());
+
+    // logout 后 storage 已清空,loadAuthState 应返回 Ok 但不恢复登录态
+    auto loadedAfterLogout = AuthManager::instance().loadAuthState();
+    QVERIFY(loadedAfterLogout.isOk());
+    QVERIFY(!AuthManager::instance().isAuthenticated());
 }
 
 QTEST_MAIN(TestAuthManager)

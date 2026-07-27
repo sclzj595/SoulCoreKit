@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_UI_ICON_H
+#ifndef SOUL_UI_ICON_H
 #define SOUL_UI_ICON_H
 
 #include <QIcon>
@@ -30,7 +30,7 @@ public:
      * @param path 资源路径
      * @return QIcon 对象
      */
-    static QIcon fromResource(const QString& path);
+    static ::QIcon fromResource(const ::QString& path);
 
     /**
      * @brief 从字体图标加载
@@ -38,7 +38,7 @@ public:
      * @param character 字符编码
      * @return QIcon 对象
      */
-    static QIcon fromFont(const QString& fontName, QString character);
+    static ::QIcon fromFont(const ::QString& fontName, ::QString character);
 
     /**
      * @brief 从颜色创建图标
@@ -46,22 +46,22 @@ public:
      * @param size 图标大小（像素）
      * @return QIcon 对象
      */
-    static QIcon fromColor(const QColor& color, int size = design::DEFAULT_ICON_SIZE);
+    static ::QIcon fromColor(const ::QColor& color, int size = design::DEFAULT_ICON_SIZE);
 
     /**
      * @brief 获取应用图标
      * @return 应用图标
      */
-    static QIcon appIcon();
+    static ::QIcon appIcon();
 
     /**
      * @brief 设置应用图标
      * @param icon 图标
      */
-    static void setAppIcon(const QIcon& icon);
+    static void setAppIcon(const ::QIcon& icon);
 
 private:
-    static QIcon s_appIcon;
+    static ::QIcon s_appIcon;
 };
 
 }

@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_UI_TOOL_TIP_H
+#ifndef SOUL_UI_TOOL_TIP_H
 #define SOUL_UI_TOOL_TIP_H
 
 #include "soul/ui/theme.h"
@@ -6,20 +6,20 @@
 
 namespace sc {
 
-class ToolTip : public QWidget {
+class ToolTip : public ::QWidget {
     Q_OBJECT
 public:
-    explicit ToolTip(QWidget* parent = nullptr);
+    explicit ToolTip(::QWidget* parent = nullptr);
 
-    QString text() const;
-    void setText(const QString& text);
+    ::QString text() const;
+    void setText(const ::QString& text);
 
 protected:
-    void paintEvent(QPaintEvent* event) override;
-    QSize sizeHint() const override;
+    void paintEvent(::QPaintEvent* event) override;
+    ::QSize sizeHint() const override;
 
 private:
-    QString m_text;
+    ::QString m_text;
 };
 
 }

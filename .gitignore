@@ -1,5 +1,6 @@
 # Build directories
 build/
+build_*/
 cmake-build-*/
 Makefile
 *.make
@@ -54,6 +55,12 @@ qrc_*
 # Log files
 *.log
 *.txt.log
+# Build/test log outputs (root-level)
+/build_*_log*.txt
+/test_*_output.txt
+/*_log.txt
+/*_log*.txt
+/*_output.txt
 
 # Configuration files
 .env
@@ -111,7 +118,6 @@ coverage/
 
 # Clang tools
 compile_commands.json
-.clang-tidy
 
 # Visual Studio
 *.sln

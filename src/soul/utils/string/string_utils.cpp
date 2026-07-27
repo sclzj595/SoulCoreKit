@@ -1,7 +1,5 @@
-﻿#include "soul/utils/string/string_utils.h"
+#include "soul/utils/string/string_utils.h"
 #include <QStringList>
-#include <cstdarg>
-#include <cstdio>
 
 namespace sc {
 namespace utils {
@@ -12,11 +10,21 @@ QString trim(const QString& str) {
 }
 
 QString trimLeft(const QString& str) {
-    return str.trimmed();
+    const int n = static_cast<int>(str.size());
+    int i = 0;
+    while (i < n && str[i].isSpace()) {
+        ++i;
+    }
+    return str.mid(i);
 }
 
 QString trimRight(const QString& str) {
-    return str.trimmed();
+    const int n = static_cast<int>(str.size());
+    int i = n - 1;
+    while (i >= 0 && str[i].isSpace()) {
+        --i;
+    }
+    return str.left(i + 1);
 }
 
 
@@ -29,6 +37,10 @@ QString toUpper(const QString& str) {
 }
 
 bool startsWith(const QString& str, const QString& prefix) {
+    // 空前缀仅在空字符串上匹配(避免空前缀匹配所有字符串)
+    if (prefix.isEmpty()) {
+        return str.isEmpty();
+    }
     return str.startsWith(prefix);
 }
 
@@ -60,15 +72,6 @@ QString join(const std::vector<QString>& parts, const QString& delimiter) {
 QString replace(const QString& str, const QString& oldValue, const QString& newValue) {
     QString temp = str;
     return temp.replace(oldValue, newValue);
-}
-
-QString format(const QString& format, ...) {
-    va_list args;
-    va_start(args, format);
-    char buffer[1024];
-    int len = std::vsnprintf(buffer, sizeof(buffer), format.toUtf8().constData(), args);
-    va_end(args);
-    return QString::fromUtf8(buffer, len);
 }
 
 bool isEmpty(const QString& str) {

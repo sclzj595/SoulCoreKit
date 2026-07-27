@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_UI_CARD_H
+#ifndef SOUL_UI_CARD_H
 #define SOUL_UI_CARD_H
 
 #include <QWidget>
@@ -8,14 +8,14 @@
 
 namespace sc {
 
-class Card : public QWidget {
+class Card : public ::QWidget {
     Q_OBJECT
     Q_PROPERTY(int borderRadius READ borderRadius WRITE setBorderRadius)
     Q_PROPERTY(qreal opacity READ opacity WRITE setOpacity)
     Q_PROPERTY(bool hoverEnabled READ isHoverEnabled WRITE setHoverEnabled)
 
 public:
-    explicit Card(QWidget* parent = nullptr);
+    explicit Card(::QWidget* parent = nullptr);
     ~Card() override = default;
 
     void setBorderRadius(int radius);
@@ -27,18 +27,18 @@ public:
     void setHoverEnabled(bool enabled);
     bool isHoverEnabled() const;
 
-    void setTintColor(const QColor& color);
-    QColor tintColor() const;
+    void setTintColor(const ::QColor& color);
+    ::QColor tintColor() const;
 
     void setBlurRadius(int radius);
     int blurRadius() const;
 
-    QLayout* contentLayout();
+    ::QLayout* contentLayout();
 
 protected:
-    void enterEvent(QEnterEvent* event) override;
-    void leaveEvent(QEvent* event) override;
-    void paintEvent(QPaintEvent* event) override;
+    void enterEvent(::QEnterEvent* event) override;
+    void leaveEvent(::QEvent* event) override;
+    void paintEvent(::QPaintEvent* event) override;
 
 private:
     void updateStyle();
@@ -46,9 +46,9 @@ private:
     int m_borderRadius;
     qreal m_opacity;
     bool m_hoverEnabled;
-    QColor m_tintColor;
+    ::QColor m_tintColor;
     int m_blurRadius;
-    QVBoxLayout* m_layout;
+    ::QVBoxLayout* m_layout;
 };
 
 }

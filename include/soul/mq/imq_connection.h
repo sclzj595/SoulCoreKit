@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_MQ_IMQ_CONNECTION_H
+#ifndef SOUL_MQ_IMQ_CONNECTION_H
 #define SOUL_MQ_IMQ_CONNECTION_H
 
 #include <QString>
@@ -21,6 +21,11 @@ struct ConnectionConfig {
     int connectionTimeout = 30000;
     int heartbeatInterval = 60;
     int maxChannels = 10;
+    // SSL/TLS 配置(可选,默认关闭)
+    bool enableSsl = false;
+    QString caCertPath;         ///< CA 证书路径(enableSsl=true 时必填)
+    QString clientCertPath;     ///< 客户端证书路径(双向 TLS 时必填)
+    QString clientKeyPath;      ///< 客户端私钥路径(双向 TLS 时必填)
 };
 
 class IMQConnection : public IInterface {

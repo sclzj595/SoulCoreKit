@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file pool/connection_pool.h
  * @brief 连接池类
  * @details 管理 HTTP 连接的复用和生命周期
@@ -12,7 +12,8 @@
 
 #include <memory>
 #include <mutex>
-#include <queue>
+#include <condition_variable>
+#include <list>
 #include <string>
 #include <unordered_map>
 #include <QUrl>
@@ -21,11 +22,12 @@
 #include <QThread>
 #include <cstdint>
 #include "soul/network/core/inetwork.h"
+#include "soul/core/result.h"
 
 namespace sc {
 namespace network {
 
-class SC_NETWORK_EXPORT ConnectionPool : public QObject {
+class SC_NETWORK_EXPORT ConnectionPool : public QObject, public std::enable_shared_from_this<ConnectionPool> {
     Q_OBJECT
 public:
     struct Config {
@@ -34,29 +36,70 @@ public:
         int idleTimeoutMs = 30000;
         int connectionTimeoutMs = 5000;
     };
-    
+
+    // RAII guard for acquired connections.
+    // Automatically releases the connection back to the pool on destruction,
+    // even if an exception is thrown between acquire and release.
+    // Recommended usage: auto guard = pool.acquireGuarded(url).unwrap();
+    //
+    // 使用 std::weak_ptr<ConnectionPool> 防止 pool 先于 guard 析构时的 UAF
+    class SC_NETWORK_EXPORT ConnectionGuard {
+    public:
+        ConnectionGuard() = default;
+        ConnectionGuard(std::weak_ptr<ConnectionPool> pool, std::shared_ptr<INetwork> conn);
+        ~ConnectionGuard();
+
+        ConnectionGuard(const ConnectionGuard&) = delete;
+        ConnectionGuard& operator=(const ConnectionGuard&) = delete;
+
+        ConnectionGuard(ConnectionGuard&& other) noexcept;
+        ConnectionGuard& operator=(ConnectionGuard&& other) noexcept;
+
+        std::shared_ptr<INetwork> operator->() const { return m_conn; }
+        std::shared_ptr<INetwork> connection() const { return m_conn; }
+        INetwork& operator*() const { return *m_conn; }
+
+        // Releases ownership without returning to pool.
+        std::shared_ptr<INetwork> release();
+
+        explicit operator bool() const { return m_conn != nullptr; }
+
+    private:
+        std::weak_ptr<ConnectionPool> m_pool;
+        std::shared_ptr<INetwork> m_conn;
+    };
+
     ConnectionPool(const Config& config);
     ~ConnectionPool();
-    
+
+    // Legacy API: caller must pair with release(). Risk of leak on exception.
+    // Kept for backward compatibility; new code should prefer acquireGuarded().
     std::shared_ptr<INetwork> acquire(const QUrl& url);
     void release(std::shared_ptr<INetwork> connection);
+
+    // RAII API: returns a guard that auto-releases on scope exit.
+    // Waits up to connectionTimeoutMs for a connection to become available
+    // when the pool is at capacity, returning ResourceExhausted error on timeout.
+    Result<ConnectionGuard> acquireGuarded(const QUrl& url);
+
     void closeAll();
     void cleanupIdleConnections();
-    
+
     void setConfig(const Config& config);
     Config config() const;
-    
+
 private:
     struct ConnectionEntry {
         std::shared_ptr<INetwork> connection;
         bool inUse;
         uint64_t lastUsedTime;
     };
-    
-    std::shared_ptr<INetwork> createConnection(const QUrl& url);
-    
+
+    int countTotalLocked() const;
+
     mutable std::mutex m_mutex;
-    std::unordered_map<std::string, std::queue<ConnectionEntry>> m_pools;
+    std::condition_variable m_cond;
+    std::unordered_map<std::string, std::list<ConnectionEntry>> m_pools;
     Config m_config;
     QTimer m_cleanupTimer;
 };

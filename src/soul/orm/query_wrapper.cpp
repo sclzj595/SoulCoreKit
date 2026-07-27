@@ -1,6 +1,8 @@
 #include <functional>
+#include <stdexcept>
 #include <QDateTime>
 #include "soul/orm/query_wrapper.h"
+#include "soul/orm/sql_dialect.h"
 
 namespace sc {
 namespace orm {
@@ -145,6 +147,11 @@ QueryWrapper& QueryWrapper::offset(int offset) {
     return *this;
 }
 
+QueryWrapper& QueryWrapper::allowFullTableOperation(bool allow) {
+    m_allowFullTable = allow;
+    return *this;
+}
+
 QString QueryWrapper::placeholder(int index) const {
     if (m_dialect) {
         return m_dialect->convertPlaceholder(index);
@@ -165,11 +172,13 @@ QString QueryWrapper::buildSelectSql(const QString& tableName) const {
     }
 
     if (!m_groupBy.empty()) {
-        sql += " GROUP BY " + m_groupBy.join(", ");
+        QStringList groupByList(m_groupBy.begin(), m_groupBy.end());
+        sql += " GROUP BY " + groupByList.join(", ");
     }
 
     if (!m_orderBy.empty()) {
-        sql += " ORDER BY " + m_orderBy.join(", ");
+        QStringList orderByList(m_orderBy.begin(), m_orderBy.end());
+        sql += " ORDER BY " + orderByList.join(", ");
     }
 
     if (m_limit > 0 || m_offset > 0) {
@@ -217,6 +226,16 @@ QString QueryWrapper::buildDeleteSql(const QString& tableName) const {
         sql = "DELETE FROM " + tableName;
     }
     appendConditions(sql);
+
+    // Safety guard: refuse to generate a full-table DELETE/UPDATE without a WHERE clause
+    // unless the caller explicitly opts in via allowFullTableOperation(true).
+    // This prevents accidental mass data loss when SoftDelete is disabled and no
+    // conditions are supplied.
+    if (!sql.contains("WHERE", Qt::CaseInsensitive) && !m_allowFullTable) {
+        throw std::runtime_error(
+            "QueryWrapper::buildDeleteSql: refusing to generate full-table DELETE without WHERE "
+            "clause. Call allowFullTableOperation(true) to opt-in if intentional.");
+    }
     return sql;
 }
 
@@ -236,6 +255,14 @@ QString QueryWrapper::buildUpdateSql(const QString& tableName, const std::map<QS
         sql += " WHERE " + sd->columnName + " = " + sd->logicNotDeletedValue;
     }
     appendConditions(sql, paramIndex);
+
+    // Safety guard: refuse to generate a full-table UPDATE without a WHERE clause
+    // unless the caller explicitly opts in via allowFullTableOperation(true).
+    if (!sql.contains("WHERE", Qt::CaseInsensitive) && !m_allowFullTable) {
+        throw std::runtime_error(
+            "QueryWrapper::buildUpdateSql: refusing to generate full-table UPDATE without WHERE "
+            "clause. Call allowFullTableOperation(true) to opt-in if intentional.");
+    }
     return sql;
 }
 
@@ -250,24 +277,35 @@ void QueryWrapper::appendConditions(QString& sql, int startIndex) const {
         }
     }
 
+    bool hasWhere = sql.contains("WHERE", Qt::CaseInsensitive);
     if (hasOr) {
-        sql += " AND (";
+        sql += hasWhere ? " AND (" : " WHERE (";
     } else {
-        sql += " AND ";
+        sql += hasWhere ? " AND " : " WHERE ";
     }
 
     int placeholderIndex = startIndex;
     for (size_t i = 0; i < m_conditions.size(); ++i) {
         const auto& cond = m_conditions[i];
 
+        QString valueClause = buildValueClause(cond, placeholderIndex);
+        QString conditionStr;
+        if (valueClause.isEmpty()) {
+            // IS NULL / IS NOT NULL: no value clause, op already includes "IS NULL"
+            conditionStr = cond.column + " " + opToString(cond.op);
+        } else {
+            // =, <>, >, <, LIKE, IN, etc.: need space between op and value
+            conditionStr = cond.column + " " + opToString(cond.op) + " " + valueClause;
+        }
+
         if (i == 0) {
             for (int p = 0; p < cond.openParens; ++p) sql += "(";
-            sql += cond.column + " " + opToString(cond.op) + buildValueClause(cond, placeholderIndex);
+            sql += conditionStr;
         } else {
             QString logicStr = (cond.logic == SqlKeyword::OR) ? " OR " : " AND ";
             sql += logicStr;
             for (int p = 0; p < cond.openParens; ++p) sql += "(";
-            sql += cond.column + " " + opToString(cond.op) + buildValueClause(cond, placeholderIndex);
+            sql += conditionStr;
         }
 
         for (int p = 0; p < cond.closeParens; ++p) sql += ")";

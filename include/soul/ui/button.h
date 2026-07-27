@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_UI_BUTTON_H
+#ifndef SOUL_UI_BUTTON_H
 #define SOUL_UI_BUTTON_H
 
 #include <QPushButton>
@@ -20,16 +20,16 @@ enum class ButtonSize {
     Large
 };
 
-class Button : public QPushButton {
+class Button : public ::QPushButton {
     Q_OBJECT
     Q_PROPERTY(ButtonType buttonType READ buttonType WRITE setButtonType)
     Q_PROPERTY(ButtonSize buttonSize READ buttonSize WRITE setButtonSize)
     Q_PROPERTY(bool breathing READ isBreathing WRITE setBreathing)
 
 public:
-    explicit Button(QWidget* parent = nullptr);
-    explicit Button(const QString& text, QWidget* parent = nullptr);
-    Button(const QIcon& icon, const QString& text, QWidget* parent = nullptr);
+    explicit Button(::QWidget* parent = nullptr);
+    explicit Button(const ::QString& text, ::QWidget* parent = nullptr);
+    Button(const ::QIcon& icon, const ::QString& text, ::QWidget* parent = nullptr);
     ~Button() override = default;
 
     ButtonType buttonType() const;
@@ -41,14 +41,14 @@ public:
     bool isBreathing() const;
     void setBreathing(bool enabled);
 
-    void setIconColor(const QColor& color);
-    QColor iconColor() const;
+    void setIconColor(const ::QColor& color);
+    ::QColor iconColor() const;
 
 protected:
-    void enterEvent(QEnterEvent* event) override;
-    void leaveEvent(QEvent* event) override;
-    void mousePressEvent(QMouseEvent* event) override;
-    void mouseReleaseEvent(QMouseEvent* event) override;
+    void enterEvent(::QEnterEvent* event) override;
+    void leaveEvent(::QEvent* event) override;
+    void mousePressEvent(::QMouseEvent* event) override;
+    void mouseReleaseEvent(::QMouseEvent* event) override;
 
 private:
     void init();
@@ -57,7 +57,7 @@ private:
     ButtonType m_type;
     ButtonSize m_size;
     bool m_breathing;
-    QColor m_iconColor;
+    ::QColor m_iconColor;
 };
 
 }

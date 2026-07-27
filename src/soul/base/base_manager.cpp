@@ -1,12 +1,12 @@
-﻿#include "soul/base/base_manager.h"
+#include "soul/base/base_manager.h"
 
 namespace sc {
 
 BaseManager::BaseManager(QObject* parent) : BaseObject(parent) {}
 
-bool BaseManager::init() {
+Result<void> BaseManager::init() {
     m_initialized = true;
-    return true;
+    return Ok();
 }
 
 void BaseManager::shutdown() {

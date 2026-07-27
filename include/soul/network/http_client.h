@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file http_client.h
  * @brief HTTP 客户端类
  * @details 封装 Qt 的 QNetworkAccessManager，提供同步/异步 HTTP 请求、拦截器支持和重试策略
@@ -26,6 +26,17 @@ namespace sc {
 namespace network {
 
 /**
+ * @brief HTTP/2 配置(v1.8.0 新增)
+ * @details 控制 HTTP/2 多路复用行为。
+ *          Qt 6.5 通过 Http2AllowedAttribute 启用 HTTP/2,服务器不支持时自动降级。
+ *          连接复用由 QNetworkAccessManager 内置连接池管理,无需显式配置。
+ */
+struct ConnectionPoolConfig {
+    bool enableHttp2 = true;             ///< 是否启用 HTTP/2(与 setHttp2Enabled 同步)
+    bool enableServerPush = false;       ///< 是否启用 HTTP/2 服务器推送(默认禁用,避免意外流量)
+};
+
+/**
  * @class HttpClient
  * @brief HTTP 客户端类，支持同步/异步请求和拦截器
  *
@@ -35,12 +46,15 @@ namespace network {
  * - 可配置的重试策略
  * - 超时设置
  * - SSL 配置
+ * - HTTP/2 多路复用(v1.8.0 新增,默认启用)
+ * - 连接池配置(v1.8.0 新增)
  *
  * 使用方式：
  * @code
  * HttpClient client;
  * client.setTimeout(30000);
  * client.setRetryPolicy(RetryPolicy(3));
+ * // HTTP/2 默认启用,无需显式配置
  *
  * // 同步请求
  * auto result = client.send(HttpRequest(HttpMethod::Get, QUrl("https://api.example.com")));
@@ -54,7 +68,7 @@ namespace network {
  * });
  * @endcode
  *
- * @see HttpRequest, HttpResponse, IInterceptor, RetryPolicy
+ * @see HttpRequest, HttpResponse, IInterceptor, RetryPolicy, ConnectionPoolConfig
  */
 class SC_NETWORK_EXPORT HttpClient : public QObject {
     Q_OBJECT
@@ -138,16 +152,51 @@ public:
      */
     int timeout() const;
 
+    /**
+     * @brief 启用或禁用 HTTP/2 多路复用(v1.8.0 新增)
+     * @param enabled true 启用(默认),false 禁用
+     * @details 默认启用 HTTP/2。服务器不支持时 Qt 自动降级到 HTTP/1.1。
+     *          禁用场景:调试或与不支持 HTTP/2 的旧服务器兼容。
+     */
+    void setHttp2Enabled(bool enabled);
+
+    /**
+     * @brief 查询 HTTP/2 是否启用
+     * @return true 启用,false 禁用
+     */
+    bool isHttp2Enabled() const;
+
+    /**
+     * @brief 设置 HTTP/2 配置(v1.8.0 新增)
+     * @param config HTTP/2 配置(启用/禁用 HTTP/2、服务器推送)
+     * @details 连接复用由 QNetworkAccessManager 内置连接池管理。
+     *          enableHttp2 字段会同步到 setHttp2Enabled 状态。
+     */
+    void setConnectionPoolConfig(const ConnectionPoolConfig& config);
+
+    /**
+     * @brief 获取当前连接池配置
+     * @return 连接池配置
+     */
+    ConnectionPoolConfig connectionPoolConfig() const;
+
 private:
     /**
      * @brief 配置 SSL 设置
      */
     void setupSslConfiguration();
 
+    /**
+     * @brief 将 HTTP/2 与连接池配置应用到 QNetworkRequest
+     * @param qrequest 待配置的 QNetworkRequest
+     */
+    void applyHttp2Config(QNetworkRequest& qrequest) const;
+
     QNetworkAccessManager* m_manager = nullptr;
     std::vector<std::shared_ptr<HttpInterceptor>> m_interceptors;
     RetryPolicy m_retryPolicy;
     int m_timeout = 30000;
+    ConnectionPoolConfig m_poolConfig;  ///< HTTP/2 与连接池配置(默认启用 HTTP/2)
 };
 
 } // namespace network

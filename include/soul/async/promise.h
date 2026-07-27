@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_ASYNC_PROMISE_H
+#ifndef SOUL_ASYNC_PROMISE_H
 #define SOUL_ASYNC_PROMISE_H
 
 #include <QPromise>
@@ -24,7 +24,19 @@ public:
     }
 
     void start(std::function<T()> func) {
-        m_promise.start(std::move(func));
+        // Qt 6 QPromise::start 期望 std::function<void(QPromise<T>&)>,
+        // 这里适配用户传入的无参函数,并在内部完成 addResult+finish。
+        m_promise.start([func = std::move(func)](QPromise<T>& promise) {
+            try {
+                if (promise.isCanceled()) return;
+                T result = func();
+                promise.addResult(std::move(result));
+                promise.finish();
+            } catch (...) {
+                // Blanket catch: Promise<T>::start must translate task exceptions into a failed promise.
+                promise.setException(std::current_exception());
+            }
+        });
     }
 
     void addResult(const T& value) {
@@ -67,7 +79,18 @@ public:
     }
 
     void start(std::function<void()> func) {
-        m_promise.start(std::move(func));
+        // Qt 6 QPromise::start 期望 std::function<void(QPromise<void>&)>,
+        // 这里适配用户传入的无参函数。
+        m_promise.start([func = std::move(func)](QPromise<void>& promise) {
+            try {
+                if (promise.isCanceled()) return;
+                func();
+                promise.finish();
+            } catch (...) {
+                // Blanket catch: Promise<void>::start must translate task exceptions into a failed promise.
+                promise.setException(std::current_exception());
+            }
+        });
     }
 
     void finish() {

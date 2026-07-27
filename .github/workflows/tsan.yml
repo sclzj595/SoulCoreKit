@@ -1,0 +1,66 @@
+name: TSan (ThreadSanitizer)
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  tsan:
+    name: ThreadSanitizer (Linux)
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.5.3'
+          host: 'linux'
+          target: 'desktop'
+          arch: 'gcc_64'
+          modules: 'qtwebsockets'
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build g++
+
+      - name: Configure (TSan enabled)
+        run: |
+          cmake -S . -B build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DBUILD_TESTS=ON \
+            -DENABLE_TSAN=ON \
+            -DENABLE_SANITIZERS=OFF \
+            -DENABLE_LTO=OFF \
+            -DENABLE_COVERAGE=OFF
+
+      - name: Build
+        run: cmake --build build -j$(nproc)
+
+      - name: Run tests with TSan
+        env:
+          TSAN_OPTIONS: >-
+            suppressions=${{ github.workspace }}/cmake/tsan_suppressions.txt
+            halt_on_error=0
+            second_deadlock_stack=1
+            report_bugs=1
+            report_thread_leaks=0
+        run: |
+          cd build
+          ctest --output-on-failure --timeout 120
+
+      - name: Upload TSan report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tsan-report
+          path: |
+            build/Testing/Temporary/**
+            build/test_*.log
+          retention-days: 30

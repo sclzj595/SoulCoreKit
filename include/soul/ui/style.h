@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_UI_STYLE_H
+#ifndef SOUL_UI_STYLE_H
 #define SOUL_UI_STYLE_H
 
 #include <QColor>
@@ -96,14 +96,14 @@ public:
      * @param role 颜色角色
      * @return 颜色
      */
-    QColor color(ColorRole role) const;
+    ::QColor color(ColorRole role) const;
 
     /**
      * @brief 设置颜色
      * @param role 颜色角色
      * @param color 颜色值
      */
-    void setColor(ColorRole role, const QColor& color);
+    void setColor(ColorRole role, const ::QColor& color);
 
     /**
      * @brief 获取圆角大小
@@ -137,62 +137,62 @@ public:
      * @brief 获取默认字体
      * @return 默认字体
      */
-    QFont font() const;
+    ::QFont font() const;
 
     /**
      * @brief 设置默认字体
      * @param font 字体
      */
-    void setFont(const QFont& font);
+    void setFont(const ::QFont& font);
 
     /**
      * @brief 获取粗体字体
      * @return 粗体字体
      */
-    QFont boldFont() const;
+    ::QFont boldFont() const;
 
     /**
      * @brief 获取小号字体
      * @return 小号字体
      */
-    QFont smallFont() const;
+    ::QFont smallFont() const;
 
     /**
      * @brief 获取大号字体
      * @return 大号字体
      */
-    QFont largeFont() const;
+    ::QFont largeFont() const;
 
 private:
     struct {
-        QColor primary;
-        QColor primaryLight;
-        QColor primaryDark;
-        QColor secondary;
-        QColor secondaryLight;
-        QColor secondaryDark;
-        QColor background;
-        QColor surface;
-        QColor surfaceVariant;
-        QColor error;
-        QColor errorContainer;
-        QColor success;
-        QColor onPrimary;
-        QColor onSecondary;
-        QColor onBackground;
-        QColor onSurface;
-        QColor onSurfaceVariant;
-        QColor onError;
-        QColor textPrimary;
-        QColor textSecondary;
-        QColor textTertiary;
-        QColor border;
-        QColor borderLight;
-        QColor shadow;
-        QColor overlay;
-        QColor glassBackground;
-        QColor glassTint;
-        QColor glowColor;
+        ::QColor primary;
+        ::QColor primaryLight;
+        ::QColor primaryDark;
+        ::QColor secondary;
+        ::QColor secondaryLight;
+        ::QColor secondaryDark;
+        ::QColor background;
+        ::QColor surface;
+        ::QColor surfaceVariant;
+        ::QColor error;
+        ::QColor errorContainer;
+        ::QColor success;
+        ::QColor onPrimary;
+        ::QColor onSecondary;
+        ::QColor onBackground;
+        ::QColor onSurface;
+        ::QColor onSurfaceVariant;
+        ::QColor onError;
+        ::QColor textPrimary;
+        ::QColor textSecondary;
+        ::QColor textTertiary;
+        ::QColor border;
+        ::QColor borderLight;
+        ::QColor shadow;
+        ::QColor overlay;
+        ::QColor glassBackground;
+        ::QColor glassTint;
+        ::QColor glowColor;
     } m_colors;
 
     struct {
@@ -213,7 +213,7 @@ private:
         int extraLarge;
     } m_spacings;
 
-    QFont m_font;
+    ::QFont m_font;
 };
 
 }

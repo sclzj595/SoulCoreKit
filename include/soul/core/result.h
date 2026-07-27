@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_CORE_RESULT_H
+#ifndef SOUL_CORE_RESULT_H
 #define SOUL_CORE_RESULT_H
 
 #include <variant>
@@ -191,6 +191,20 @@ public:
         return Result<void>(std::move(error));
     }
 };
+
+[[nodiscard]] inline Result<void> Ok() {
+    return Result<void>::ok();
+}
+
+template<typename T>
+[[nodiscard]] Result<T> Ok(const T& value) {
+    return Result<T>(value);
+}
+
+template<typename T>
+[[nodiscard]] Result<T> Ok(T&& value) {
+    return Result<T>(std::move(value));
+}
 
 }
 

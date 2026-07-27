@@ -2,17 +2,24 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop, master ]
+    branches: [ main, master ]
   pull_request:
-    branches: [ main, develop, master ]
+    branches: [ main, master ]
 
 jobs:
-  build-ubuntu:
-    runs-on: ubuntu-22.04
+  build:
+    name: Build & Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Qt
+      - name: Install Qt (Linux)
+        if: runner.os == 'Linux'
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.5.3'
@@ -21,17 +28,24 @@ jobs:
           arch: 'gcc_64'
           modules: 'qtwebsockets'
 
-      - name: Install build dependencies
+      - name: Install Qt (Windows)
+        if: runner.os == 'Windows'
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.5.3'
+          host: 'windows'
+          target: 'desktop'
+          arch: 'win64_msvc2019_64'
+          modules: 'qtwebsockets'
+
+      - name: Install build dependencies (Linux)
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            cmake \
-            ninja-build \
-            g++ \
-            lcov \
-            libssl-dev
+          sudo apt-get install -y cmake ninja-build g++ lcov libssl-dev clang-tidy
 
-      - name: Configure
+      - name: Configure (Linux)
+        if: runner.os == 'Linux'
         run: |
           cmake -S . -B build \
             -G Ninja \
@@ -40,15 +54,59 @@ jobs:
             -DENABLE_WARNINGS=ON \
             -DENABLE_LTO=ON
 
-      - name: Build
+      - name: Configure (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cmake -S . -B build `
+            -G "Visual Studio 16 2019" `
+            -A x64 `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DBUILD_TESTS=ON `
+            -DENABLE_WARNINGS=ON
+
+      - name: Build (Linux)
+        if: runner.os == 'Linux'
         run: cmake --build build -j$(nproc)
 
-      - name: Run tests
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        run: cmake --build build --config Release --parallel
+
+      - name: Run tests (Linux)
+        if: runner.os == 'Linux'
         run: |
           cd build
           ctest --output-on-failure
 
+      - name: Run tests (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd build
+          ctest -C Release --output-on-failure
+
+      - name: Run clang-tidy (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cmake -S . -B build-tidy \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DBUILD_TESTS=ON \
+            -DCMAKE_CXX_CLANG_TIDY=clang-tidy
+          cmake --build build-tidy -j$(nproc) 2>&1 | tee clang-tidy-report.txt
+
+      - name: Run clang-tidy (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cmake -S . -B build-tidy `
+            -G "Visual Studio 16 2019" `
+            -A x64 `
+            -DCMAKE_BUILD_TYPE=Debug `
+            -DBUILD_TESTS=ON `
+            -DCMAKE_CXX_CLANG_TIDY=clang-tidy
+          cmake --build build-tidy --config Release --parallel 2 2>&1 | Tee-Object -FilePath clang-tidy-report.txt
+
       - name: Build with coverage
+        if: runner.os == 'Linux'
         run: |
           cmake -S . -B build-coverage \
             -G Ninja \
@@ -58,6 +116,7 @@ jobs:
           cmake --build build-coverage -j$(nproc)
 
       - name: Generate coverage report
+        if: runner.os == 'Linux'
         run: |
           cd build-coverage
           ctest
@@ -65,78 +124,17 @@ jobs:
           lcov --remove coverage.info '/usr/*' '*build-coverage/*' '*test*' --output-file coverage.info.cleaned
           genhtml -o coverage_report coverage.info.cleaned
 
-  build-windows:
-    runs-on: windows-2019  # ✅ 固定 MSVC2019 环境：windows-2019 预装完整 VS2019 + VC142 Toolset
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v4
+      - name: Upload coverage artifacts
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
         with:
-          version: '6.5.3'   # ✅ 固定 Qt 6.5.3 LTS
-          target: 'desktop'
-          arch: 'win64_msvc2019_64'  # ✅ 固定 MSVC2019 ABI Qt，与 windows-2019 工具链完全一致
-          modules: 'qtwebsockets'    # ✅ 不使用 --autodesktop，避免 aqt metadata 解析失败
+          name: coverage-report-${{ matrix.os }}
+          path: build-coverage/coverage_report
+          retention-days: 30
 
-      - name: Configure
-        run: |
-          # ✅ 纯 MSVC2019 工具链：VS2019 生成器 + x64，与 Qt MSVC2019 ABI 完全匹配
-          cmake -S . -B build `
-            -G "Visual Studio 16 2019" `
-            -A x64 `
-            -DCMAKE_BUILD_TYPE=Release `
-            -DBUILD_TESTS=ON `
-            -DENABLE_WARNINGS=ON
-
-      - name: Build
-        run: cmake --build build --config Release --parallel
-
-      - name: Run tests
-        run: |
-          cd build
-          ctest -C Release --output-on-failure
-
-  build-macos:
-    runs-on: macos-13  # ✅ 固定 macOS 13（Intel），避免 macos-latest 升级导致 AppleClang 版本漂移
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v4
+      - name: Upload clang-tidy report
+        uses: actions/upload-artifact@v4
         with:
-          version: '6.5.3'
-          host: 'mac'
-          target: 'desktop'
-          arch: 'clang_64'
-          modules: 'qtwebsockets'
-
-      - name: Configure
-        run: |
-          cmake -S . -B build \
-            -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DBUILD_TESTS=ON \
-            -DENABLE_WARNINGS=ON \
-            -DENABLE_LTO=ON
-
-      - name: Build
-        run: cmake --build build -j$(sysctl -n hw.ncpu)
-
-      - name: Run tests
-        run: |
-          cd build
-          ctest --output-on-failure
-
-  format-check:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install clang-format
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang-format-14
-
-      - name: Check formatting
-        run: |
-          find . \( -name "*.cpp" -o -name "*.h" \) -not -path "./build/*" -not -path "./.git/*" | xargs clang-format-14 --dry-run 2>&1 || true
+          name: clang-tidy-${{ matrix.os }}
+          path: clang-tidy-report.txt
+          retention-days: 30

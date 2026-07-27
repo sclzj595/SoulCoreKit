@@ -13,9 +13,6 @@ ThreadPool& ThreadPool::instance() {
 }
 
 void ThreadPool::init(int maxThreads) {
-    if (m_initialized.load(std::memory_order_acquire)) {
-        return;
-    }
     std::lock_guard<std::mutex> lock(m_initMutex);
     if (m_initialized.load(std::memory_order_relaxed)) {
         return;
@@ -27,9 +24,6 @@ void ThreadPool::init(int maxThreads) {
         m_threadPool->setMaxThreadCount(QThread::idealThreadCount());
     }
     m_initialized.store(true, std::memory_order_release);
-    SingletonRegistry::instance().registerShutdown([this]() {
-        shutdown();
-    });
 }
 
 void ThreadPool::shutdown() {
@@ -39,15 +33,11 @@ void ThreadPool::shutdown() {
         if (!m_initialized.load(std::memory_order_relaxed) || !m_threadPool) {
             return;
         }
-        pool = m_threadPool;
+        pool = std::move(m_threadPool);
+        m_initialized.store(false, std::memory_order_relaxed);
     }
     if (pool) {
         pool->waitForDone();
-    }
-    {
-        std::lock_guard<std::mutex> lock(m_initMutex);
-        m_threadPool.reset();
-        m_initialized.store(false, std::memory_order_relaxed);
     }
 }
 
@@ -56,104 +46,140 @@ bool ThreadPool::isInitialized() const {
 }
 
 void ThreadPool::start(std::function<void()> task) {
-    if (!m_initialized.load(std::memory_order_acquire)) {
-        init();
+    std::shared_ptr<QThreadPool> pool;
+    {
+        std::lock_guard<std::mutex> lock(m_initMutex);
+        if (!m_initialized.load(std::memory_order_relaxed)) {
+            if (!m_threadPool) {
+                m_threadPool = std::make_shared<QThreadPool>();
+                m_threadPool->setMaxThreadCount(QThread::idealThreadCount());
+                m_initialized.store(true, std::memory_order_release);
+            }
+        }
+        pool = m_threadPool;
     }
-    auto pool = m_threadPool;
     if (pool) {
         pool->start(std::move(task));
     }
 }
 
 void ThreadPool::start(std::function<void()> task, int priority) {
-    if (!m_initialized.load(std::memory_order_acquire)) {
-        init();
+    std::shared_ptr<QThreadPool> pool;
+    {
+        std::lock_guard<std::mutex> lock(m_initMutex);
+        if (!m_initialized.load(std::memory_order_relaxed)) {
+            if (!m_threadPool) {
+                m_threadPool = std::make_shared<QThreadPool>();
+                m_threadPool->setMaxThreadCount(QThread::idealThreadCount());
+                m_initialized.store(true, std::memory_order_release);
+            }
+        }
+        pool = m_threadPool;
     }
-    auto pool = m_threadPool;
     if (pool) {
         pool->start(std::move(task), priority);
     }
 }
 
 int ThreadPool::activeThreadCount() const {
-    if (!m_initialized.load(std::memory_order_acquire)) {
+    std::lock_guard<std::mutex> lock(m_initMutex);
+    if (!m_initialized.load(std::memory_order_relaxed)) {
         return 0;
     }
-    auto pool = m_threadPool;
-    return pool ? pool->activeThreadCount() : 0;
+    return m_threadPool ? m_threadPool->activeThreadCount() : 0;
 }
 
 int ThreadPool::maxThreadCount() const {
-    if (!m_initialized.load(std::memory_order_acquire)) {
+    std::lock_guard<std::mutex> lock(m_initMutex);
+    if (!m_initialized.load(std::memory_order_relaxed)) {
         return QThread::idealThreadCount();
     }
-    auto pool = m_threadPool;
-    return pool ? pool->maxThreadCount() : QThread::idealThreadCount();
+    return m_threadPool ? m_threadPool->maxThreadCount() : QThread::idealThreadCount();
 }
 
 void ThreadPool::setMaxThreadCount(int maxThreads) {
-    if (!m_initialized.load(std::memory_order_acquire)) {
-        init(maxThreads);
+    std::lock_guard<std::mutex> lock(m_initMutex);
+    if (!m_initialized.load(std::memory_order_relaxed)) {
+        if (!m_threadPool) {
+            m_threadPool = std::make_shared<QThreadPool>();
+        }
+        m_threadPool->setMaxThreadCount(maxThreads);
+        m_initialized.store(true, std::memory_order_release);
         return;
     }
-    auto pool = m_threadPool;
-    if (pool) {
-        pool->setMaxThreadCount(maxThreads);
+    if (m_threadPool) {
+        m_threadPool->setMaxThreadCount(maxThreads);
     }
 }
 
 int ThreadPool::expiryTimeout() const {
-    if (!m_initialized.load(std::memory_order_acquire)) {
+    std::lock_guard<std::mutex> lock(m_initMutex);
+    if (!m_initialized.load(std::memory_order_relaxed)) {
         return 30000;
     }
-    auto pool = m_threadPool;
-    return pool ? pool->expiryTimeout() : 30000;
+    return m_threadPool ? m_threadPool->expiryTimeout() : 30000;
 }
 
 void ThreadPool::setExpiryTimeout(int expiryTimeout) {
-    if (!m_initialized.load(std::memory_order_acquire)) {
-        init();
+    std::lock_guard<std::mutex> lock(m_initMutex);
+    if (!m_initialized.load(std::memory_order_relaxed)) {
+        if (!m_threadPool) {
+            m_threadPool = std::make_shared<QThreadPool>();
+            m_threadPool->setMaxThreadCount(QThread::idealThreadCount());
+            m_initialized.store(true, std::memory_order_release);
+        }
     }
-    auto pool = m_threadPool;
-    if (pool) {
-        pool->setExpiryTimeout(expiryTimeout);
+    if (m_threadPool) {
+        m_threadPool->setExpiryTimeout(expiryTimeout);
     }
 }
 
 bool ThreadPool::waitForDone(int msecs) {
-    if (!m_initialized.load(std::memory_order_acquire)) {
-        return true;
+    std::shared_ptr<QThreadPool> pool;
+    {
+        std::lock_guard<std::mutex> lock(m_initMutex);
+        if (!m_initialized.load(std::memory_order_relaxed)) {
+            return true;
+        }
+        pool = m_threadPool;
     }
-    auto pool = m_threadPool;
     return pool ? pool->waitForDone(msecs) : true;
 }
 
 void ThreadPool::reserveThread() {
-    if (!m_initialized.load(std::memory_order_acquire)) {
-        init();
+    std::lock_guard<std::mutex> lock(m_initMutex);
+    if (!m_initialized.load(std::memory_order_relaxed)) {
+        if (!m_threadPool) {
+            m_threadPool = std::make_shared<QThreadPool>();
+            m_threadPool->setMaxThreadCount(QThread::idealThreadCount());
+            m_initialized.store(true, std::memory_order_release);
+        }
     }
-    auto pool = m_threadPool;
-    if (pool) {
-        pool->reserveThread();
+    if (m_threadPool) {
+        m_threadPool->reserveThread();
     }
 }
 
 void ThreadPool::releaseThread() {
-    if (!m_initialized.load(std::memory_order_acquire)) {
-        init();
+    std::lock_guard<std::mutex> lock(m_initMutex);
+    if (!m_initialized.load(std::memory_order_relaxed)) {
+        return;
     }
-    auto pool = m_threadPool;
-    if (pool) {
-        pool->releaseThread();
+    if (m_threadPool) {
+        m_threadPool->releaseThread();
     }
 }
 
 QThreadPool* ThreadPool::nativeThreadPool() {
-    if (!m_initialized.load(std::memory_order_acquire)) {
-        init();
+    std::lock_guard<std::mutex> lock(m_initMutex);
+    if (!m_initialized.load(std::memory_order_relaxed)) {
+        if (!m_threadPool) {
+            m_threadPool = std::make_shared<QThreadPool>();
+            m_threadPool->setMaxThreadCount(QThread::idealThreadCount());
+            m_initialized.store(true, std::memory_order_release);
+        }
     }
-    auto pool = m_threadPool;
-    return pool ? pool.get() : nullptr;
+    return m_threadPool ? m_threadPool.get() : nullptr;
 }
 
 ThreadPool::~ThreadPool() {

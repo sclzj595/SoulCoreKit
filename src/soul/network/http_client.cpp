@@ -1,4 +1,4 @@
-﻿#include "soul/network/http_client.h"
+#include "soul/network/http_client.h"
 #include <memory>
 #include <atomic>
 #include <QCoreApplication>
@@ -8,6 +8,8 @@
 #include <QEventLoop>
 #include <QTimer>
 #include <QThread>
+#include <QPointer>
+#include <QHttp2Configuration>
 #include "soul/logging/logger.h"
 
 namespace sc {
@@ -101,18 +103,28 @@ Result<HttpResponse> HttpClient::send(const HttpRequest& request) {
             qrequest.setRawHeader(header.first.toUtf8(), header.second.toUtf8());
         }
 
+        // 应用 HTTP/2 与连接池配置(v1.8.0)
+        applyHttp2Config(qrequest);
+
         QNetworkReply* reply = sendRequest(m_manager, qrequest, mutableRequest.method(), mutableRequest.body());
 
         QEventLoop loop;
         bool timedOut = false;
 
-        QTimer::singleShot(mutableRequest.timeout(), &loop, [&loop, &timedOut, reply]() {
+        QTimer timer;
+        timer.setSingleShot(true);
+        QPointer<QNetworkReply> replyGuard(reply);
+        QObject::connect(&timer, &QTimer::timeout, [&loop, &timedOut, replyGuard]() {
             timedOut = true;
-            reply->abort();
+            if (replyGuard) replyGuard->abort();
             loop.quit();
         });
+        timer.start(mutableRequest.timeout());
 
-        QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+        QObject::connect(reply, &QNetworkReply::finished, [&loop, &timer]() {
+            timer.stop();
+            loop.quit();
+        });
 
         loop.exec();
 
@@ -174,20 +186,25 @@ void HttpClient::sendAsync(const HttpRequest& request, ResponseCallback callback
             qrequest.setRawHeader(header.first.toUtf8(), header.second.toUtf8());
         }
 
+        // 应用 HTTP/2 与连接池配置(v1.8.0)
+        this->applyHttp2Config(qrequest);
+
         QNetworkReply* reply = sendRequest(m_manager, qrequest, mutableRequest.method(), mutableRequest.body());
 
         auto timedOut = std::make_shared<std::atomic<bool>>(false);
         QTimer* timer = new QTimer(this);
         timer->setSingleShot(true);
 
-        connect(timer, &QTimer::timeout, [reply, timedOut]() {
+        QPointer<QNetworkReply> replyGuard(reply);
+        connect(timer, &QTimer::timeout, [replyGuard, timedOut]() {
             timedOut->store(true);
-            reply->abort();
+            if (replyGuard) replyGuard->abort();
         });
         timer->start(mutableRequest.timeout());
 
         QObject::connect(reply, &QNetworkReply::finished, [this, reply, callback, interceptorsCopy,
             retryPolicyCopy, maxRetries, retryCount, mutableRequest, timer, timedOut]() {
+            timer->stop();
             timer->deleteLater();
 
             bool isTimedOut = timedOut->load();
@@ -261,6 +278,34 @@ void HttpClient::setTimeout(int ms) {
 
 int HttpClient::timeout() const {
     return m_timeout;
+}
+
+void HttpClient::setHttp2Enabled(bool enabled) {
+    m_poolConfig.enableHttp2 = enabled;
+}
+
+bool HttpClient::isHttp2Enabled() const {
+    return m_poolConfig.enableHttp2;
+}
+
+void HttpClient::setConnectionPoolConfig(const ConnectionPoolConfig& config) {
+    m_poolConfig = config;
+}
+
+ConnectionPoolConfig HttpClient::connectionPoolConfig() const {
+    return m_poolConfig;
+}
+
+void HttpClient::applyHttp2Config(QNetworkRequest& qrequest) const {
+    // Qt 6.5 API:通过 Http2AllowedAttribute 启用/禁用 HTTP/2
+    qrequest.setAttribute(QNetworkRequest::Http2AllowedAttribute, m_poolConfig.enableHttp2);
+
+    if (m_poolConfig.enableHttp2) {
+        // 配置 HTTP/2 参数(可选,Qt 默认值已合理)
+        QHttp2Configuration http2Config = qrequest.http2Configuration();
+        http2Config.setServerPushEnabled(m_poolConfig.enableServerPush);
+        qrequest.setHttp2Configuration(http2Config);
+    }
 }
 
 } // namespace network

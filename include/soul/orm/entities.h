@@ -2,6 +2,7 @@
 #define SOUL_ORM_ENTITIES_H
 
 #include "soul/orm/entity.h"
+#include "soul/orm/column.h"
 
 namespace sc {
 namespace orm {
@@ -14,6 +15,17 @@ public:
     SC_FIELD(QString, email)
     SC_FIELD(QString, password)
     SC_FIELD(QString, role)
+
+    // 类型安全列引用（C++17 static inline const，零运行时开销）
+    // 与上方 SC_FIELD 字段类型严格对应，用于 TypedQueryWrapper
+    static inline const Column<User, QString>    IdCol       {"id"};
+    static inline const Column<User, QDateTime>  CreateTimeCol{"createTime"};
+    static inline const Column<User, QDateTime>  UpdateTimeCol{"updateTime"};
+    static inline const Column<User, int>        DeletedCol  {"deleted"};
+    static inline const Column<User, QString>    UsernameCol {"username"};
+    static inline const Column<User, QString>    EmailCol    {"email"};
+    static inline const Column<User, QString>    PasswordCol {"password"};
+    static inline const Column<User, QString>    RoleCol     {"role"};
 
     static TableMeta tableMeta() {
         TableMeta meta;

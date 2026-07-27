@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_AUTH_AUTH_MANAGER_H
+#ifndef SOUL_AUTH_AUTH_MANAGER_H
 #define SOUL_AUTH_AUTH_MANAGER_H
 
 #include <QString>
@@ -7,10 +7,12 @@
 #include <memory>
 #include <QMutex>
 #include <QMutexLocker>
+#include <QRecursiveMutex>
 #include "soul/core/result.h"
 #include "soul/core/error.h"
 #include "soul/base/base_manager.h"
 #include "soul/core/singleton.h"
+#include "soul/storage/memory_storage.h"
 
 namespace sc {
 
@@ -155,19 +157,19 @@ public:
      * @brief 从存储中加载认证状态
      * @return 如果成功返回 true
      */
-    bool loadAuthState();
+    Result<void> loadAuthState();
 
     /**
      * @brief 保存认证状态到存储
-     * @return 如果成功返回 true
+     * @return 包含结果的 Result
      */
-    bool saveAuthState();
+    Result<void> saveAuthState();
 
     /**
      * @brief 初始化管理器
      * @return 初始化成功返回 true，失败返回 false
      */
-    bool init() override;
+    Result<void> init() override;
 
     /**
      * @brief 清理管理器
@@ -178,11 +180,12 @@ private:
     AuthManager();
     ~AuthManager() = default;
 
-    mutable QMutex m_mutex;
+    mutable QRecursiveMutex m_mutex;
     UserInfo m_userInfo;
     bool m_authenticated = false;
     AuthStateCallback m_authStateCallback;
     LoginValidator m_loginValidator;
+    MemoryStorage m_storage;
 
     void notifyAuthStateChanged(bool authenticated);
 };

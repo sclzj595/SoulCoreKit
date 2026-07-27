@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_UTILS_STRING_STRING_UTILS_H
+#ifndef SOUL_UTILS_STRING_STRING_UTILS_H
 #define SOUL_UTILS_STRING_STRING_UTILS_H
 
 #include <QString>
@@ -21,8 +21,6 @@ std::vector<QString> split(const QString& str, const QString& delimiter);
 QString join(const std::vector<QString>& parts, const QString& delimiter);
 
 QString replace(const QString& str, const QString& oldValue, const QString& newValue);
-
-QString format(const QString& format, ...);
 
 bool isEmpty(const QString& str);
 bool isBlank(const QString& str);

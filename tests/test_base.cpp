@@ -1,4 +1,4 @@
-﻿#include <QTest>
+#include <QTest>
 #include <QSignalSpy>
 #include <QVariant>
 #include <QLabel>
@@ -34,7 +34,7 @@ class TestManager : public BaseManager {
 public:
     explicit TestManager(QObject* parent = nullptr) : BaseManager(parent) {}
 
-    bool init() override {
+    Result<void> init() override {
         if (isInitialized()) {
             m_initCalledTwice = true;
         }
@@ -310,14 +310,14 @@ void TestBase::testBaseManagerDefaultNotInitialized() {
 
 void TestBase::testBaseManagerInitReturnsTrue() {
     BaseManager manager;
-    bool result = manager.init();
-    QVERIFY(result);
+    auto result = manager.init();
+    QVERIFY(result.isOk());
     QVERIFY(manager.isInitialized());
 }
 
 void TestBase::testBaseManagerShutdownClearsFlag() {
     BaseManager manager;
-    manager.init();
+    (void)manager.init();
     QVERIFY(manager.isInitialized());
     manager.shutdown();
     QVERIFY(!manager.isInitialized());
@@ -325,28 +325,26 @@ void TestBase::testBaseManagerShutdownClearsFlag() {
 
 void TestBase::testBaseManagerDoubleInit() {
     BaseManager manager;
-    QVERIFY(manager.init());
+    QVERIFY(manager.init().isOk());
     QVERIFY(manager.isInitialized());
-    // Calling init() again should remain successful and keep the flag set.
-    QVERIFY(manager.init());
+    QVERIFY(manager.init().isOk());
     QVERIFY(manager.isInitialized());
 }
 
 void TestBase::testBaseManagerShutdownWithoutInit() {
     BaseManager manager;
     QVERIFY(!manager.isInitialized());
-    // Shutting down before init is a no-op; flag stays false.
     manager.shutdown();
     QVERIFY(!manager.isInitialized());
 }
 
 void TestBase::testBaseManagerReinitAfterShutdown() {
     BaseManager manager;
-    QVERIFY(manager.init());
+    QVERIFY(manager.init().isOk());
     QVERIFY(manager.isInitialized());
     manager.shutdown();
     QVERIFY(!manager.isInitialized());
-    QVERIFY(manager.init());
+    QVERIFY(manager.init().isOk());
     QVERIFY(manager.isInitialized());
 }
 
@@ -366,12 +364,11 @@ void TestBase::testBaseManagerSubclassVirtualOverride() {
     QVERIFY(!manager.isInitialized());
     QVERIFY(!manager.initCalledTwice());
 
-    QVERIFY(manager.init());
+    QVERIFY(manager.init().isOk());
     QVERIFY(manager.isInitialized());
     QVERIFY(!manager.initCalledTwice());
 
-    // Second init triggers the "called twice" flag in the override.
-    QVERIFY(manager.init());
+    QVERIFY(manager.init().isOk());
     QVERIFY(manager.initCalledTwice());
 
     manager.shutdown();

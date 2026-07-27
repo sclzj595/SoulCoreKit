@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_UI_EMPTY_WIDGET_H
+#ifndef SOUL_UI_EMPTY_WIDGET_H
 #define SOUL_UI_EMPTY_WIDGET_H
 
 #include <QWidget>
@@ -26,14 +26,14 @@ namespace sc {
  * empty->setSubtitle("点击下方按钮添加");
  * @endcode
  */
-class EmptyWidget : public QWidget {
+class EmptyWidget : public ::QWidget {
     Q_OBJECT
 public:
     /**
      * @brief 构造函数
      * @param parent 父窗口
      */
-    explicit EmptyWidget(QWidget* parent = nullptr);
+    explicit EmptyWidget(::QWidget* parent = nullptr);
 
     /**
      * @brief 析构函数
@@ -44,7 +44,7 @@ public:
      * @brief 设置图标
      * @param icon 图标
      */
-    void setIcon(const QIcon& icon);
+    void setIcon(const ::QIcon& icon);
 
     /**
      * @brief 设置标题
@@ -77,11 +77,11 @@ signals:
     void buttonClicked();
 
 private:
-    QLabel* m_iconLabel;
-    QLabel* m_titleLabel;
-    QLabel* m_subtitleLabel;
-    QPushButton* m_actionButton;
-    QVBoxLayout* m_layout;
+    ::QLabel* m_iconLabel;
+    ::QLabel* m_titleLabel;
+    ::QLabel* m_subtitleLabel;
+    ::QPushButton* m_actionButton;
+    ::QVBoxLayout* m_layout;
 };
 
 }

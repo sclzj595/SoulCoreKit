@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_UI_SWITCH_H
+#ifndef SOUL_UI_SWITCH_H
 #define SOUL_UI_SWITCH_H
 
 #include "soul/ui/theme.h"
@@ -7,13 +7,13 @@
 
 namespace sc {
 
-class Switch : public QAbstractButton {
+class Switch : public ::QAbstractButton {
     Q_OBJECT
     Q_PROPERTY(bool checked READ isChecked WRITE setChecked NOTIFY toggled)
     Q_PROPERTY(qreal sliderPosition READ sliderPosition WRITE setSliderPosition)
 
 public:
-    explicit Switch(QWidget* parent = nullptr);
+    explicit Switch(::QWidget* parent = nullptr);
 
     bool isChecked() const;
     void setChecked(bool checked);
@@ -25,14 +25,14 @@ Q_SIGNALS:
     void toggled(bool checked);
 
 protected:
-    void mouseReleaseEvent(QMouseEvent* event) override;
-    void paintEvent(QPaintEvent* event) override;
-    QSize sizeHint() const override;
+    void mouseReleaseEvent(::QMouseEvent* event) override;
+    void paintEvent(::QPaintEvent* event) override;
+    ::QSize sizeHint() const override;
 
 private:
     bool m_checked;
     qreal m_sliderPosition;
-    QPropertyAnimation* m_animation;
+    ::QPropertyAnimation* m_animation;
 };
 
 }

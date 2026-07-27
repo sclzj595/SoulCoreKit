@@ -6,7 +6,7 @@
 # Project related configuration options
 #---------------------------------------------------------------------------
 PROJECT_NAME           = "SoulCoreKit"
-PROJECT_NUMBER         = "1.0.0"
+PROJECT_NUMBER         = "1.8.0"
 PROJECT_BRIEF          = "Qt-based cross-platform utility framework"
 PROJECT_LOGO           =
 OUTPUT_DIRECTORY       = docs

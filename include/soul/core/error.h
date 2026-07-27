@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_CORE_ERROR_H
+#ifndef SOUL_CORE_ERROR_H
 #define SOUL_CORE_ERROR_H
 
 #include <string>
@@ -24,6 +24,7 @@ enum class ErrorCode {
     Timeout = 201,
     ConnectionRefused = 202,
     SSLHandshakeFailed = 203,
+    NotConnected = 204,
 
     ParseError = 300,
     SerializationError = 301,
@@ -46,7 +47,7 @@ enum class ErrorCode {
 
 class Error {
 public:
-    Error() = default;
+    Error() : m_code(ErrorCode::Ok), m_message("") {}
 
     Error(ErrorCode code, const QString& message)
         : m_code(code), m_message(message) {}

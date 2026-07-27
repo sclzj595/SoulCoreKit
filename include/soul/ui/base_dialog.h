@@ -1,20 +1,19 @@
-﻿#ifndef SOUL_UI_BASE_DIALOG_H
+#ifndef SOUL_UI_BASE_DIALOG_H
 #define SOUL_UI_BASE_DIALOG_H
 
 #include <QDialog>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <functional>
-#include "soul/ui/theme.h"
 
 namespace sc {
 namespace ui {
 
 
-class BaseDialog : public QDialog {
+class BaseDialog : public ::QDialog {
     Q_OBJECT
 public:
-    explicit BaseDialog(QWidget* parent = nullptr);
+    explicit BaseDialog(::QWidget* parent = nullptr);
     ~BaseDialog() override = default;
 
     void setDialogTitle(const QString& title);
@@ -28,8 +27,8 @@ private slots:
     void onThemeChanged();
 
 private:
-    QVBoxLayout* m_mainLayout;
-    QHBoxLayout* m_buttonLayout;
+    ::QVBoxLayout* m_mainLayout;
+    ::QHBoxLayout* m_buttonLayout;
 };
 
 } // namespace ui

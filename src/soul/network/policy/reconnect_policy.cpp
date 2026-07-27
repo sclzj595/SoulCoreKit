@@ -1,4 +1,4 @@
-﻿#include <chrono>
+#include <chrono>
 #include "soul/network/policy/reconnect_policy.h"
 
 namespace sc {
@@ -44,7 +44,7 @@ std::chrono::milliseconds ReconnectPolicy::nextRetryInterval() const {
 void ReconnectPolicy::apply(NetworkMessage& message) {
     message.metadata["reconnectEnabled"] = m_enabled;
     message.metadata["reconnectInterval"] = static_cast<int>(m_baseInterval.count());
-    message.metadata["reconnectMaxRetries"] = m_maxRetries;
+    message.metadata["maxRetries"] = m_maxRetries;
 }
 
 } // namespace network

@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_UI_THEME_H
+#ifndef SOUL_UI_THEME_H
 #define SOUL_UI_THEME_H
 
 #include <QObject>
@@ -33,7 +33,7 @@ enum class ThemeMode {
  *
  * @see Style, ThemeMode
  */
-class Theme : public QObject, public Singleton<Theme> {
+class Theme : public ::QObject, public Singleton<Theme> {
     Q_OBJECT
     friend class Singleton<Theme>;
 public:

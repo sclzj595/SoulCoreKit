@@ -15,6 +15,8 @@ void AsyncRunner::runAsync(const Task& task, const ResultCallback& callback) {
             task();
             runOnMainThread([callback]() { callback(true); });
         } catch (...) {
+            // Blanket catch: thread-boundary barrier.
+            // Translates any exception into a failure callback to avoid std::terminate.
             runOnMainThread([callback]() { callback(false); });
         }
     })->start();

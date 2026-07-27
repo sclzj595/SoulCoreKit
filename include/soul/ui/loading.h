@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_UI_LOADING_H
+#ifndef SOUL_UI_LOADING_H
 #define SOUL_UI_LOADING_H
 
 #include <QWidget>
@@ -25,14 +25,14 @@ namespace sc {
  * Loading::hideGlobal();
  * @endcode
  */
-class Loading : public QWidget {
+class Loading : public ::QWidget {
     Q_OBJECT
 public:
     /**
      * @brief 构造函数
      * @param parent 父窗口
      */
-    explicit Loading(QWidget* parent = nullptr);
+    explicit Loading(::QWidget* parent = nullptr);
 
     /**
      * @brief 析构函数
@@ -43,13 +43,13 @@ public:
      * @brief 设置加载文本
      * @param text 文本内容
      */
-    void setText(const QString& text);
+    void setText(const ::QString& text);
 
     /**
      * @brief 获取加载文本
      * @return 文本内容
      */
-    QString text() const;
+    ::QString text() const;
 
     /**
      * @brief 显示/隐藏进度条
@@ -79,7 +79,7 @@ public:
      * @brief 显示全局加载指示器
      * @param text 加载文本
      */
-    static void showGlobal(const QString& text = "Loading...");
+    static void showGlobal(const ::QString& text = "Loading...");
 
     /**
      * @brief 隐藏全局加载指示器
@@ -93,9 +93,9 @@ public:
     static void updateGlobalProgress(int value);
 
 private:
-    QLabel* m_textLabel;
-    QProgressBar* m_progressBar;
-    QVBoxLayout* m_layout;
+    ::QLabel* m_textLabel;
+    ::QProgressBar* m_progressBar;
+    ::QVBoxLayout* m_layout;
 };
 
 }

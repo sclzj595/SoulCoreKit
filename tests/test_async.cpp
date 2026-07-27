@@ -1,4 +1,4 @@
-﻿#include <QTest>
+#include <QTest>
 #include "soul/async/thread_pool.h"
 #include "soul/async/future.h"
 
@@ -93,7 +93,6 @@ void TestFuture::testOnFailure() {
     
     auto future = sc::async([]() -> int {
         throw std::runtime_error("test error");
-        return 0;
     });
     
     future.onFailure([&failed, &errorMsg](const std::exception& e) {
