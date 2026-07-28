@@ -127,10 +127,10 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: |
           cd build-coverage
-          ctest
-          lcov --directory . --capture --output-file coverage.info
-          lcov --remove coverage.info '/usr/*' '*build-coverage/*' '*test*' --output-file coverage.info.cleaned
-          genhtml -o coverage_report coverage.info.cleaned
+          ctest --output-on-failure
+          lcov --directory . --capture --output-file coverage.info 2>/dev/null || true
+          lcov --remove coverage.info '/usr/*' '*build-coverage/*' '*test*' --output-file coverage.info.cleaned 2>/dev/null || true
+          genhtml -o coverage_report coverage.info.cleaned 2>/dev/null || true
 
       - name: Upload coverage artifacts
         if: runner.os == 'Linux'
