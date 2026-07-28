@@ -60,8 +60,11 @@ race:QFutureInterfaceBase::finish*
 race:QFutureInterfaceBase::waitForFinished*
 race:QFutureInterfaceBase::reportResult*
 race:QFutureInterfaceBase::reportException*
-# QFutureWatcher 完成信号与主线程 result() 之间的竞争
-race:QFutureWatcher*
+# QFutureWatcher 内部事件处理与主线程 result() 之间的竞争
+# 仅抑制 QFutureWatcher 内部 Qt 事件机制,不抑制用户代码可能使用的
+# QFutureWatcher 子类或直接操作。收窄为具体内部函数避免掩盖真实竞争。
+race:QFutureWatcherBase::event*
+race:QFutureWatcherBase::timerEvent*
 # shared_ptr 引用计数操作(原子操作,TSan 偶发误报)
 # 注意: 仅抑制 QPromise 相关的 shared_ptr 操作,不抑制所有 shared_ptr
 race:*_Sp_counted_ptr_inplace*QPromise*

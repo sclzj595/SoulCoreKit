@@ -128,9 +128,9 @@ jobs:
         run: |
           cd build-coverage
           ctest --output-on-failure
-          lcov --directory . --capture --output-file coverage.info 2>/dev/null || true
-          lcov --remove coverage.info '/usr/*' '*build-coverage/*' '*test*' --output-file coverage.info.cleaned 2>/dev/null || true
-          genhtml -o coverage_report coverage.info.cleaned 2>/dev/null || true
+          lcov --directory . --capture --output-file coverage.info 2>&1 || true
+          lcov --remove coverage.info '/usr/*' '*build-coverage/*' '*test*' --output-file coverage.info.cleaned 2>&1 || true
+          genhtml -o coverage_report coverage.info.cleaned 2>&1 || true
 
       - name: Upload coverage artifacts
         if: runner.os == 'Linux'
