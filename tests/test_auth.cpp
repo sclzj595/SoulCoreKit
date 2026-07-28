@@ -102,20 +102,24 @@ void TestAuthManager::testHasRole() {
 void TestAuthManager::testAuthStateCallback() {
     bool callbackCalled = false;
     bool lastState = false;
-    
+
     AuthManager::instance().setAuthStateCallback([&callbackCalled, &lastState](bool authenticated) {
         callbackCalled = true;
         lastState = authenticated;
     });
-    
+
     AuthManager::instance().login("testuser", "password");
     QVERIFY(callbackCalled);
     QVERIFY(lastState);
-    
+
     callbackCalled = false;
     AuthManager::instance().logout();
     QVERIFY(callbackCalled);
     QVERIFY(!lastState);
+
+    // Clear callback before local variables go out of scope to prevent UAF
+    // in subsequent tests that call login()/logout() -> notifyAuthStateChanged().
+    AuthManager::instance().setAuthStateCallback(nullptr);
 }
 
 void TestAuthManager::testLoadAndSaveAuthState() {
