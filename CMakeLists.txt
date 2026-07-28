@@ -31,6 +31,16 @@ endif()
 
 find_package(Qt6 REQUIRED COMPONENTS Core Network WebSockets Sql Xml)
 
+# ZLIB: compress_utils.cpp uses deflate/inflate directly.
+# On Linux we include system <zlib.h>; on Windows/macOS we use Qt's <QtZlib/zlib.h>.
+# find_package(ZLIB) is REQUIRED on Linux (system zlib), but QUIET on Win/macOS
+# (where Qt provides zlib symbols transitively via Qt6::Core).
+if(UNIX AND NOT APPLE)
+    find_package(ZLIB REQUIRED)
+else()
+    find_package(ZLIB QUIET)
+endif()
+
 # 尝试加载 Gui 和 Widgets（可能因为 GuiTools/WidgetsTools 缺失而失败）
 # 在某些 Qt 安装中（如仅安装了核心模块），Gui 的工具包可能缺失
 # 此时我们手动添加头文件路径作为后备方案
@@ -651,6 +661,13 @@ target_link_libraries(soul_utils PUBLIC
     Qt6::Xml
     soul_core
 )
+
+# compress_utils.cpp uses zlib deflate/inflate directly.
+# On Linux: link system zlib explicitly.
+# On Windows/macOS: Qt6::Core provides zlib symbols transitively (no explicit link needed).
+if(UNIX AND NOT APPLE)
+    target_link_libraries(soul_utils PRIVATE ZLIB::ZLIB)
+endif()
 
 if(TARGET Qt6::Gui)
     target_link_libraries(soul_utils PUBLIC Qt6::Gui)
