@@ -39,6 +39,15 @@ race:QSqlDatabasePrivate::registerDriver*
 # QFactoryLoader 加载插件时的静态状态
 race:QFactoryLoader::updateDir*
 
+# QPromise/QFuture 内部同步已知误报(Qt 6.5.x)
+# 竞争表象: QWaitCondition 析构(promisePtr 在 worker 线程释放) vs QFuture::result() (主线程读取)
+# 根因: Qt 内部 QFutureInterfaceBase 使用 QMutex+QWaitCondition 保护结果访问,
+#        但 TSan 无法识别 QWaitCondition 的内部同步语义,误报为 data race。
+# 验证: Qt 上游 bug QTBUG-103414(6.5.x 未修复),仅在 TSan 下出现,实际运行无问题。
+# 影响: 仅影响 Future::then() 测试,真实代码无竞争。
+race:QWaitCondition::~QWaitCondition*
+race:QFutureInterfaceBase::~QFutureInterfaceBase*
+
 # ============================================================
 # SoulCoreKit Singleton 初始化(Meyers' Singleton)
 # ============================================================
