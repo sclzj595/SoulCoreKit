@@ -101,7 +101,13 @@ public:
             }
         });
 
-        return Future<U>(std::move(future));
+        // TSan-safe: transfer promisePtr ownership to the returned Future<U>
+        // via m_promiseKeeper. This ensures QPromise destruction happens on the
+        // caller's thread (when Future<U> is destroyed), not on the worker thread,
+        // eliminating the cross-thread race with QFuture::result() access.
+        auto result = Future<U>(std::move(future));
+        result.m_promiseKeeper = promisePtr;
+        return result;
     }
 
     template<typename F>
@@ -227,6 +233,11 @@ private:
     QFuture<T> m_future;
     std::shared_ptr<CallbackData> m_data;
     std::shared_ptr<QFutureWatcher<T>> m_watcher;
+    // TSan-safe: keeps the QPromise alive so its destructor runs on the
+    // caller's thread (not the worker thread), eliminating the cross-thread
+    // race between QPromise destruction and QFuture::result() access.
+    // See then() for where this is populated.
+    std::shared_ptr<void> m_promiseKeeper;
 };
 
 template<typename F>

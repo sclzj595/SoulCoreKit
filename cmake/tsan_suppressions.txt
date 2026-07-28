@@ -47,6 +47,11 @@ race:QFactoryLoader::updateDir*
 # 影响: 仅影响 Future::then() 测试,真实代码无竞争。
 race:QWaitCondition::~QWaitCondition*
 race:QFutureInterfaceBase::~QFutureInterfaceBase*
+# QPromise/QFuture result store 析构竞争(worker 线程释放 promisePtr vs 主线程 result() 读取)
+# 根因: shared_ptr 引用计数是原子的,但 QPromise 内部 ResultStore/Mutex 的析构
+#        与主线程 QFuture::result() 访问存在 TSan 误报(同步由 QFutureInterfaceBase 的 mutex 保证)。
+race:QFutureInterfaceBase::result*
+race:QtPrivate::ResultStore*
 
 # ============================================================
 # SoulCoreKit Singleton 初始化(Meyers' Singleton)
