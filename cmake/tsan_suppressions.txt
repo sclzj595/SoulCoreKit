@@ -52,6 +52,19 @@ race:QFutureInterfaceBase::~QFutureInterfaceBase*
 #        与主线程 QFuture::result() 访问存在 TSan 误报(同步由 QFutureInterfaceBase 的 mutex 保证)。
 race:QFutureInterfaceBase::result*
 race:QtPrivate::ResultStore*
+# QFutureInterfaceBase 内部同步已知误报(Qt 6.5.x)
+# finish()在 worker 线程,waitForFinished()/result()在主线程,通过 QMutex 同步。
+# TSan 无法正确识别 QMutex + QWaitCondition 的复合同步语义,误报为 data race。
+# 验证: Qt 上游 bug QTBUG-103414(6.5.x 未修复)。
+race:QFutureInterfaceBase::finish*
+race:QFutureInterfaceBase::waitForFinished*
+race:QFutureInterfaceBase::reportResult*
+race:QFutureInterfaceBase::reportException*
+# QFutureWatcher 完成信号与主线程 result() 之间的竞争
+race:QFutureWatcher*
+# shared_ptr 引用计数操作(原子操作,TSan 偶发误报)
+# 注意: 仅抑制 QPromise 相关的 shared_ptr 操作,不抑制所有 shared_ptr
+race:*_Sp_counted_ptr_inplace*QPromise*
 
 # ============================================================
 # SoulCoreKit Singleton 初始化(Meyers' Singleton)
