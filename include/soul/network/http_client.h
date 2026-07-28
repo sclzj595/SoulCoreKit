@@ -20,6 +20,7 @@
 #include <QNetworkAccessManager>
 #include <memory>
 #include <functional>
+#include <mutex>
 #include <vector>
 
 namespace sc {
@@ -194,6 +195,9 @@ private:
 
     QNetworkAccessManager* m_manager = nullptr;
     std::vector<std::shared_ptr<HttpInterceptor>> m_interceptors;
+    // TSan-safe: m_interceptors may be modified by addInterceptor/removeInterceptor
+    // from any thread while send()/sendAsync() iterate. All accesses must hold this mutex.
+    mutable std::mutex m_interceptorsMutex;
     RetryPolicy m_retryPolicy;
     int m_timeout = 30000;
     ConnectionPoolConfig m_poolConfig;  ///< HTTP/2 与连接池配置(默认启用 HTTP/2)

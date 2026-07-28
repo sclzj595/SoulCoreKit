@@ -89,7 +89,13 @@ Result<HttpResponse> HttpClient::send(const HttpRequest& request) {
 #endif
     HttpRequest mutableRequest = request;
 
-    for (const auto& interceptor : m_interceptors) {
+    // TSan-safe: snapshot interceptors under lock, then iterate the copy.
+    std::vector<std::shared_ptr<HttpInterceptor>> interceptorsCopy;
+    {
+        std::lock_guard<std::mutex> lock(m_interceptorsMutex);
+        interceptorsCopy = m_interceptors;
+    }
+    for (const auto& interceptor : interceptorsCopy) {
         interceptor->onRequest(mutableRequest);
     }
 
@@ -154,7 +160,8 @@ Result<HttpResponse> HttpClient::send(const HttpRequest& request) {
 
         HttpResponse response = buildResponse(reply);
 
-        for (const auto& interceptor : m_interceptors) {
+        // TSan-safe: iterate the snapshot taken at function entry (interceptorsCopy).
+        for (const auto& interceptor : interceptorsCopy) {
             interceptor->onResponse(response);
         }
 
@@ -170,12 +177,18 @@ void HttpClient::sendAsync(const HttpRequest& request, ResponseCallback callback
 void HttpClient::sendAsync(const HttpRequest& request, ResponseCallback callback, int retryCount) {
     HttpRequest mutableRequest = request;
 
-    for (const auto& interceptor : m_interceptors) {
+    // TSan-safe: snapshot interceptors + retry policy under lock, then use the copies.
+    std::vector<std::shared_ptr<HttpInterceptor>> interceptorsCopy;
+    RetryPolicy retryPolicyCopy;
+    {
+        std::lock_guard<std::mutex> lock(m_interceptorsMutex);
+        interceptorsCopy = m_interceptors;
+        retryPolicyCopy = m_retryPolicy;
+    }
+    for (const auto& interceptor : interceptorsCopy) {
         interceptor->onRequest(mutableRequest);
     }
 
-    std::vector<std::shared_ptr<HttpInterceptor>> interceptorsCopy = m_interceptors;
-    RetryPolicy retryPolicyCopy = m_retryPolicy;
     int maxRetries = retryPolicyCopy.maxRetries();
 
     auto performRequest = [this, mutableRequest, callback, interceptorsCopy,
@@ -251,10 +264,12 @@ void HttpClient::sendAsync(const HttpRequest& request, ResponseCallback callback
 }
 
 void HttpClient::addInterceptor(std::shared_ptr<HttpInterceptor> interceptor) {
+    std::lock_guard<std::mutex> lock(m_interceptorsMutex);
     m_interceptors.push_back(interceptor);
 }
 
 void HttpClient::removeInterceptor(HttpInterceptor* interceptor) {
+    std::lock_guard<std::mutex> lock(m_interceptorsMutex);
     auto it = std::find_if(m_interceptors.begin(), m_interceptors.end(),
                            [interceptor](const std::shared_ptr<HttpInterceptor>& i) {
                                return i.get() == interceptor;

@@ -11,6 +11,7 @@
 #include <QThreadPool>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <vector>
 #include "soul/async/future_detail.h"
 
@@ -117,7 +118,10 @@ public:
             return;
         }
         ensureCallbacks();
-        m_data->successCallbacks.push_back(std::forward<F>(func));
+        {
+            std::lock_guard<std::mutex> lock(m_data->mutex);
+            m_data->successCallbacks.push_back(std::forward<F>(func));
+        }
         ensureWatcher();
     }
 
@@ -135,7 +139,10 @@ public:
             return;
         }
         ensureCallbacks();
-        m_data->failureCallbacks.push_back(std::forward<F>(func));
+        {
+            std::lock_guard<std::mutex> lock(m_data->mutex);
+            m_data->failureCallbacks.push_back(std::forward<F>(func));
+        }
         ensureWatcher();
     }
 
@@ -146,6 +153,10 @@ private:
     struct CallbackData {
         std::vector<std::function<void(const T&)>> successCallbacks;
         std::vector<std::function<void(const std::exception&)>> failureCallbacks;
+        // TSan-safe: onSuccess/onFailure may be called from any thread while
+        // executeCallbacksStatic (triggered by QFutureWatcher::finished) iterates
+        // and clears the vectors. All accesses must hold this mutex.
+        mutable std::mutex mutex;
     };
 
     void ensureCallbacks() {
@@ -170,12 +181,20 @@ private:
     }
 
     // 静态版本:不依赖 this,供 ensureWatcher lambda 安全调用
+    // TSan-safe: 持锁 swap 出回调列表,释放锁后执行用户回调(防死锁/防重入)。
     static void executeCallbacksStatic(std::shared_ptr<CallbackData> data, QFuture<T> future) {
         if (!data) return;
-        if (!data->successCallbacks.empty()) {
+        std::vector<std::function<void(const T&)>> successCallbacks;
+        std::vector<std::function<void(const std::exception&)>> failureCallbacks;
+        {
+            std::lock_guard<std::mutex> lock(data->mutex);
+            successCallbacks.swap(data->successCallbacks);
+            failureCallbacks.swap(data->failureCallbacks);
+        }
+        if (!successCallbacks.empty()) {
             try {
                 T result = future.result();
-                for (auto& cb : data->successCallbacks) {
+                for (auto& cb : successCallbacks) {
                     cb(result);
                 }
             } catch (const std::exception& e) {
@@ -184,22 +203,20 @@ private:
                 // Blanket catch: success-callback dispatch must not propagate exceptions.
                 detail::logAsyncUnknownException("Future::executeCallbacks success");
             }
-            data->successCallbacks.clear();
         }
-        if (!data->failureCallbacks.empty()) {
+        if (!failureCallbacks.empty()) {
             try {
                 future.result();
             } catch (const std::exception& e) {
-                for (auto& cb : data->failureCallbacks) {
+                for (auto& cb : failureCallbacks) {
                     cb(e);
                 }
             } catch (...) {
                 // Blanket catch: failure-callback dispatch translates unknown exceptions to runtime_error.
-                for (auto& cb : data->failureCallbacks) {
+                for (auto& cb : failureCallbacks) {
                     cb(std::runtime_error("Unknown exception"));
                 }
             }
-            data->failureCallbacks.clear();
         }
     }
 

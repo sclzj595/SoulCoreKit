@@ -17,7 +17,7 @@ Result<void> InMemoryServiceRegistry::unregisterInstance(const QString& serviceN
         return Result<void>::err(Error(ErrorCode::NotFound, QString("Service not found: %1").arg(serviceName)));
     }
     QList<ServiceInstance>& instances = it.value();
-    for (int i = 0; i < instances.size(); ++i) {
+    for (int i = 0, sz = static_cast<int>(instances.size()); i < sz; ++i) {
         if (instances[i].host == host && instances[i].port == port) {
             instances.removeAt(i);
             if (instances.isEmpty()) {

@@ -48,7 +48,7 @@ public:
         QSqlRecord record = query.record();
         while (query.next()) {
             std::map<QString, QVariant> row;
-            for (int i = 0; i < record.count(); ++i) {
+            for (int i = 0, cnt = static_cast<int>(record.count()); i < cnt; ++i) {
                 row[record.fieldName(i)] = query.value(i);
             }
             result.rows.push_back(row);

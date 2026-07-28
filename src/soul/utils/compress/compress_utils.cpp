@@ -1,5 +1,16 @@
 #include "soul/utils/compress/compress_utils.h"
+// Zlib header selection:
+// - Linux: Qt6 base-dev package doesn't export QtZlib/zlib.h (Qt private header).
+//   Use system zlib instead (requires zlib1g-dev on Ubuntu/Debian).
+// - Windows/macOS: Qt's bundled QtZlib/zlib.h is available via aqt-installed Qt.
+//   System zlib may not be present (Windows) or less tested (macOS).
+// Linking: Qt6::Core links against zlib on all platforms, so deflate/inflate
+// symbols are resolved transitively without explicit ZLIB::ZLIB linkage.
+#ifdef __linux__
+#include <zlib.h>
+#else
 #include <QtZlib/zlib.h>
+#endif
 #include <QByteArray>
 #include <vector>
 
