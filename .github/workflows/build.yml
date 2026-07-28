@@ -79,6 +79,9 @@ jobs:
           cmake --build build -j$(nproc)
 
       - name: Run tests
+        env:
+          # Headless CI: force offscreen Qt platform plugin (no X server/display available)
+          QT_QPA_PLATFORM: offscreen
         run: |
           cd build
           ctest --output-on-failure
@@ -113,6 +116,9 @@ jobs:
           cmake --build build -j$(sysctl -n hw.ncpu)
 
       - name: Run tests
+        env:
+          # Headless CI: force offscreen Qt platform plugin (no X server/display available)
+          QT_QPA_PLATFORM: offscreen
         run: |
           cd build
           ctest --output-on-failure

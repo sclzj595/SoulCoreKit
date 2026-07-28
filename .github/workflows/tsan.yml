@@ -51,6 +51,8 @@ jobs:
             second_deadlock_stack=1
             report_bugs=1
             report_thread_leaks=0
+          # Headless CI: force offscreen Qt platform plugin (no X server/display available)
+          QT_QPA_PLATFORM: offscreen
         run: |
           cd build
           ctest --output-on-failure --timeout 120

@@ -13,7 +13,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        # windows-2019: preinstalled VS2019 + VC142 toolset (matches Qt6 msvc2019_64 ABI)
+        # ubuntu-latest: GCC toolchain (matches Qt6 gcc_64 ABI)
+        os: [ubuntu-latest, windows-2019]
 
     steps:
       - uses: actions/checkout@v4
@@ -74,6 +76,9 @@ jobs:
 
       - name: Run tests (Linux)
         if: runner.os == 'Linux'
+        env:
+          # Headless CI: force offscreen Qt platform plugin (no X server/display available)
+          QT_QPA_PLATFORM: offscreen
         run: |
           cd build
           ctest --output-on-failure
@@ -117,6 +122,9 @@ jobs:
 
       - name: Generate coverage report
         if: runner.os == 'Linux'
+        env:
+          # Headless CI: force offscreen Qt platform plugin (no X server/display available)
+          QT_QPA_PLATFORM: offscreen
         run: |
           cd build-coverage
           ctest
