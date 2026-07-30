@@ -80,6 +80,35 @@ int ConnectionPool::countTotalLocked() const {
     return total;
 }
 
+int ConnectionPool::countActiveLocked() const {
+    int active = 0;
+    for (const auto& pair : m_pools) {
+        for (const auto& entry : pair.second) {
+            if (entry.inUse) {
+                ++active;
+            }
+        }
+    }
+    return active;
+}
+
+int ConnectionPool::activeCount() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return countActiveLocked();
+}
+
+int ConnectionPool::idleCount() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    const int total = countTotalLocked();
+    const int active = countActiveLocked();
+    return (total > active) ? (total - active) : 0;
+}
+
+int ConnectionPool::maxCount() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_config.maxConnections;
+}
+
 std::shared_ptr<INetwork> ConnectionPool::acquire(const QUrl& url) {
     std::unique_lock<std::mutex> lock(m_mutex);
     const std::string key = url.toString().toStdString();

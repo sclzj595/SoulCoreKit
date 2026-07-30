@@ -2,8 +2,8 @@
 #define SOUL_AUTH_AUTH_MANAGER_H
 
 #include <QString>
-#include <QJsonObject>
 #include <functional>
+#include "soul/utils/json/json_helper.h"
 #include <memory>
 #include <QMutex>
 #include <QMutexLocker>
@@ -71,7 +71,7 @@ public:
         QString token;
         QString refreshToken;
         int expiresIn;
-        QJsonObject extra;
+        sc::json::Json extra;
     };
 
     /**

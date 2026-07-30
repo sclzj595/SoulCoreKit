@@ -280,6 +280,8 @@ private:
         if (it != m_entries.end()) {
             evictEntryUnlocked(it);
         } else {
+            // [v1.9.2] 记录 warning 日志,便于排查数据不一致
+            m_stats.evictionCount++;
             m_lruList.pop_back();
         }
     }

@@ -3,7 +3,6 @@
 
 #include <QObject>
 #include <QString>
-#include <QJsonObject>
 #include <QFileSystemWatcher>
 #include <QVariantMap>
 #include <QTimer>
@@ -19,6 +18,7 @@
 #include "soul/core/singleton.h"
 #include "soul/core/result.h"
 #include "soul/configuration/config_schema.h"
+#include "soul/configuration/config_bind.h"
 
 namespace sc {
 
@@ -274,6 +274,68 @@ public:
      * @return Result<void>,成功返回 Ok
      */
     Result<void> loadProfile(const QString& profile);
+
+    // --- 配置元数据绑定 [v1.9.1 新增] ---
+
+    /**
+     * @brief 类型安全配置绑定(对标 SpringBoot @ConfigurationProperties)
+     *
+     * 将 Config 中的 key-value 自动映射到 struct T 的字段上。
+     * 需要先通过 SC_CONFIG_BIND 宏声明 T 的字段绑定元数据。
+     *
+     * @tparam T 目标 struct 类型(需通过 SC_CONFIG_BIND 声明绑定)
+     * @param prefix 配置键前缀(如 "server"),最终查询 key = prefix + "." + fieldName
+     * @return 绑定后的 struct 实例
+     *
+     * @par 使用示例
+     * @code
+     * struct ServerConfig {
+     *     QString host;
+     *     int port = 0;
+     * };
+     * SC_CONFIG_BIND(ServerConfig,
+     *     SC_CFG_FIELD("host", &ServerConfig::host, "localhost")
+     *     SC_CFG_FIELD("port", &ServerConfig::port, 8080)
+     * )
+     *
+     * auto cfg = Config::instance().bind<ServerConfig>("server");
+     * // cfg.host == "localhost", cfg.port == 8080
+     * @endcode
+     */
+    template<typename T>
+    T bind(const QString& prefix = QString()) const {
+        T obj{};
+        const auto& fields = ConfigBindTraits<T>::fields();
+        if (fields.empty()) {
+            return obj;
+        }
+
+        // 使用 traits 中的 prefix 或参数传入的 prefix
+        QString effectivePrefix = prefix;
+        if (effectivePrefix.isEmpty()) {
+            const char* traitPrefix = ConfigBindTraits<T>::prefix();
+            if (traitPrefix && traitPrefix[0] != '\0') {
+                effectivePrefix = QString::fromUtf8(traitPrefix);
+            }
+        }
+
+        // 加锁一次,遍历所有字段(利用 QRecursiveMutex 可重入特性)
+        QMutexLocker lock(&m_dataMutex);
+        for (const auto& field : fields) {
+            QString fullKey = effectivePrefix.isEmpty()
+                ? QString::fromStdString(field.key)
+                : effectivePrefix + "." + QString::fromStdString(field.key);
+
+            QVariant value = getValueLocked(fullKey);
+            if (value.isValid()) {
+                field.setter(obj, value);
+            } else {
+                // 使用默认值
+                field.setter(obj, field.defaultValue);
+            }
+        }
+        return obj;
+    }
 
 private:
     /**

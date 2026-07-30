@@ -1,50 +1,49 @@
-﻿#include "soul/storage/json_serializer.h"
+#include "soul/storage/json_serializer.h"
 #include "soul/core/error.h"
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QJsonArray>
 
 namespace sc {
+
+using namespace sc::json;
 
 QString JsonSerializer::name() const {
     return "json";
 }
 
 Result<QByteArray> JsonSerializer::serialize(const QVariant& data) const {
-    QJsonDocument doc;
+    Json j;
 
     if (data.canConvert<QJsonObject>()) {
-        doc = QJsonDocument(data.value<QJsonObject>());
+        j = fromQJsonObject(data.value<QJsonObject>());
     } else if (data.canConvert<QJsonArray>()) {
-        doc = QJsonDocument(data.value<QJsonArray>());
+        j = fromQJsonArray(data.value<QJsonArray>());
     } else if (data.canConvert<QJsonValue>()) {
         QJsonValue value = data.value<QJsonValue>();
         if (value.isObject()) {
-            doc = QJsonDocument(value.toObject());
+            j = fromQJsonObject(value.toObject());
         } else if (value.isArray()) {
-            doc = QJsonDocument(value.toArray());
+            j = fromQJsonArray(value.toArray());
         } else {
-            return Error(ErrorCode::SerializationError, "Unsupported QVariant type");
+            j = fromQJsonValue(value);
         }
     } else {
         return Error(ErrorCode::SerializationError, "Unsupported QVariant type");
     }
 
-    return doc.toJson(m_format);
+    return m_compact ? sc::json::serialize(j) : sc::json::serializePretty(j);
 }
 
 Result<QVariant> JsonSerializer::deserialize(const QByteArray& data) const {
-    QJsonParseError error;
-    QJsonDocument doc = QJsonDocument::fromJson(data, &error);
-
-    if (error.error != QJsonParseError::NoError) {
-        return Error(ErrorCode::DeserializationError, error.errorString().toStdString());
+    auto result = sc::json::deserialize(data);
+    if (!result.isOk()) {
+        return Error(ErrorCode::DeserializationError, "Failed to parse JSON");
     }
 
-    if (doc.isObject()) {
-        return QVariant::fromValue(doc.object());
-    } else if (doc.isArray()) {
-        return QVariant::fromValue(doc.array());
+    Json j = result.unwrap();
+
+    if (j.is_object()) {
+        return QVariant::fromValue(toQJsonObject(j));
+    } else if (j.is_array()) {
+        return QVariant::fromValue(toQJsonArray(j));
     }
 
     return Error(ErrorCode::DeserializationError, "Invalid JSON document");

@@ -19,6 +19,7 @@ namespace sc {
 
 template<typename T>
 class Future {
+    template<typename> friend class Future;  ///< [v1.9.2] 允许跨类型 then() 访问私有成员
 public:
     Future() = default;
     Future(QFuture<T> future) : m_future(std::move(future)) {}

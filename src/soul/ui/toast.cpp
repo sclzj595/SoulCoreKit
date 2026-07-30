@@ -1,4 +1,4 @@
-﻿#include "soul/ui/toast.h"
+#include "soul/ui/toast.h"
 #include "soul/ui/theme.h"
 #include "soul/ui/design_constants.h"
 #include <QApplication>
@@ -41,7 +41,7 @@ void Toast::setDuration(int milliseconds) {
 }
 
 void Toast::show() {
-    ToastManager::instance().addToast(std::unique_ptr<Toast>(this));
+    ToastManager::instance().addToast(this);
     QWidget::show();
 
     if (m_duration > 0) {
@@ -100,7 +100,7 @@ void Toast::setupUI() {
 }
 
 void Toast::info(const QString& message, int duration) {
-    auto toast = std::make_unique<Toast>();
+    auto* toast = new Toast();
     toast->setType(ToastType::Info);
     toast->setMessage(message);
     toast->setDuration(duration);
@@ -108,7 +108,7 @@ void Toast::info(const QString& message, int duration) {
 }
 
 void Toast::warning(const QString& message, int duration) {
-    auto toast = std::make_unique<Toast>();
+    auto* toast = new Toast();
     toast->setType(ToastType::Warning);
     toast->setMessage(message);
     toast->setDuration(duration);
@@ -116,7 +116,7 @@ void Toast::warning(const QString& message, int duration) {
 }
 
 void Toast::error(const QString& message, int duration) {
-    auto toast = std::make_unique<Toast>();
+    auto* toast = new Toast();
     toast->setType(ToastType::Error);
     toast->setMessage(message);
     toast->setDuration(duration);
@@ -124,7 +124,7 @@ void Toast::error(const QString& message, int duration) {
 }
 
 void Toast::success(const QString& message, int duration) {
-    auto toast = std::make_unique<Toast>();
+    auto* toast = new Toast();
     toast->setType(ToastType::Success);
     toast->setMessage(message);
     toast->setDuration(duration);
@@ -152,9 +152,8 @@ ToastManager& ToastManager::instance() {
     return instance;
 }
 
-void ToastManager::addToast(std::unique_ptr<Toast> toast) {
-    Toast* raw = toast.release();
-    m_layout->addWidget(raw);
+void ToastManager::addToast(Toast* toast) {
+    m_layout->addWidget(toast);
     show();
 }
 

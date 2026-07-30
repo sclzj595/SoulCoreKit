@@ -1,8 +1,8 @@
-﻿#ifndef SOUL_CONFIGURATION_JSON_CONFIGURATION_H
+#ifndef SOUL_CONFIGURATION_JSON_CONFIGURATION_H
 #define SOUL_CONFIGURATION_JSON_CONFIGURATION_H
 
 #include "iconfiguration.h"
-#include <QJsonObject>
+#include "soul/utils/json/json_helper.h"
 
 namespace sc {
 
@@ -10,7 +10,7 @@ namespace sc {
  * @class JsonConfiguration
  * @brief JSON 文件配置实现
  *
- * JsonConfiguration 使用 Qt 的 QJsonObject 作为底层存储，
+ * JsonConfiguration 使用 nlohmann/json (sc::json::Json) 作为底层存储，
  * 支持从 JSON 文件加载和保存配置。
  *
  * 使用方式：
@@ -125,12 +125,12 @@ public:
 
     /**
      * @brief 获取底层 JSON 数据
-     * @return QJsonObject 引用
+     * @return sc::json::Json 引用
      */
-    const QJsonObject& data() const;
+    const sc::json::Json& data() const;
 
 private:
-    QJsonObject m_data;
+    sc::json::Json m_data;
 };
 
 }

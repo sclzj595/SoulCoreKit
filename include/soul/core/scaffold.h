@@ -10,6 +10,8 @@
 
 namespace sc {
 
+class ModuleRegistry;
+
 // ============================================================================
 // Scaffold — 声明式脚手架入口
 // ============================================================================
@@ -36,6 +38,13 @@ namespace sc {
 //   startup/shutdown 回调。Scaffold 是 Application 之上的"声明式封装层"。
 class Scaffold {
 public:
+    /// @brief 运行状态枚举 [v1.9.2 新增]
+    enum class State {
+        Uninitialized,  ///< 尚未调用 run()
+        Running,        ///< 正在运行(事件循环中)
+        Shutdown        ///< 已关闭
+    };
+
     // 构造时创建 Application 实例(线程安全)。
     explicit Scaffold(int& argc, char** argv);
     ~Scaffold();
@@ -50,11 +59,17 @@ public:
     Scaffold& use(Module& module);
     Scaffold& use(Module* module);
 
+    // 从模块注册表扫描并注册所有模块(对标 SpringBoot 自动配置) [v1.9.1 新增]
+    // 模块实例由 Scaffold 管理生命周期,scan() 返回的模块会在析构时自动清理。
+    // 与手动 use() 兼容:scan() 的模块先注册,手动 use() 的模块后注册。
+    Scaffold& scan(ModuleRegistry& registry);
+
     // 启动应用。
     //   - 按注册顺序调用 Module::init()
     //   - 任一失败: 按逆序 cleanup() 已成功模块,返回 -1
     //   - 全部成功: 进入 QCoreApplication::exec() 事件循环
     //   - 事件循环退出: 自动按逆序 cleanup() 所有模块
+    //   - [v1.9.2] 仅允许从 Uninitialized 状态调用,重复调用返回 -1
     int run();
 
     // 主动关闭(通常不需要手动调用,析构函数会处理)。
@@ -64,11 +79,16 @@ public:
     // 获取底层 Application 实例(用于注册额外的 startup/shutdown 回调)。
     Application* application() { return m_app.get(); }
 
+    /// @brief 获取当前运行状态 [v1.9.2 新增]
+    State state() const { return m_state; }
+
 private:
     std::unique_ptr<Application> m_app;
     std::vector<Module*> m_modules;
+    std::vector<std::unique_ptr<Module>> m_ownedModules;  ///< v1.9.1: scan() 创建的模块,Scaffold 拥有生命周期
     std::vector<Module*> m_sortedModules;  // 拓扑排序后的模块列表(仅含 enabled),供 shutdown 按逆序 cleanup
     bool m_initialized = false;
+    State m_state = State::Uninitialized;  ///< [v1.9.2] 运行状态跟踪
 };
 
 } // namespace sc

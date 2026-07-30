@@ -1,9 +1,9 @@
 # SoulCoreKit Roadmap
 
 **文档状态**: Accepted
-**最后更新**: 2026-07-26
-**当前基线**: v1.8.0 (P0 TSan CI + P1 HTTP/2 多路复用,功能新增向后兼容)
-**当前迭代**: v1.9.0 (规划中,认证增强 + API 网关 + 测试深度)
+**最后更新**: 2026-07-29
+**当前基线**: v1.9.0 (AOP + HTTP Server + 资源池监控 + CS 架构定位修正)
+**当前迭代**: v1.9.1 (CS 架构生产可用性:健康检查 / 中间件链 / 声明式事务 / WebSocket Server / 断线重连 / UI 测试)
 
 ---
 
@@ -366,35 +366,56 @@ flowchart TB
 
 ---
 
-## 4. 当前迭代 — v1.9.0 (Planned)
+## 4. 当前迭代 — v1.9.1 (Planned)
 
-**预计启动**: v1.8.0 发布后
-**主题**: 认证增强 + API 网关 + 测试深度 + v1.8.0 延期项闭环
+**预计启动**: v1.9.0 定位修正后
+**主题**: CS 架构生产可用性 + 脚手架易用性提升
+**版本类型**: Patch(定位修正 + 功能补全,向后兼容)
 
-### 4.1 计划范围(从 v1.8.0 延期)
+### 4.1 定位修正背景
 
-| 模块 | 说明 | 优先级 | 来源 |
-|------|------|--------|------|
-| HTTP/2 | 多路复用、流优先级、服务器推送,基于 Qt 6.5+ RHI | High | v1.7.0 P2 延期 |
-| OAuth2/OIDC | 授权码模式、客户端凭证模式、PKCE、ID Token 验证 | High | v1.7.0 P2 延期 |
-| 分布式缓存(L3 Redis) | 在 SoulCache 之上扩展 `RedisCache`,RESP 协议自研或基于 hiredis | Medium | v1.7.0 P2 延期 |
-| OpenTelemetry 集成 | 在 SoulObservability 之上扩展 OTLP exporter,跨进程追踪 | Medium | v1.7.0 P2 延期 |
-| TSan CI 接入 | Linux CI 节点 + tsan.yml + suppressions | High | v1.7.0 P0-C 延期 |
-| Clang-Tidy CI 检查 | 覆盖 blanket catch / raw new | High | v1.7.0 P0-F 延期 |
-| RPC 测试深度 | 序列化对比 / 传输故障注入 / 负载均衡压力 | Medium | v1.7.0 P2-A 延期 |
+v1.9.0 发布后,经审查发现项目定位存在偏差:
 
-### 3.2 候选新增
+- **修正前**: "Qt 版 SpringBoot 全栈基础脚手架"("全栈"在 SpringBoot 语境下默认指 BS 架构)
+- **修正后**: "Qt CS 架构 · SpringBoot 风格脚手架"(Client 桌面 + Server Linux)
 
-| 模块 | 说明 | 优先级 |
-|------|------|--------|
-| SoulGateway | API 网关模块,限流/熔断/路由 | Medium |
-| 配置环境隔离 | dev/test/prod 分层配置加载,环境变量覆盖 | Medium |
-| 备份与恢复 | 用户数据与配置的备份/恢复机制 | Low |
-| 性能基准套件 | UI 渲染/数据库查询/网络操作关键路径 benchmark | Medium |
+修正影响:
+- 移除 BS 专属需求(API 网关、嵌入式 Tomcat 对标)
+- 新增 CS 特有需求(断线重连、连接数限制)
+- 版本基线从 v2.0.0 改为 v1.9.1
+
+### 4.2 P0 — 影响 CS 架构生产可用性
+
+| GAP | 任务 | 端 | 类型 |
+|-----|------|----|------|
+| GAP-01 | Server 端健康检查端点 HealthIndicator | S | 新模块 |
+| GAP-02 | HTTP Server 中间件链(鉴权/日志/CORS) | S | 架构 |
+| GAP-03 | 声明式事务 `withTransaction<T>` + AOP 整合 | S | 架构 |
+| GAP-04 | WebSocket Server | S | 新模块 |
+| GAP-05 | Client 端断线重连/心跳管理增强 | C | 架构 |
+| GAP-06 | UI 组件测试覆盖(30+ 组件) | C | 测试 |
+
+### 4.3 P1 — 脚手架易用性提升
+
+| GAP | 任务 | 端 | 类型 |
+|-----|------|----|------|
+| GAP-07 | 定时任务框架 `@Scheduled` | CS | 新模块 |
+| GAP-08 | Server 端连接数限制与负载保护 | S | 架构 |
+| GAP-09 | 配置元数据 `Config::bind<T>` | CS | 架构 |
+| GAP-10 | 自动配置机制 `Scaffold::scan()` | CS | 架构 |
+| GAP-11 | Clang-Tidy CI 强制闭环 | CS | CI |
+
+### 4.4 v1.9.1 验收标准
+
+| 里程碑 | 验收标准 |
+|--------|----------|
+| M0 — P0 完成 | 6 项 P0 GAP 全部 done,CS 架构生产可用 |
+| M1 — P1 完成 | 5 项 P1 GAP 全部 done,脚手架易用性提升 |
+| M2 — v1.9.1 发布 | 全量测试通过;CHANGELOG 更新;版本号同步 |
 
 ---
 
-## 4. 长期愿景 — v2.0 (Long-term)
+## 5. 长期愿景 — v2.0 (Long-term)
 
 **主题**: 架构演进 + 平台扩展
 

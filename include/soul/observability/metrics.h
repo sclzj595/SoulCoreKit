@@ -203,6 +203,12 @@ public:
         m_value = value;
     }
 
+    /// @brief 带标签设置值(v1.9.0 新增,与 Counter::increment(labels, delta) 对称)
+    void set(const Labels& labels, double value) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_labeledValues[labels] = value;
+    }
+
     void increment(double delta = 1.0) {
         std::lock_guard<std::mutex> lock(m_mutex);
         m_value += delta;
@@ -218,6 +224,12 @@ public:
         return m_value;
     }
 
+    /// @brief 获取所有标签组合的值(v1.9.0 新增)
+    [[nodiscard]] std::map<Labels, double> labeledValues() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_labeledValues;
+    }
+
     const std::string& name() const override { return m_name; }
     const std::string& help() const override { return m_help; }
     MetricType type() const override { return MetricType::Gauge; }
@@ -227,6 +239,7 @@ private:
     std::string       m_help;
     double            m_value = 0.0;
     mutable std::mutex m_mutex;
+    std::map<Labels, double> m_labeledValues;  ///< 受 m_mutex 保护(v1.9.0 新增)
 };
 
 /**
@@ -265,6 +278,8 @@ public:
                 throw std::invalid_argument("Histogram: buckets.boundaries must be strictly ascending");
             }
         }
+        // [v1.9.2] 构造时预初始化桶计数,避免首次 observe() 时延迟分配影响性能
+        m_bucketCounts.resize(m_buckets.bucketCount(), 0);
     }
 
     /// @brief 观察一个值

@@ -88,6 +88,12 @@ public:
     void setConfig(const Config& config);
     Config config() const;
 
+    // v1.9.0: 资源池监控统计接口(供 NetworkConnectionPoolMonitor 适配器使用)
+    // 不改变现有连接管理语义,仅暴露当前水位快照
+    int activeCount() const;  ///< 正在使用的连接数
+    int idleCount() const;    ///< 空闲可复用的连接数
+    int maxCount() const;     ///< 容量上限(m_config.maxConnections)
+
 private:
     struct ConnectionEntry {
         std::shared_ptr<INetwork> connection;
@@ -96,6 +102,7 @@ private:
     };
 
     int countTotalLocked() const;
+    int countActiveLocked() const;  ///< 在锁内统计活跃连接数(供 activeCount() 复用)
 
     mutable std::mutex m_mutex;
     std::condition_variable m_cond;

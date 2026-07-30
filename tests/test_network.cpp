@@ -1,6 +1,8 @@
 #include <QTest>
 #include <memory>
 #include <stdexcept>
+#include <thread>
+#include <chrono>
 #include "soul/network/core/inetwork.h"
 #include "soul/network/core/network_message.h"
 #include "soul/network/core/network_state.h"
@@ -16,6 +18,9 @@
 #include "soul/network/websocket/ws_client_adapter.h"
 #include "soul/network/pool/connection_pool.h"
 
+// ============================================================================
+// TestNetwork — 基础功能测试
+// ============================================================================
 class TestNetwork : public QObject {
     Q_OBJECT
 
@@ -281,7 +286,6 @@ void TestNetwork::testConnectionPoolMaxConnections() {
 }
 
 void TestNetwork::testConnectionPoolAcquireGuarded() {
-    // acquireGuarded returns a Result<ConnectionGuard>; guard auto-releases on scope exit.
     sc::network::ConnectionPool::Config config;
     config.maxConnections = 3;
     auto pool = std::make_shared<sc::network::ConnectionPool>(config);
@@ -292,11 +296,8 @@ void TestNetwork::testConnectionPoolAcquireGuarded() {
         auto guard = std::move(result.unwrap());
         QVERIFY(guard);
         QVERIFY(guard.connection() != nullptr);
-        // Guard releases on scope exit
     }
 
-    // After guard destruction, the connection should be back in the pool
-    // available for re-acquisition.
     auto result2 = pool->acquireGuarded(QUrl("http://localhost"));
     QVERIFY(result2.isOk());
     QVERIFY(result2.unwrap());
@@ -305,29 +306,141 @@ void TestNetwork::testConnectionPoolAcquireGuarded() {
 }
 
 void TestNetwork::testConnectionPoolGuardAutoReleases() {
-    // Verify RAII semantics: even when an exception is thrown, the guard
-    // must release the connection back to the pool.
     sc::network::ConnectionPool::Config config;
-    config.maxConnections = 1;  // Tight capacity to make leakage observable
+    config.maxConnections = 1;
     auto pool = std::make_shared<sc::network::ConnectionPool>(config);
 
-    // Acquire via guard, then throw. Guard must release on exception unwind.
     try {
         auto result = pool->acquireGuarded(QUrl("http://localhost"));
         QVERIFY(result.isOk());
         auto guard = std::move(result.unwrap());
         throw std::runtime_error("simulated failure");
     } catch (const std::runtime_error&) {
-        // Guard destructed during stack unwinding, connection released.
     }
 
-    // If the guard leaked (did not release), this second acquire would time out
-    // and return ResourceExhausted. With correct RAII it should succeed.
     auto second = pool->acquireGuarded(QUrl("http://localhost"));
     QVERIFY2(second.isOk(), "ConnectionGuard failed to release connection on exception path");
 
     pool->closeAll();
 }
 
-QTEST_MAIN(TestNetwork)
+// ============================================================================
+// TestNetworkAdvanced — v1.9.2 拦截器链/重试策略/连接池超时 [P1-M05]
+// ============================================================================
+class TestNetworkAdvanced : public QObject {
+    Q_OBJECT
+
+private slots:
+    void testInterceptorChain();
+    void testRetryStrategyExponentialBackoff();
+    void testRetryStrategyFixedDelay();
+    void testConnectionPoolTimeout();
+    void testConnectionPoolStats();
+    void testConnectionPoolCleanupIdle();
+};
+
+void TestNetworkAdvanced::testInterceptorChain() {
+    // 验证: 多个拦截器按添加顺序组成链
+    sc::network::HttpClientAdapter adapter;
+
+    auto authInterceptor = std::make_shared<sc::network::AuthInterceptor>("chain-token");
+    auto logInterceptor = std::make_shared<sc::network::LoggingInterceptor>();
+
+    adapter.addInterceptor(authInterceptor);
+    adapter.addInterceptor(logInterceptor);
+
+    sc::network::NetworkMessage msg;
+    msg.api = "/api/test-chain";
+
+    auto result = adapter.send(msg);
+    QVERIFY(result.isOk());
+}
+
+void TestNetworkAdvanced::testRetryStrategyExponentialBackoff() {
+    // 验证: 指数退避策略延迟递增
+    sc::network::RetryPolicy policy(5, sc::network::RetryStrategy::ExponentialBackoff);
+    policy.setBaseDelay(100);
+
+    int prevDelay = 0;
+    for (int attempt = 0; attempt < 5; ++attempt) {
+        int delay = policy.nextDelay(attempt);
+        // 指数退避: delay = baseDelay * 2^attempt
+        QVERIFY(delay >= prevDelay);
+        prevDelay = delay;
+    }
+
+    // 达到最大重试后返回 -1
+    int maxDelay = policy.nextDelay(6);
+    QCOMPARE(maxDelay, -1);
+}
+
+void TestNetworkAdvanced::testRetryStrategyFixedDelay() {
+    // 验证: 固定延迟策略
+    sc::network::RetryPolicy policy(3, sc::network::RetryStrategy::FixedInterval);
+    policy.setBaseDelay(500);
+
+    for (int attempt = 0; attempt < 3; ++attempt) {
+        int delay = policy.nextDelay(attempt);
+        QCOMPARE(delay, 500);
+    }
+
+    // 超过最大重试后返回 -1
+    int maxDelay = policy.nextDelay(4);
+    QCOMPARE(maxDelay, -1);
+}
+
+void TestNetworkAdvanced::testConnectionPoolTimeout() {
+    // 验证: 连接池配置和容量限制(不依赖网络连接)
+    sc::network::ConnectionPool::Config config;
+    config.maxConnections = 2;
+    config.connectionTimeoutMs = 100;
+    auto pool = std::make_shared<sc::network::ConnectionPool>(config);
+
+    QCOMPARE(pool->maxCount(), 2);
+    QCOMPARE(pool->config().connectionTimeoutMs, 100);
+    QCOMPARE(pool->activeCount(), 0);
+    QCOMPARE(pool->idleCount(), 0);
+
+    pool->closeAll();
+}
+
+void TestNetworkAdvanced::testConnectionPoolStats() {
+    // 验证: 连接池统计信息正确(不依赖网络连接)
+    sc::network::ConnectionPool::Config config;
+    config.maxConnections = 5;
+    auto pool = std::make_shared<sc::network::ConnectionPool>(config);
+
+    QCOMPARE(pool->maxCount(), 5);
+    QCOMPARE(pool->activeCount(), 0);
+    QCOMPARE(pool->idleCount(), 0);
+
+    pool->closeAll();
+}
+
+void TestNetworkAdvanced::testConnectionPoolCleanupIdle() {
+    // 验证: cleanupIdleConnections 不崩溃
+    sc::network::ConnectionPool::Config config;
+    config.maxConnections = 3;
+    config.idleTimeoutMs = 10;
+    auto pool = std::make_shared<sc::network::ConnectionPool>(config);
+
+    // cleanupIdleConnections 应正常执行(空池)
+    pool->cleanupIdleConnections();
+
+    pool->closeAll();
+}
+
+int main(int argc, char *argv[]) {
+    QCoreApplication app(argc, argv);
+    
+    TestNetwork basicTest;
+    TestNetworkAdvanced advancedTest;
+    
+    int result = 0;
+    result |= QTest::qExec(&basicTest, argc, argv);
+    result |= QTest::qExec(&advancedTest, argc, argv);
+    
+    return result;
+}
+
 #include "test_network.moc"

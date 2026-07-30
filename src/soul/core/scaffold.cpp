@@ -1,4 +1,5 @@
 #include "soul/core/scaffold.h"
+#include "soul/core/module_registry.h"
 #include "soul/logging/log_macros.h"
 #include <algorithm>
 #include <QString>
@@ -23,6 +24,19 @@ Scaffold& Scaffold::use(Module& module) {
 Scaffold& Scaffold::use(Module* module) {
     if (module) {
         m_modules.push_back(module);
+    }
+    return *this;
+}
+
+Scaffold& Scaffold::scan(ModuleRegistry& registry) {
+    auto factories = registry.factories();
+    for (auto& [name, factory] : factories) {
+        auto module = factory();
+        if (module) {
+            SC_INFO(std::string("Scaffold: auto-discovered module '") + name + "'");
+            m_modules.push_back(module.get());
+            m_ownedModules.push_back(std::move(module));
+        }
     }
     return *this;
 }
@@ -87,6 +101,16 @@ std::vector<Module*> topoSortWithPriority(const std::vector<Module*>& modules) {
 } // namespace
 
 int Scaffold::run() {
+    // [v1.9.2] 状态检查: 仅允许从 Uninitialized 状态调用
+    if (m_state != State::Uninitialized) {
+        if (m_state == State::Running) {
+            SC_ERROR("Scaffold::run() called while already running");
+        } else {
+            SC_ERROR("Scaffold::run() called after shutdown");
+        }
+        return -1;
+    }
+
     // 1. 过滤 isEnabled() == false 的模块
     std::vector<Module*> enabledModules;
     for (auto* m : m_modules) {
@@ -167,6 +191,7 @@ int Scaffold::run() {
     }
 
     m_initialized = true;
+    m_state = State::Running;  // [v1.9.2] 状态跟踪
 
     // 5. 进入事件循环
     // 注意: 不再注册 shutdown 回调到 Application。~Scaffold() 函数体会先于成员析构
@@ -199,6 +224,7 @@ void Scaffold::shutdown() {
         }
     }
     m_initialized = false;
+    m_state = State::Shutdown;  // [v1.9.2] 状态跟踪
 }
 
 } // namespace sc

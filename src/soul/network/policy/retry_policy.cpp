@@ -1,4 +1,4 @@
-﻿#include "soul/network/policy/retry_policy.h"
+#include "soul/network/policy/retry_policy.h"
 
 namespace sc {
 namespace network {
@@ -12,6 +12,11 @@ int RetryPolicy::maxRetries() const { return m_maxRetries; }
 RetryStrategy RetryPolicy::strategy() const { return m_strategy; }
 
 int RetryPolicy::nextDelay(int attempt) const {
+    // [v1.9.2] 超过最大重试次数返回 -1
+    if (attempt >= m_maxRetries) {
+        return -1;
+    }
+
     switch (m_strategy) {
     case RetryStrategy::FixedInterval:
         return m_baseDelay;

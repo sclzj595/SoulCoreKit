@@ -1,6 +1,4 @@
 #include <QtTest>
-#include <QJsonObject>
-#include <QJsonDocument>
 #include <QSignalSpy>
 #include <QTest>
 #include <QThread>
@@ -11,6 +9,7 @@
 #include "soul/rpc/client_proxy.h"
 #include "soul/rpc/service_registry.h"
 #include "soul/rpc/http_transport.h"
+#include "soul/utils/json/json_helper.h"
 
 class MockTransport : public sc::rpc::IRpcTransport {
 public:
@@ -87,7 +86,7 @@ void TestRpc::cleanupTestCase() {
 
 void TestRpc::testJsonSerializeDeserialize() {
     QTEST_SET_MAIN_SOURCE_PATH
-    QJsonObject obj;
+    sc::json::Json obj;
     obj["name"] = "test";
     obj["value"] = 42;
     obj["active"] = true;
@@ -97,31 +96,31 @@ void TestRpc::testJsonSerializeDeserialize() {
 
     auto result = m_serializer->deserialize(data);
     QVERIFY(result.isOk());
-    QCOMPARE(result.unwrap()["name"].toString(), QString("test"));
-    QCOMPARE(result.unwrap()["value"].toInteger(), 42);
-    QCOMPARE(result.unwrap()["active"].toBool(), true);
+    QCOMPARE(QString::fromStdString(result.unwrap()["name"].get<std::string>()), QString("test"));
+    QCOMPARE(result.unwrap()["value"].get<int>(), 42);
+    QCOMPARE(result.unwrap()["active"].get<bool>(), true);
 }
 
 void TestRpc::testJsonSerializeDeserialize_data() {
-    QTest::addColumn<QJsonObject>("input");
+    QTest::addColumn<QByteArray>("input");
 
-    QJsonObject obj1;
+    sc::json::Json obj1;
     obj1["string"] = "hello";
     obj1["int"] = 123;
     obj1["double"] = 3.14;
     obj1["bool"] = false;
-    QTest::newRow("mixed types") << obj1;
+    QTest::newRow("mixed types") << sc::json::serialize(obj1);
 
-    QJsonObject obj2;
-    obj2["empty"] = QJsonObject();
-    QTest::newRow("empty object") << obj2;
+    sc::json::Json obj2;
+    obj2["empty"] = sc::json::Json::object();
+    QTest::newRow("empty object") << sc::json::serialize(obj2);
 }
 
 void TestRpc::testServiceRegisterAndDispatch() {
     bool called = false;
     m_dispatcher.registerService("TestService", [&called](const sc::rpc::RpcRequest& req) -> sc::rpc::RpcResponse {
         called = true;
-        QJsonObject data;
+        sc::json::Json data;
         data["result"] = "hello";
         return sc::rpc::RpcResponse{true, data, "", req.requestId};
     });
@@ -134,7 +133,7 @@ void TestRpc::testServiceRegisterAndDispatch() {
     auto resp = m_dispatcher.dispatch(req);
     QVERIFY(called);
     QVERIFY(resp.success);
-    QCOMPARE(resp.data["result"].toString(), QString("hello"));
+    QCOMPARE(QString::fromStdString(resp.data["result"].get<std::string>()), QString("hello"));
     QCOMPARE(resp.requestId, QString("req-1"));
 }
 
@@ -179,7 +178,7 @@ void TestRpc::testClientProxyCall() {
 
     auto result = m_client->call("Svc", "method");
     QVERIFY(result.isOk());
-    QCOMPARE(result.unwrap()["result"].toString(), QString("world"));
+    QCOMPARE(QString::fromStdString(result.unwrap()["result"].get<std::string>()), QString("world"));
 
     auto lastReq = m_mockTransport->lastRequest();
     QCOMPARE(lastReq.serviceName, QString("Svc"));
@@ -304,23 +303,32 @@ void TestRpc::testLoadBalancerRandom() {
 void TestRpc::testRpcValueSerialization() {
     sc::rpc::RpcValue v1 = qint64(42);
     auto bytes1 = m_serializer->serializeValue(v1);
-    auto v1back = m_serializer->deserializeValue(bytes1);
-    QCOMPARE(std::get<qint64>(v1back), qint64(42));
+    auto r1 = m_serializer->deserializeValue(bytes1);
+    QVERIFY(r1.isOk());
+    QCOMPARE(std::get<qint64>(r1.unwrap()), qint64(42));
 
     sc::rpc::RpcValue v2 = QString("hello");
     auto bytes2 = m_serializer->serializeValue(v2);
-    auto v2back = m_serializer->deserializeValue(bytes2);
-    QCOMPARE(std::get<QString>(v2back), QString("hello"));
+    auto r2 = m_serializer->deserializeValue(bytes2);
+    QVERIFY(r2.isOk());
+    QCOMPARE(std::get<QString>(r2.unwrap()), QString("hello"));
 
     sc::rpc::RpcValue v3 = true;
     auto bytes3 = m_serializer->serializeValue(v3);
-    auto v3back = m_serializer->deserializeValue(bytes3);
-    QCOMPARE(std::get<bool>(v3back), true);
+    auto r3 = m_serializer->deserializeValue(bytes3);
+    QVERIFY(r3.isOk());
+    QCOMPARE(std::get<bool>(r3.unwrap()), true);
 
     sc::rpc::RpcValue v4 = 3.14;
     auto bytes4 = m_serializer->serializeValue(v4);
-    auto v4back = m_serializer->deserializeValue(bytes4);
-    QVERIFY(qAbs(std::get<double>(v4back) - 3.14) < 0.001);
+    auto r4 = m_serializer->deserializeValue(bytes4);
+    QVERIFY(r4.isOk());
+    QVERIFY(qAbs(std::get<double>(r4.unwrap()) - 3.14) < 0.001);
+
+    // 测试反序列化失败场景
+    QByteArray invalidJson = "not valid json";
+    auto r5 = m_serializer->deserializeValue(invalidJson);
+    QVERIFY(r5.isErr());
 }
 
 QTEST_MAIN(TestRpc)

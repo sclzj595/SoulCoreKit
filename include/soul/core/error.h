@@ -85,6 +85,42 @@ public:
         return toString().toStdString();
     }
 
+    /// @brief 获取错误码对应的人类可读描述 [v1.9.2 新增]
+    static QString errorDescription(ErrorCode code) {
+        switch (code) {
+        case ErrorCode::Ok:                 return QStringLiteral("Success");
+        case ErrorCode::Unknown:            return QStringLiteral("Unknown error");
+        case ErrorCode::NotFound:           return QStringLiteral("Resource not found");
+        case ErrorCode::AlreadyExists:      return QStringLiteral("Resource already exists");
+        case ErrorCode::InvalidArgument:    return QStringLiteral("Invalid argument");
+        case ErrorCode::InvalidState:       return QStringLiteral("Invalid state");
+        case ErrorCode::PermissionDenied:   return QStringLiteral("Permission denied");
+        case ErrorCode::Unauthorized:       return QStringLiteral("Unauthorized");
+        case ErrorCode::AuthError:          return QStringLiteral("Authentication error");
+        case ErrorCode::TokenExpired:       return QStringLiteral("Token expired");
+        case ErrorCode::NetworkError:       return QStringLiteral("Network error");
+        case ErrorCode::Timeout:            return QStringLiteral("Operation timed out");
+        case ErrorCode::ConnectionRefused:  return QStringLiteral("Connection refused");
+        case ErrorCode::SSLHandshakeFailed: return QStringLiteral("SSL handshake failed");
+        case ErrorCode::NotConnected:       return QStringLiteral("Not connected");
+        case ErrorCode::ParseError:         return QStringLiteral("Parse error");
+        case ErrorCode::SerializationError: return QStringLiteral("Serialization error");
+        case ErrorCode::DeserializationError: return QStringLiteral("Deserialization error");
+        case ErrorCode::DatabaseError:      return QStringLiteral("Database error");
+        case ErrorCode::QueryFailed:        return QStringLiteral("Query failed");
+        case ErrorCode::ConstraintViolation: return QStringLiteral("Constraint violation");
+        case ErrorCode::ResourceExhausted:  return QStringLiteral("Resource exhausted");
+        case ErrorCode::FileError:          return QStringLiteral("File error");
+        case ErrorCode::FileNotFound:       return QStringLiteral("File not found");
+        case ErrorCode::FileReadError:      return QStringLiteral("File read error");
+        case ErrorCode::FileWriteError:     return QStringLiteral("File write error");
+        case ErrorCode::InternalError:      return QStringLiteral("Internal error");
+        case ErrorCode::NotImplemented:     return QStringLiteral("Not implemented");
+        case ErrorCode::OutOfMemory:        return QStringLiteral("Out of memory");
+        default:                            return QStringLiteral("Unrecognized error code");
+        }
+    }
+
 private:
     ErrorCode m_code = ErrorCode::Unknown;
     QString m_message;

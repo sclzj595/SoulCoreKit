@@ -1,4 +1,4 @@
-﻿#include "soul/network/http_response.h"
+#include "soul/network/http_response.h"
 
 namespace sc {
 namespace network {
@@ -9,8 +9,12 @@ int HttpResponse::statusCode() const { return m_statusCode; }
 QByteArray HttpResponse::body() const { return m_body; }
 QMap<QString, QString> HttpResponse::headers() const { return m_headers; }
 
-QJsonDocument HttpResponse::json() const {
-    return QJsonDocument::fromJson(m_body);
+sc::json::Json HttpResponse::json() const {
+    auto result = sc::json::deserialize(m_body);
+    if (result.isOk()) {
+        return result.unwrap();
+    }
+    return sc::json::Json::object();
 }
 
 QString HttpResponse::text() const {

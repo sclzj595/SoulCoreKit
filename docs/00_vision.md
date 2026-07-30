@@ -2,11 +2,11 @@
 
 ## Project Overview
 
-SoulCoreKit is a lightweight, modular, and evolution-driven C++/Qt infrastructure library designed for desktop application development. It serves as the foundation for all desktop projects (IDE, Music Player, Radio, Notebook, IM, EatDecider, etc.) by providing consistent, production-grade components and utilities.
+SoulCoreKit is a lightweight, modular, and evolution-driven C++/Qt infrastructure library designed for **Client-Server (CS) architecture** application development. It serves as the foundation for CS-style projects (IDE, Music Player, Radio, Notebook, IM, EatDecider, etc.) by providing consistent, production-grade components and utilities. The scaffold design borrows from SpringBoot's IoC/DI/AOP/lifecycle concepts, but the architecture is CS (Qt desktop client + Linux server), not BS (Browser-Server).
 
 ## Mission
 
-To provide a **stable, maintainable, and battle-tested** infrastructure layer that enables rapid development of high-quality Qt desktop applications while maintaining strict architectural integrity and developer experience.
+To provide a **stable, maintainable, and battle-tested** infrastructure layer that enables rapid development of high-quality Qt CS-architecture applications — Client on Windows/macOS/Linux desktop, Server on Linux (Ubuntu 20.04+) or cloud — while maintaining strict architectural integrity and developer experience.
 
 ## Core Values
 
@@ -38,15 +38,24 @@ To provide a **stable, maintainable, and battle-tested** infrastructure layer th
 
 | Aspect | SoulCoreKit | Qt |
 |--------|-------------|-----|
-| **Scope** | Application Infrastructure | Application Framework |
-| **Focus** | Cross-project utilities and patterns | Core platform capabilities |
-| **Philosophy** | Evolution-driven, minimal | Comprehensive, feature-rich |
+| **Scope** | CS Architecture Application Infrastructure | Application Framework |
+| **Focus** | Cross-project CS utilities and patterns | Core platform capabilities |
+| **Philosophy** | Evolution-driven, minimal, SpringBoot-style scaffold | Comprehensive, feature-rich |
 | **Relationship** | Complementary | Foundation |
+
+## Architecture
+
+SoulCoreKit is a **CS (Client-Server) architecture** scaffold, not a BS (Browser-Server) framework:
+
+- **Client**: Qt desktop application on Windows/macOS/Linux, using SoulCoreKit + SoulCoreKitUi
+- **Server**: Linux (Ubuntu 20.04+) or cloud server backend process, using SoulCoreKit (without UI)
+- **Communication**: HTTP/TCP/WebSocket/RPC between Client and Server
+- **Scaffold style**: Borrows SpringBoot's IoC/DI/AOP/module lifecycle concepts, but does NOT replicate Servlet/Tomcat/Filter/MVC etc.
 
 ## Target Use Cases
 
-- **Desktop Application Development**: Build modern, native-feeling desktop apps
-- **Cross-project Code Reuse**: Share validated components across projects
+- **CS Desktop Application Development**: Build Qt desktop clients with Linux server backends
+- **Cross-project Code Reuse**: Share validated components across CS projects
 - **Rapid Prototyping**: Start with a solid foundation, focus on business logic
 - **Enterprise-grade Applications**: Production-ready components with testing and documentation
 
@@ -56,10 +65,10 @@ SoulCoreKit aims to evolve into a family of specialized libraries:
 
 | Library | Focus |
 |---------|-------|
-| **SoulCoreKit** | Core infrastructure (current scope) |
-| **SoulUI** | UI components, animations, themes |
+| **SoulCoreKit** | Core infrastructure (current scope, CS shared) |
+| **SoulUI** | UI components, animations, themes (Client only) |
 | **SoulAI** | AI inference capabilities |
-| **SoulRPC** | RPC framework |
+| **SoulRPC** | RPC framework (CS communication) |
 | **SoulLSP** | LSP protocol support |
 | **SoulMedia** | Audio/video processing |
 | **SoulPlugin** | Plugin system |
@@ -68,7 +77,7 @@ SoulCoreKit aims to evolve into a family of specialized libraries:
 
 - **API Stability**: Public APIs remain compatible across minor versions
 - **Test Coverage**: Core modules achieve >90% unit test coverage
-- **Platform Support**: Windows, macOS, Linux with consistent behavior
+- **Platform Support**: Client on Windows/macOS/Linux; Server on Linux (Ubuntu 20.04+) / cloud
 - **Documentation**: Complete API reference and usage guides
 - **Community**: Open to external contributions with clear guidelines
 - **Performance**: Minimal startup overhead, smooth animations at 60fps

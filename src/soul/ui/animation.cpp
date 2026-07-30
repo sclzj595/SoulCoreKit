@@ -35,44 +35,81 @@ namespace {
 }
 
 void Animation::fadeIn(QWidget* widget, int duration) {
+    if (!widget) return;
     widget->show();
-    widget->setWindowOpacity(0);
-    animate(widget, "windowOpacity", 0, 1, duration);
+
+    auto* effect = new QGraphicsOpacityEffect(widget);
+    effect->setOpacity(0.0);
+    widget->setGraphicsEffect(effect);
+
+    auto* animation = new QPropertyAnimation(effect, "opacity");
+    animation->setDuration(duration);
+    animation->setStartValue(0.0);
+    animation->setEndValue(1.0);
+    animation->setEasingCurve(QEasingCurve::OutCubic);
+    QObject::connect(animation, &QPropertyAnimation::finished, widget, [widget]() {
+        widget->setGraphicsEffect(nullptr);
+    });
+    animation->start(QAbstractAnimation::DeleteWhenStopped);
 }
 
 void Animation::fadeOut(QWidget* widget, int duration) {
-    animate(widget, "windowOpacity", 1, 0, duration, QEasingCurve::InCubic);
+    if (!widget) return;
+
+    auto* effect = new QGraphicsOpacityEffect(widget);
+    effect->setOpacity(1.0);
+    widget->setGraphicsEffect(effect);
+
+    auto* animation = new QPropertyAnimation(effect, "opacity");
+    animation->setDuration(duration);
+    animation->setStartValue(1.0);
+    animation->setEndValue(0.0);
+    animation->setEasingCurve(QEasingCurve::InCubic);
+    QObject::connect(animation, &QPropertyAnimation::finished, widget, [widget]() {
+        widget->hide();
+        widget->setGraphicsEffect(nullptr);
+    });
+    animation->start(QAbstractAnimation::DeleteWhenStopped);
 }
 
 void Animation::slideInFromTop(QWidget* widget, int duration) {
+    if (!widget) return;
     QRect geometry = widget->geometry();
-    int startY = geometry.top() - geometry.height();
-    widget->move(geometry.left(), startY);
-    animate(widget, "y", startY, geometry.top(), duration);
+    QRect startRect(geometry.left(), geometry.top() - geometry.height(),
+                    geometry.width(), geometry.height());
+    widget->move(startRect.topLeft());
+    animate(widget, "geometry", startRect, geometry, duration);
 }
 
 void Animation::slideInFromBottom(QWidget* widget, int duration) {
+    if (!widget) return;
     QRect geometry = widget->geometry();
-    int startY = geometry.top() + geometry.height();
-    widget->move(geometry.left(), startY);
-    animate(widget, "y", startY, geometry.top(), duration);
+    QRect startRect(geometry.left(), geometry.top() + geometry.height(),
+                    geometry.width(), geometry.height());
+    widget->move(startRect.topLeft());
+    animate(widget, "geometry", startRect, geometry, duration);
 }
 
 void Animation::slideInFromLeft(QWidget* widget, int duration) {
+    if (!widget) return;
     QRect geometry = widget->geometry();
-    int startX = geometry.left() - geometry.width();
-    widget->move(startX, geometry.top());
-    animate(widget, "x", startX, geometry.left(), duration);
+    QRect startRect(geometry.left() - geometry.width(), geometry.top(),
+                    geometry.width(), geometry.height());
+    widget->move(startRect.topLeft());
+    animate(widget, "geometry", startRect, geometry, duration);
 }
 
 void Animation::slideInFromRight(QWidget* widget, int duration) {
+    if (!widget) return;
     QRect geometry = widget->geometry();
-    int startX = geometry.left() + geometry.width();
-    widget->move(startX, geometry.top());
-    animate(widget, "x", startX, geometry.left(), duration);
+    QRect startRect(geometry.left() + geometry.width(), geometry.top(),
+                    geometry.width(), geometry.height());
+    widget->move(startRect.topLeft());
+    animate(widget, "geometry", startRect, geometry, duration);
 }
 
 void Animation::scaleUp(QWidget* widget, int duration) {
+    if (!widget) return;
     QRect originalRect = widget->geometry();
     int targetWidth = originalRect.width();
     int targetHeight = originalRect.height();
@@ -94,6 +131,7 @@ void Animation::scaleUp(QWidget* widget, int duration) {
 }
 
 void Animation::scaleDown(QWidget* widget, int duration) {
+    if (!widget) return;
     QRect originalRect = widget->geometry();
     int targetWidth = originalRect.width() * design::SCALE_ANIMATION_START_FACTOR;
     int targetHeight = originalRect.height() * design::SCALE_ANIMATION_START_FACTOR;
@@ -111,19 +149,21 @@ void Animation::scaleDown(QWidget* widget, int duration) {
 }
 
 void Animation::shake(QWidget* widget, int duration) {
-    QPropertyAnimation* animation = new QPropertyAnimation(widget, "pos");
+    if (!widget) return;
+    QRect baseRect = widget->geometry();
+    QPropertyAnimation* animation = new QPropertyAnimation(widget, "geometry");
     animation->setDuration(duration);
-    animation->setKeyValueAt(0, widget->pos());
-    animation->setKeyValueAt(0.1, widget->pos() + QPoint(-design::SHAKE_OFFSET, 0));
-    animation->setKeyValueAt(0.2, widget->pos() + QPoint(design::SHAKE_OFFSET, 0));
-    animation->setKeyValueAt(0.3, widget->pos() + QPoint(-design::SHAKE_OFFSET, 0));
-    animation->setKeyValueAt(0.4, widget->pos() + QPoint(design::SHAKE_OFFSET, 0));
-    animation->setKeyValueAt(0.5, widget->pos() + QPoint(-design::SHAKE_OFFSET, 0));
-    animation->setKeyValueAt(0.6, widget->pos() + QPoint(design::SHAKE_OFFSET, 0));
-    animation->setKeyValueAt(0.7, widget->pos() + QPoint(-design::SHAKE_OFFSET, 0));
-    animation->setKeyValueAt(0.8, widget->pos() + QPoint(design::SHAKE_OFFSET, 0));
-    animation->setKeyValueAt(0.9, widget->pos() + QPoint(-design::SHAKE_END_OFFSET, 0));
-    animation->setKeyValueAt(1, widget->pos());
+    animation->setKeyValueAt(0, baseRect);
+    animation->setKeyValueAt(0.1, baseRect.translated(-design::SHAKE_OFFSET, 0));
+    animation->setKeyValueAt(0.2, baseRect.translated(design::SHAKE_OFFSET, 0));
+    animation->setKeyValueAt(0.3, baseRect.translated(-design::SHAKE_OFFSET, 0));
+    animation->setKeyValueAt(0.4, baseRect.translated(design::SHAKE_OFFSET, 0));
+    animation->setKeyValueAt(0.5, baseRect.translated(-design::SHAKE_OFFSET, 0));
+    animation->setKeyValueAt(0.6, baseRect.translated(design::SHAKE_OFFSET, 0));
+    animation->setKeyValueAt(0.7, baseRect.translated(-design::SHAKE_OFFSET, 0));
+    animation->setKeyValueAt(0.8, baseRect.translated(design::SHAKE_OFFSET, 0));
+    animation->setKeyValueAt(0.9, baseRect.translated(-design::SHAKE_END_OFFSET, 0));
+    animation->setKeyValueAt(1, baseRect);
     animation->start(QAbstractAnimation::DeleteWhenStopped);
 }
 

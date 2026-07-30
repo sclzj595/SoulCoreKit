@@ -5,6 +5,7 @@
 #include <fstream>
 #include <memory>
 #include <mutex>
+#include <nlohmann/json.hpp>
 #include "soul/logging/i_sink.h"
 #include "soul/logging/log_record.h"
 #include "soul/logging/log_level.h"
@@ -62,9 +63,6 @@ public:
 private:
     /// @brief 将 LogRecord 序列化为 JSON 字符串
     [[nodiscard]] static std::string serialize(const LogRecord& record);
-
-    /// @brief JSON 字符串转义
-    [[nodiscard]] static std::string escapeJson(const std::string& s);
 
     std::ofstream    m_fileStream;
     std::ostream&    m_stream;

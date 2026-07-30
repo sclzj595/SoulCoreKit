@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_LOGGING_LOGGER_H
+#ifndef SOUL_LOGGING_LOGGER_H
 #define SOUL_LOGGING_LOGGER_H
 
 #include "soul/logging/log_level.h"
@@ -7,6 +7,7 @@
 #include "soul/logging/composite_sink.h"
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <QString>
 #include <mutex>
 
@@ -18,6 +19,19 @@ public:
 
     void setLogLevel(LogLevel level);
     LogLevel logLevel() const;
+
+    /// @brief 设置模块级日志级别 [v1.9.2 新增]
+    /// @param module 模块名称(如 "orm", "network", "auth")
+    /// @param level  最低输出级别
+    void setModuleLogLevel(const std::string& module, LogLevel level);
+
+    /// @brief 获取模块级日志级别 [v1.9.2 新增]
+    /// @param module 模块名称
+    /// @return 模块日志级别,未设置时返回全局级别
+    LogLevel moduleLogLevel(const std::string& module) const;
+
+    /// @brief 移除模块级日志级别(恢复全局级别) [v1.9.2 新增]
+    void removeModuleLogLevel(const std::string& module);
 
     void addSink(std::shared_ptr<ISink> sink);
     void removeSink(ISink* sink);
@@ -97,6 +111,7 @@ private:
     Logger();
 
     LogLevel m_level = LogLevel::Debug;
+    std::unordered_map<std::string, LogLevel> m_moduleLevels;  ///< [v1.9.2] 模块级日志级别
     std::shared_ptr<CompositeSink> m_sink;
     mutable std::mutex m_mutex;
 };

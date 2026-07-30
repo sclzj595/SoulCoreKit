@@ -1,82 +1,75 @@
 #include "soul/rpc/iserializer.h"
-#include <QJsonDocument>
-#include <QJsonValue>
 #include <type_traits>
 
 namespace sc {
 namespace rpc {
 
-QByteArray JsonSerializer::serialize(const QJsonObject& obj) const {
-    return QJsonDocument(obj).toJson(QJsonDocument::Compact);
+QByteArray JsonSerializer::serialize(const sc::json::Json& obj) const {
+    return sc::json::serialize(obj);
 }
 
-Result<QJsonObject> JsonSerializer::deserialize(const QByteArray& data) const {
-    QJsonParseError error;
-    QJsonDocument doc = QJsonDocument::fromJson(data, &error);
-    if (error.error != QJsonParseError::NoError) {
-        return Result<QJsonObject>(Error(ErrorCode::DeserializationError, error.errorString()));
-    }
-    if (!doc.isObject()) {
-        return Result<QJsonObject>(Error(ErrorCode::DeserializationError, "Not a JSON object"));
-    }
-    return Result<QJsonObject>(doc.object());
+Result<sc::json::Json> JsonSerializer::deserialize(const QByteArray& data) const {
+    return sc::json::deserialize(data);
 }
 
 QByteArray JsonSerializer::serializeValue(const RpcValue& value) const {
-    QJsonObject obj;
+    sc::json::Json obj = sc::json::Json::object();
     std::visit([&obj](const auto& val) {
         using T = std::decay_t<decltype(val)>;
         if constexpr (std::is_same_v<T, std::monostate>) {
             obj["type"] = "null";
-            obj["value"] = QJsonValue();
+            obj["value"] = nullptr;
         } else if constexpr (std::is_same_v<T, qint64>) {
             obj["type"] = "int64";
-            obj["value"] = QJsonValue(static_cast<double>(val));
+            obj["value"] = val;
         } else if constexpr (std::is_same_v<T, double>) {
             obj["type"] = "double";
-            obj["value"] = QJsonValue(val);
+            obj["value"] = val;
         } else if constexpr (std::is_same_v<T, bool>) {
             obj["type"] = "bool";
-            obj["value"] = QJsonValue(val);
+            obj["value"] = val;
         } else if constexpr (std::is_same_v<T, QString>) {
             obj["type"] = "string";
-            obj["value"] = QJsonValue(val);
+            obj["value"] = val.toStdString();
         } else if constexpr (std::is_same_v<T, QByteArray>) {
             obj["type"] = "bytes";
-            obj["value"] = QJsonValue(QString::fromLatin1(val.toBase64()));
+            obj["value"] = val.toBase64().toStdString();
         }
     }, value);
-    return QJsonDocument(obj).toJson(QJsonDocument::Compact);
+    return sc::json::serialize(obj);
 }
 
-RpcValue JsonSerializer::deserializeValue(const QByteArray& data) const {
-    QJsonParseError error;
-    QJsonDocument doc = QJsonDocument::fromJson(data, &error);
-    if (error.error != QJsonParseError::NoError) {
-        return RpcValue{};
+Result<RpcValue> JsonSerializer::deserializeValue(const QByteArray& data) const {
+    auto result = sc::json::deserialize(data);
+    if (result.isErr()) {
+        return Result<RpcValue>(result.unwrapErr());
     }
-    if (!doc.isObject()) {
-        return RpcValue{};
+    sc::json::Json j = result.unwrap();
+    if (!j.is_object()) {
+        return Result<RpcValue>(Error(ErrorCode::DeserializationError,
+            "Expected JSON object for RpcValue"));
     }
-    QJsonObject obj = doc.object();
-    QString type = obj.value("type").toString();
-    QJsonValue val = obj.value("value");
+
+    std::string type = j.value("type", "");
+    auto& val = j["value"];
 
     if (type == "null") {
-        return RpcValue{};
+        return Result<RpcValue>(RpcValue{});
     } else if (type == "int64") {
-        return RpcValue(static_cast<qint64>(val.toDouble()));
+        return Result<RpcValue>(RpcValue(static_cast<qint64>(val.get<int64_t>())));
     } else if (type == "double") {
-        return RpcValue(val.toDouble());
+        return Result<RpcValue>(RpcValue(val.get<double>()));
     } else if (type == "bool") {
-        return RpcValue(val.toBool());
+        return Result<RpcValue>(RpcValue(val.get<bool>()));
     } else if (type == "string") {
-        return RpcValue(val.toString());
+        return Result<RpcValue>(RpcValue(QString::fromStdString(val.get<std::string>())));
     } else if (type == "bytes") {
-        QByteArray decoded = QByteArray::fromBase64(val.toString().toLatin1());
-        return RpcValue(decoded);
+        QByteArray decoded = QByteArray::fromBase64(
+            QByteArray::fromStdString(val.get<std::string>()));
+        return Result<RpcValue>(RpcValue(decoded));
     }
-    return RpcValue{};
+    return Result<RpcValue>(Error(ErrorCode::DeserializationError,
+        QString("Unknown RpcValue type: %1").arg(QString::fromStdString(type))));
 }
 
 } // namespace rpc

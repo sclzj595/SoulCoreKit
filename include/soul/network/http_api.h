@@ -15,6 +15,7 @@
 #include "soul/network/http_request.h"
 #include "soul/network/http_response.h"
 #include "soul/core/result.h"
+#include "soul/utils/json/json_helper.h"
 #include <functional>
 #include <memory>
 
@@ -39,7 +40,7 @@ namespace network {
  *    .param("page", 1)
  *    .param("limit", 10)
  *    .header("Authorization", "Bearer token")
- *    .onSuccess([](const QJsonDocument& data) {
+ *    .onSuccess([](const sc::json::Json& data) {
  *        // 处理成功响应
  *    })
  *    .onFailure([](const Error& error) {
@@ -144,7 +145,7 @@ public:
      * @param json JSON 文档
      * @return 当前 HttpApi 对象引用（链式调用）
      */
-    HttpApi& jsonBody(const QJsonDocument& json) {
+    HttpApi& jsonBody(const sc::json::Json& json) {
         m_request.setJsonBody(json);
         return *this;
     }
@@ -154,7 +155,7 @@ public:
      * @param callback 成功回调函数
      * @return 当前 HttpApi 对象引用（链式调用）
      */
-    HttpApi& onSuccess(std::function<void(const QJsonDocument&)> callback) {
+    HttpApi& onSuccess(std::function<void(const sc::json::Json&)> callback) {
         m_jsonCallback = callback;
         return *this;
     }
@@ -197,22 +198,22 @@ public:
      * @brief 执行同步请求
      * @return 包含 JSON 响应的 Result
      */
-    Result<QJsonDocument> executeSync() {
+    Result<sc::json::Json> executeSync() {
         auto result = m_client->send(m_request);
         if (result.isOk()) {
             const HttpResponse& response = result.unwrap();
             if (response.isSuccess()) {
-                return Result<QJsonDocument>(response.json());
+                return Result<sc::json::Json>(response.json());
             }
-            return Result<QJsonDocument>(Error(ErrorCode::NetworkError, response.errorString()));
+            return Result<sc::json::Json>(Error(ErrorCode::NetworkError, response.errorString()));
         }
-        return Result<QJsonDocument>(result.unwrapErr());
+        return Result<sc::json::Json>(result.unwrapErr());
     }
 
 private:
     std::shared_ptr<HttpClient> m_client;
     HttpRequest m_request;
-    std::function<void(const QJsonDocument&)> m_jsonCallback;
+    std::function<void(const sc::json::Json&)> m_jsonCallback;
     std::function<void(const Error&)> m_failureCallback;
 };
 

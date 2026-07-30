@@ -1,8 +1,7 @@
 #include "soul/observability/json_sink.h"
+#include "soul/utils/json/json_helper.h"
 
-#include <sstream>
 #include <stdexcept>
-#include <iomanip>
 
 namespace sc {
 namespace observability {
@@ -41,83 +40,43 @@ void JsonSink::flush() {
 }
 
 std::string JsonSink::serialize(const LogRecord& record) {
-    std::ostringstream oss;
-    oss << '{';
+    sc::json::Json j;
 
-    // timestamp
-    oss << "\"timestamp\":\"" << escapeJson(record.timestamp) << '"';
+    j["timestamp"] = record.timestamp;
 
-    // level
-    oss << ",\"level\":\"";
     switch (record.level) {
-        case LogLevel::Trace:  oss << "TRACE";    break;
-        case LogLevel::Debug:  oss << "DEBUG";    break;
-        case LogLevel::Info:   oss << "INFO";     break;
-        case LogLevel::Warn:   oss << "WARN";     break;
-        case LogLevel::Error:  oss << "ERROR";    break;
-        case LogLevel::Fatal:  oss << "FATAL";    break;
-        default:               oss << "UNKNOWN";  break;
+        case LogLevel::Trace:  j["level"] = "TRACE";  break;
+        case LogLevel::Debug:  j["level"] = "DEBUG";  break;
+        case LogLevel::Info:   j["level"] = "INFO";   break;
+        case LogLevel::Warn:   j["level"] = "WARN";   break;
+        case LogLevel::Error:  j["level"] = "ERROR";  break;
+        case LogLevel::Fatal:  j["level"] = "FATAL";  break;
+        default:               j["level"] = "UNKNOWN"; break;
     }
-    oss << '"';
 
-    // module
     if (!record.module.empty()) {
-        oss << ",\"module\":\"" << escapeJson(record.module) << '"';
+        j["module"] = record.module;
     }
-
-    // operation
     if (!record.operation.empty()) {
-        oss << ",\"operation\":\"" << escapeJson(record.operation) << '"';
+        j["operation"] = record.operation;
     }
 
-    // message
-    oss << ",\"message\":\"" << escapeJson(record.message) << '"';
+    j["message"] = record.message;
 
-    // file
     if (!record.file.empty()) {
-        oss << ",\"file\":\"" << escapeJson(record.file) << '"';
+        j["file"] = record.file;
     }
 
-    // line
-    oss << ",\"line\":" << record.line;
+    j["line"] = record.line;
 
-    // thread_id
     if (!record.threadId.empty()) {
-        oss << ",\"thread_id\":\"" << escapeJson(record.threadId) << '"';
+        j["thread_id"] = record.threadId;
     }
-
-    // process_id
     if (!record.processId.empty()) {
-        oss << ",\"process_id\":\"" << escapeJson(record.processId) << '"';
+        j["process_id"] = record.processId;
     }
 
-    oss << '}';
-    return oss.str();
-}
-
-std::string JsonSink::escapeJson(const std::string& s) {
-    std::ostringstream oss;
-    for (char c : s) {
-        switch (c) {
-            case '"':  oss << "\\\""; break;
-            case '\\': oss << "\\\\"; break;
-            case '\b': oss << "\\b";  break;
-            case '\f': oss << "\\f";  break;
-            case '\n': oss << "\\n";  break;
-            case '\r': oss << "\\r";  break;
-            case '\t': oss << "\\t";  break;
-            default:
-                if (static_cast<unsigned char>(c) < 0x20) {
-                    // 控制字符转义为 \uXXXX
-                    oss << "\\u" << std::hex << std::setw(4) << std::setfill('0')
-                        << static_cast<int>(static_cast<unsigned char>(c));
-                } else {
-                    oss << c;
-                }
-                break;
-        }
-    }
-    return oss.str();
+    return j.dump();
 }
 
 } // namespace observability
