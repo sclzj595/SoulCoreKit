@@ -361,7 +361,7 @@ void HttpServer::onReadyRead() {
         } catch (const std::exception& e) {
             SC_ERROR("HttpServer: middleware " + (*it)->name() +
                      " after() exception: " + std::string(e.what()));
-        } catch (...) {
+        } catch (...) { // Blanket catch: prevent middleware after() exception from crashing server
             SC_ERROR("HttpServer: middleware " + (*it)->name() +
                      " after() unknown exception");
         }

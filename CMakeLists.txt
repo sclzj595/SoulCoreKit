@@ -46,28 +46,61 @@ if(EXISTS "G:/MinGW/nlohmann/json.hpp")
     install(TARGETS nlohmann_json EXPORT SoulCoreKitTargets)
     set(NLOHMANN_JSON_FOUND TRUE)
 else()
-    # v1.9.2: 使用 file(DOWNLOAD) 直接下载单头文件,比 FetchContent(git clone)
-    # 更可靠,避免 CI 环境中 git clone 超时或网络不稳定导致的 configure 失败。
+    # v1.9.2: 优先使用 file(DOWNLOAD) 直接下载单头文件(比 FetchContent git clone 更快),
+    # 带重试机制 + FetchContent 回退,确保 CI 环境网络不稳定时也能配置成功。
     set(NLOHMANN_JSON_DIR "${CMAKE_BINARY_DIR}/_deps/nlohmann-src")
     set(NLOHMANN_JSON_HEADER "${NLOHMANN_JSON_DIR}/single_include/nlohmann/json.hpp")
-    message(STATUS "Downloading nlohmann/json.hpp v3.11.3 ...")
-    file(DOWNLOAD
-        "https://github.com/nlohmann/json/releases/download/v3.11.3/json.hpp"
-        "${NLOHMANN_JSON_HEADER}"
-        SHOW_PROGRESS
-        STATUS DOWNLOAD_STATUS
-        TIMEOUT 120
-        INACTIVITY_TIMEOUT 30
-    )
-    list(GET DOWNLOAD_STATUS 0 STATUS_CODE)
-    if(NOT STATUS_CODE EQUAL 0)
-        list(GET DOWNLOAD_STATUS 1 STATUS_MSG)
-        message(FATAL_ERROR "Failed to download nlohmann/json.hpp: ${STATUS_MSG}")
+    set(NLOHMANN_JSON_URL "https://github.com/nlohmann/json/releases/download/v3.11.3/json.hpp")
+
+    # 确保目标目录存在
+    file(MAKE_DIRECTORY "${NLOHMANN_JSON_DIR}/single_include/nlohmann")
+
+    set(DOWNLOAD_SUCCESS FALSE)
+    foreach(RETRY RANGE 1 3)
+        if(NOT DOWNLOAD_SUCCESS)
+            message(STATUS "Downloading nlohmann/json.hpp v3.11.3 (attempt ${RETRY}/3)...")
+            file(DOWNLOAD
+                "${NLOHMANN_JSON_URL}"
+                "${NLOHMANN_JSON_HEADER}"
+                SHOW_PROGRESS
+                STATUS DOWNLOAD_STATUS
+                TIMEOUT 120
+                INACTIVITY_TIMEOUT 30
+            )
+            list(GET DOWNLOAD_STATUS 0 STATUS_CODE)
+            if(STATUS_CODE EQUAL 0)
+                set(DOWNLOAD_SUCCESS TRUE)
+                message(STATUS "Downloaded nlohmann/json.hpp successfully")
+            else()
+                list(GET DOWNLOAD_STATUS 1 STATUS_MSG)
+                message(WARNING "Download attempt ${RETRY} failed: ${STATUS_MSG}")
+                if(RETRY LESS 3)
+                    message(STATUS "Waiting 10s before retry...")
+                    execute_process(COMMAND ${CMAKE_COMMAND} -E sleep 10)
+                endif()
+            endif()
+        endif()
+    endforeach()
+
+    if(DOWNLOAD_SUCCESS)
+        add_library(nlohmann_json INTERFACE)
+        target_include_directories(nlohmann_json INTERFACE "${NLOHMANN_JSON_DIR}/single_include")
+        add_library(nlohmann_json::nlohmann_json ALIAS nlohmann_json)
+    else()
+        # 回退: 使用 FetchContent 克隆 nlohmann/json 仓库
+        message(STATUS "file(DOWNLOAD) failed after 3 attempts, falling back to FetchContent...")
+        include(FetchContent)
+        FetchContent_Declare(
+            nlohmann_json
+            GIT_REPOSITORY https://github.com/nlohmann/json.git
+            GIT_TAG        v3.11.3
+            GIT_SHALLOW    TRUE
+            GIT_PROGRESS   TRUE
+        )
+        set(JSON_BuildTests OFF CACHE INTERNAL "")
+        FetchContent_MakeAvailable(nlohmann_json)
+        message(STATUS "nlohmann/json v3.11.3 fetched via FetchContent successfully")
     endif()
-    message(STATUS "Downloaded nlohmann/json.hpp successfully")
-    add_library(nlohmann_json INTERFACE)
-    target_include_directories(nlohmann_json INTERFACE "${NLOHMANN_JSON_DIR}/single_include")
-    add_library(nlohmann_json::nlohmann_json ALIAS nlohmann_json)
 endif()
 
 # ZLIB: compress_utils.cpp uses deflate/inflate directly.

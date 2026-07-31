@@ -137,7 +137,7 @@ HealthDetail DatabaseHealthIndicator::check() const {
     } catch (const std::exception& e) {
         detail.status = HealthStatus::DOWN;
         detail.message = std::string("Database check exception: ") + e.what();
-    } catch (...) {
+    } catch (...) { // Blanket catch: capture unknown exception in database health check
         detail.status = HealthStatus::DOWN;
         detail.message = "Database check unknown exception";
     }
@@ -203,7 +203,7 @@ HealthDetail NetworkHealthIndicator::check() const {
     } catch (const std::exception& e) {
         detail.status = HealthStatus::DOWN;
         detail.message = std::string("Network check exception: ") + e.what();
-    } catch (...) {
+    } catch (...) { // Blanket catch: capture unknown exception in network health check
         detail.status = HealthStatus::DOWN;
         detail.message = "Network check unknown exception";
     }
@@ -243,7 +243,7 @@ HealthDetail ResourcePoolHealthIndicator::check() const {
     } catch (const std::exception& e) {
         detail.status = HealthStatus::DOWN;
         detail.message = std::string("Resource pool check exception: ") + e.what();
-    } catch (...) {
+    } catch (...) { // Blanket catch: capture unknown exception in resource pool check
         detail.status = HealthStatus::DOWN;
         detail.message = "Resource pool check unknown exception";
     }
