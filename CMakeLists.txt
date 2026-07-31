@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(SoulCoreKit VERSION 1.9.0 LANGUAGES CXX)
+project(SoulCoreKit VERSION 1.9.2 LANGUAGES CXX)
 
 include(GenerateExportHeader)
 
@@ -37,18 +37,20 @@ find_package(Qt6 REQUIRED COMPONENTS Core Network WebSockets Sql Xml)
 # ============================================================================
 # 用于配置、RPC、认证、存储等所有非 UI 模块的 JSON 序列化。
 # Qt JSON (QJsonDocument/QJsonObject) 仅保留用于 UI 临时数据序列化。
-# nlohmann/json 是 header-only 库,使用本地预装版本。
-if(EXISTS "G:/MinGW/nlohmann/json.hpp")
+# nlohmann/json 是 header-only 库,三级备选策略:
+#   1. find_package(nlohmann_json) — CI 环境通过 apt install nlohmann-json3-dev
+#   2. 本地预装路径 G:/MinGW/nlohmann — 开发者本地 Windows 环境
+#   3. FetchContent Git shallow clone — 最终备选,需网络访问 GitHub
+find_package(nlohmann_json 3.10.0 QUIET)
+if(nlohmann_json_FOUND)
+    message(STATUS "Using nlohmann/json v${nlohmann_json_VERSION} via find_package")
+elseif(EXISTS "G:/MinGW/nlohmann/json.hpp")
     message(STATUS "Using local nlohmann/json from G:/MinGW/nlohmann")
     add_library(nlohmann_json INTERFACE)
     target_include_directories(nlohmann_json INTERFACE "G:/MinGW")
     add_library(nlohmann_json::nlohmann_json ALIAS nlohmann_json)
     install(TARGETS nlohmann_json EXPORT SoulCoreKitTargets)
-    set(NLOHMANN_JSON_FOUND TRUE)
 else()
-    # v1.9.2: 优先使用 FetchContent (Git shallow clone) 获取 nlohmann/json,
-    # 这是经历过多次 CI 验证的可靠方案。file(DOWNLOAD) 在 CI 环境中可能因网络
-    # 不稳定而失败,仅作为备选快速通道用于本地开发环境。
     message(STATUS "Fetching nlohmann/json v3.11.3 via FetchContent (shallow clone)...")
     include(FetchContent)
     FetchContent_Declare(
@@ -626,6 +628,7 @@ set(SOUL_DATA_HEADERS
     include/soul/data/memory_repository.h
     include/soul/data/transaction.h
     include/soul/data/database_driver.h
+    include/soul/data/database_driver_base.h
     include/soul/data/connection_pool.h
 )
 

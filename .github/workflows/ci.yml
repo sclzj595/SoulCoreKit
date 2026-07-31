@@ -44,7 +44,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build g++ lcov libssl-dev zlib1g-dev clang-tidy
+          sudo apt-get install -y cmake ninja-build g++ lcov libssl-dev zlib1g-dev nlohmann-json3-dev clang-tidy
 
       - name: Configure (Linux)
         if: runner.os == 'Linux'

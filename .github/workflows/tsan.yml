@@ -27,7 +27,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build g++ zlib1g-dev libssl-dev
+          sudo apt-get install -y cmake ninja-build g++ zlib1g-dev libssl-dev nlohmann-json3-dev
 
       - name: Configure (TSan enabled)
         run: |
