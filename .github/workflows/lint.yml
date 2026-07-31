@@ -38,7 +38,7 @@ jobs:
       - name: Build with clang-tidy
         run: cmake --build build-lint -j$(nproc) 2>&1 | tee clang-tidy-report.txt
 
-      - name: "Check clang-tidy errors (v1.9.2: non-blocking warning)"
+      - name: Check clang-tidy errors v1.9.2 non-blocking warning
         run: |
           set -euo pipefail
           error_count=$(grep -c "error:" clang-tidy-report.txt || true)

@@ -243,6 +243,7 @@ set(SOUL_CORE_HEADERS
     include/soul/core/module.h
     include/soul/core/scaffold.h
     include/soul/core/module_registry.h
+    include/soul/core/crash_handler.h
 )
 
 set(SOUL_DI_HEADERS
@@ -959,6 +960,7 @@ set(SOUL_ORM_HEADERS
     include/soul/orm/reflection.h
     include/soul/orm/reflection_macros.h
     include/soul/orm/migration.h
+    include/soul/orm/query_result_cache.h
 )
 
 set(SOUL_ORM_SOURCES
