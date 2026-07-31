@@ -33,7 +33,7 @@ endif()
 find_package(Qt6 REQUIRED COMPONENTS Core Network WebSockets Sql Xml)
 
 # ============================================================================
-# nlohmann/json — 全局 JSON 处理(v1.9.2 统一 JSON 方案)
+# nlohmann/json - 全局 JSON 处理(v1.9.2 统一 JSON 方案)
 # ============================================================================
 # 用于配置、RPC、认证、存储等所有非 UI 模块的 JSON 序列化。
 # Qt JSON (QJsonDocument/QJsonObject) 仅保留用于 UI 临时数据序列化。
@@ -44,15 +44,29 @@ if(EXISTS "G:/MinGW/nlohmann/json.hpp")
     target_include_directories(nlohmann_json INTERFACE "G:/MinGW")
     add_library(nlohmann_json::nlohmann_json ALIAS nlohmann_json)
     install(TARGETS nlohmann_json EXPORT SoulCoreKitTargets)
+    set(NLOHMANN_JSON_FOUND TRUE)
 else()
-    message(STATUS "nlohmann/json not found locally, using FetchContent")
-    include(FetchContent)
-    FetchContent_Declare(
-        nlohmann_json
-        GIT_REPOSITORY https://github.com/nlohmann/json.git
-        GIT_TAG        v3.11.3
+    # v1.9.2: 使用 file(DOWNLOAD) 直接下载单头文件,比 FetchContent(git clone)
+    # 更可靠,避免 CI 环境中 git clone 超时或网络不稳定导致的 configure 失败。
+    set(NLOHMANN_JSON_DIR "${CMAKE_BINARY_DIR}/_deps/nlohmann-src")
+    set(NLOHMANN_JSON_HEADER "${NLOHMANN_JSON_DIR}/single_include/nlohmann/json.hpp")
+    message(STATUS "Downloading nlohmann/json.hpp v3.11.3 ...")
+    file(DOWNLOAD
+        "https://github.com/nlohmann/json/releases/download/v3.11.3/json.hpp"
+        "${NLOHMANN_JSON_HEADER}"
+        SHOW_PROGRESS
+        STATUS DOWNLOAD_STATUS
+        TIMEOUT 60
     )
-    FetchContent_MakeAvailable(nlohmann_json)
+    list(GET DOWNLOAD_STATUS 0 STATUS_CODE)
+    if(NOT STATUS_CODE EQUAL 0)
+        list(GET DOWNLOAD_STATUS 1 STATUS_MSG)
+        message(FATAL_ERROR "Failed to download nlohmann/json.hpp: ${STATUS_MSG}")
+    endif()
+    message(STATUS "Downloaded nlohmann/json.hpp successfully")
+    add_library(nlohmann_json INTERFACE)
+    target_include_directories(nlohmann_json INTERFACE "${NLOHMANN_JSON_DIR}/single_include")
+    add_library(nlohmann_json::nlohmann_json ALIAS nlohmann_json)
 endif()
 
 # ZLIB: compress_utils.cpp uses deflate/inflate directly.
