@@ -105,7 +105,8 @@ public:
 
     // Awaiter for co_await
     // TSan-safe: 持锁读取 m_ready,与 return_value()/unhandled_exception() 的写同步
-    bool await_ready() const noexcept {
+    // 注: 非 noexcept,因为 std::lock_guard 构造可能抛出 std::system_error
+    bool await_ready() const {
         std::lock_guard<std::mutex> lock(m_handle.promise().m_mutex);
         return m_handle.promise().m_ready;
     }
@@ -215,7 +216,8 @@ public:
     }
 
     // TSan-safe: 持锁读取 m_ready,与 return_void()/unhandled_exception() 的写同步
-    bool await_ready() const noexcept {
+    // 注: 非 noexcept,因为 std::lock_guard 构造可能抛出 std::system_error
+    bool await_ready() const {
         std::lock_guard<std::mutex> lock(m_handle.promise().m_mutex);
         return m_handle.promise().m_ready;
     }
