@@ -114,7 +114,7 @@ JoinPoint::ReturnType AspectWeaver::weave(const std::string& methodName,
             std::rethrow_exception(eptr);
         } catch (const std::exception& e) {
             jp.setExceptionMessage(e.what());
-        } catch (...) {
+        } catch (...) { // Blanket catch: capture exception type unknown at compile time
             jp.setExceptionMessage("unknown exception");
         }
     }

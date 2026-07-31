@@ -91,7 +91,7 @@ HealthReport HealthEndpoint::doCheck(bool criticalOnly) const {
             detail.message = std::string("Exception: ") + e.what();
             report.details.push_back(detail);
             hasDown = true;
-        } catch (...) {
+        } catch (...) { // Blanket catch: capture unknown exception in health check
             HealthDetail detail;
             detail.name = indicator->name();
             detail.status = HealthStatus::DOWN;
@@ -170,7 +170,7 @@ HealthDetail MqHealthIndicator::check() const {
     } catch (const std::exception& e) {
         detail.status = HealthStatus::DOWN;
         detail.message = std::string("MQ check exception: ") + e.what();
-    } catch (...) {
+    } catch (...) { // Blanket catch: capture unknown exception in MQ health check
         detail.status = HealthStatus::DOWN;
         detail.message = "MQ check unknown exception";
     }

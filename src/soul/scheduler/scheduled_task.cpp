@@ -87,7 +87,7 @@ void ScheduledTask::triggerNow()
         if (m_callback) {
             m_callback();
         }
-    } catch (...) {
+    } catch (...) { // Blanket catch: rethrow to propagate task execution failure
         m_executing.store(false);
         throw;
     }

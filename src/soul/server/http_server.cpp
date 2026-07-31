@@ -304,7 +304,7 @@ void HttpServer::onReadyRead() {
             response.setBody(QByteArray("Internal Server Error"));
             continueChain = false;
             break;
-        } catch (...) {
+        } catch (...) { // Blanket catch: prevent middleware exception from crashing server
             SC_ERROR("HttpServer: middleware " + mw->name() +
                      " before() unknown exception");
             response.setStatus(500);
