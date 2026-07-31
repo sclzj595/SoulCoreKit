@@ -95,6 +95,7 @@ jobs:
 
       - name: Run clang-tidy (Linux)
         if: runner.os == 'Linux'
+        continue-on-error: true  # clang-tidy non-blocking (lint.yml handles this separately)
         run: |
           cmake -S . -B build-tidy \
             -G Ninja \
@@ -105,6 +106,7 @@ jobs:
 
       - name: Run clang-tidy (Windows)
         if: runner.os == 'Windows'
+        continue-on-error: true  # clang-tidy may not be available on Windows runners
         run: |
           cmake -S . -B build-tidy `
             -G "Visual Studio 16 2019" `
