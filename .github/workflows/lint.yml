@@ -25,7 +25,7 @@ jobs:
       - name: Install lint dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build g++ clang-tidy
+          sudo apt-get install -y cmake ninja-build g++ clang-tidy zlib1g-dev libssl-dev
 
       - name: Configure with clang-tidy
         run: |
