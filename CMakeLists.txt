@@ -244,6 +244,7 @@ set(SOUL_CORE_HEADERS
     include/soul/core/scaffold.h
     include/soul/core/module_registry.h
     include/soul/core/crash_handler.h
+    include/soul/core/benchmark.h
 )
 
 set(SOUL_DI_HEADERS
@@ -524,6 +525,7 @@ set(SOUL_AUTH_HEADERS
     include/soul/auth/permissions.h
     include/soul/auth/oauth2.h
     include/soul/auth/oidc.h
+    include/soul/auth/secure_storage.h
 )
 
 set(SOUL_AUTH_SOURCES

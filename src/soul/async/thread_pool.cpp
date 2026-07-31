@@ -13,43 +13,57 @@ ThreadPool& ThreadPool::instance() {
 }
 
 void ThreadPool::init(int maxThreads) {
-    std::lock_guard<std::mutex> lock(m_initMutex);
-    if (m_initialized.load(std::memory_order_relaxed)) {
-        return;
+    int workerCount;
+    {
+        std::lock_guard<std::mutex> lock(m_initMutex);
+        if (m_initialized.load(std::memory_order_relaxed)) {
+            return;
+        }
+        m_threadPool = std::make_shared<QThreadPool>();
+        if (maxThreads > 0) {
+            m_threadPool->setMaxThreadCount(maxThreads);
+            m_maxWorkers.store(maxThreads, std::memory_order_relaxed);
+        } else {
+            int ideal = QThread::idealThreadCount();
+            m_threadPool->setMaxThreadCount(ideal);
+            m_maxWorkers.store(ideal, std::memory_order_relaxed);
+        }
+        m_initialized.store(true, std::memory_order_release);
+        workerCount = m_maxWorkers.load(std::memory_order_relaxed);
     }
-    m_threadPool = std::make_shared<QThreadPool>();
-    if (maxThreads > 0) {
-        m_threadPool->setMaxThreadCount(maxThreads);
-        m_maxWorkers.store(maxThreads, std::memory_order_relaxed);
-    } else {
-        int ideal = QThread::idealThreadCount();
-        m_threadPool->setMaxThreadCount(ideal);
-        m_maxWorkers.store(ideal, std::memory_order_relaxed);
-    }
-    m_initialized.store(true, std::memory_order_release);
+    // m_initMutex 已释放 — 下方持 m_queueMutex 修改 m_workers,
+    // 与 start()/waitForDone()/shutdown() 使用同一互斥锁,消除数据竞争
 
     // [v1.9.2] 启动工作线程(三级优先级调度)
     m_running.store(true, std::memory_order_release);
-    int workerCount = m_maxWorkers.load(std::memory_order_relaxed);
-    m_workers.reserve(workerCount);
-    for (int i = 0; i < workerCount; ++i) {
-        m_workers.emplace_back(&ThreadPool::workerLoop, this);
+    {
+        std::lock_guard<std::mutex> lock(m_queueMutex);
+        m_workers.reserve(workerCount);
+        for (int i = 0; i < workerCount; ++i) {
+            m_workers.emplace_back(&ThreadPool::workerLoop, this);
+        }
     }
 }
 
 void ThreadPool::shutdown() {
     // [v1.9.2] 停止工作线程
-    // TSan-safe: 持 m_queueMutex 保护 m_workers 的读写,避免与 start()/waitForDone() 的竞争
+    // TSan-safe: 先通知 worker 线程退出,再在锁外 join
+    // 必须在锁外 join,因为 worker 线程需要获取 m_queueMutex 才能从
+    // m_queueCv.wait() 返回,锁内 join 会导致死锁
     m_running.store(false, std::memory_order_release);
     m_queueCv.notify_all();
+
+    // 持锁移出 m_workers,避免与 start()/waitForDone() 的竞争
+    std::vector<std::thread> workers;
     {
         std::lock_guard<std::mutex> lock(m_queueMutex);
-        for (auto& worker : m_workers) {
-            if (worker.joinable()) {
-                worker.join();
-            }
+        workers = std::move(m_workers);
+    }
+    // 锁外 join:worker 线程可以自由获取 m_queueMutex 完成退出
+    for (auto& worker : workers) {
+        if (worker.joinable()) {
+            worker.join();
         }
-        m_workers.clear();
     }
 
     std::shared_ptr<QThreadPool> pool;
