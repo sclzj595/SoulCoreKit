@@ -27,10 +27,11 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build g++ zlib1g-dev
+          sudo apt-get install -y cmake ninja-build g++ zlib1g-dev libssl-dev
 
       - name: Configure (TSan enabled)
         run: |
+          set -x
           cmake -S . -B build \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
