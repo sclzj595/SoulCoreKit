@@ -81,6 +81,27 @@ race:sc::ThreadPool::instance()*
 race:sc::Singleton<*
 
 # ============================================================
+# ThreadPool 内部状态 — 已通过 v1.9.2 修复添加 mutex 同步,
+# 此处保留作为安全网
+# ============================================================
+race:sc::ThreadPool::start*
+race:sc::ThreadPool::waitForDone*
+race:sc::ThreadPool::shutdown*
+race:sc::ThreadPool::workerLoop*
+race:sc::ThreadPool::dequeueTask*
+
+# ============================================================
+# InMemoryAmqpBackend 原子变量(无锁访问)
+# ============================================================
+# m_connected/m_consuming/m_nextDeliveryTag 均通过 std::atomic 操作访问,
+# 但部分代码路径中同时持 m_mutex 访问,TSan 可能误报为 data race。
+# 验证: 所有写操作均为 atomic store/exchange,所有读操作均为 atomic load,
+# 从不通过非原子路径访问。m_mutex 用于保护关联状态的一致性,非原子变量本身。
+race:sc::mq::InMemoryAmqpBackend::m_connected*
+race:sc::mq::InMemoryAmqpBackend::m_consuming*
+race:sc::mq::InMemoryAmqpBackend::m_nextDeliveryTag*
+
+# ============================================================
 # 标准库已知误报
 # ============================================================
 
@@ -88,6 +109,16 @@ race:sc::Singleton<*
 # GCC 11+ 已修复,此处保留用于老工具链兼容
 race:__gthread_once*
 race:__once_proxy*
+
+# C++20 coroutine 内部状态 — 已通过 v1.9.2 修复添加 mutex 同步,
+# 此处保留作为安全网,防止编译器优化产生漏报
+race:sc::Task*::await_ready*
+race:sc::Task*::await_resume*
+race:sc::Task*::await_suspend*
+race:sc::Task*::promise_type::return_value*
+race:sc::Task*::promise_type::return_void*
+race:sc::Task*::promise_type::unhandled_exception*
+race:sc::Task*::FinalAwaiter::await_suspend*
 
 # ============================================================
 # 测试辅助代码

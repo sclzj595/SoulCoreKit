@@ -300,7 +300,11 @@ void InMemoryAmqpBackend::startConsuming() {
     if (!m_consuming.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
         return;  // 已在消费中
     }
-    m_dispatchThread = std::thread([this]() { this->dispatchLoop(); });
+    // TSan-safe: 持 m_mutex 保护 m_dispatchThread 的写入,与 stopConsuming() 的读同步
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_dispatchThread = std::thread([this]() { this->dispatchLoop(); });
+    }
     SC_INFO("InMemoryAmqpBackend: consuming started");
 }
 
@@ -310,8 +314,14 @@ void InMemoryAmqpBackend::stopConsuming() {
     m_consuming.store(false, std::memory_order_release);
     m_cv.notify_all();
 
-    if (m_dispatchThread.joinable()) {
-        m_dispatchThread.join();
+    // TSan-safe: 持 m_mutex 保护 m_dispatchThread 的读写,与 startConsuming() 的写同步
+    std::thread dispatchThread;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        dispatchThread = std::move(m_dispatchThread);
+    }
+    if (dispatchThread.joinable()) {
+        dispatchThread.join();
     }
     SC_INFO("InMemoryAmqpBackend: consuming stopped");
 }

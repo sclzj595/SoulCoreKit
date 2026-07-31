@@ -39,14 +39,18 @@ void ThreadPool::init(int maxThreads) {
 
 void ThreadPool::shutdown() {
     // [v1.9.2] 停止工作线程
+    // TSan-safe: 持 m_queueMutex 保护 m_workers 的读写,避免与 start()/waitForDone() 的竞争
     m_running.store(false, std::memory_order_release);
     m_queueCv.notify_all();
-    for (auto& worker : m_workers) {
-        if (worker.joinable()) {
-            worker.join();
+    {
+        std::lock_guard<std::mutex> lock(m_queueMutex);
+        for (auto& worker : m_workers) {
+            if (worker.joinable()) {
+                worker.join();
+            }
         }
+        m_workers.clear();
     }
-    m_workers.clear();
 
     std::shared_ptr<QThreadPool> pool;
     {
@@ -92,7 +96,13 @@ void ThreadPool::start(std::function<void()> task, Priority priority) {
     if (!task) return;
 
     // [v1.9.2] 回退: 若工作线程未启动(init() 未调用),使用 QThreadPool 直接执行
-    if (m_workers.empty()) {
+    // TSan-safe: 持 m_queueMutex 读取 m_workers,避免与 init()/shutdown() 的写竞争
+    bool fallback = false;
+    {
+        std::lock_guard<std::mutex> lock(m_queueMutex);
+        fallback = m_workers.empty();
+    }
+    if (fallback) {
         std::lock_guard<std::mutex> lock(m_initMutex);
         if (!m_threadPool) {
             m_threadPool = std::make_shared<QThreadPool>();
@@ -264,7 +274,13 @@ void ThreadPool::setExpiryTimeout(int expiryTimeout) {
 
 bool ThreadPool::waitForDone(int msecs) {
     // [v1.9.2] 若使用优先级队列,等待队列清空 + 活跃任务完成
-    if (!m_workers.empty()) {
+    // TSan-safe: 持 m_queueMutex 读取 m_workers,避免与 init()/shutdown() 的竞争
+    bool usePriorityWorkers = false;
+    {
+        std::lock_guard<std::mutex> lock(m_queueMutex);
+        usePriorityWorkers = !m_workers.empty();
+    }
+    if (usePriorityWorkers) {
         auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(msecs);
         while (true) {
             {

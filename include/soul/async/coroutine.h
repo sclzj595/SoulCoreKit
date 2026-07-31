@@ -36,8 +36,8 @@ public:
         std::exception_ptr m_exception;
         std::coroutine_handle<> m_continuation;
         bool m_ready = false;
-        std::mutex m_mutex;              ///< [v1.9.2] 保护 get() 等待
-        std::condition_variable m_cv;    ///< [v1.9.2] 替代自旋等待
+        mutable std::mutex m_mutex;              ///< [v1.9.2] 保护 get() 等待 + TSan 安全
+        std::condition_variable m_cv;            ///< [v1.9.2] 替代自旋等待
 
         Task get_return_object() {
             return Task{std::coroutine_handle<promise_type>::from_promise(*this)};
@@ -52,8 +52,14 @@ public:
                 bool await_ready() noexcept { return false; }
 
                 void await_suspend(std::coroutine_handle<promise_type> h) noexcept {
-                    if (m_promise->m_continuation) {
-                        m_promise->m_continuation.resume();
+                    // TSan-safe: 持锁读取 m_continuation,与 await_suspend() 的写同步
+                    std::coroutine_handle<> continuation;
+                    {
+                        std::lock_guard<std::mutex> lock(m_promise->m_mutex);
+                        continuation = m_promise->m_continuation;
+                    }
+                    if (continuation) {
+                        continuation.resume();
                     }
                 }
 
@@ -98,15 +104,21 @@ public:
     }
 
     // Awaiter for co_await
+    // TSan-safe: 持锁读取 m_ready,与 return_value()/unhandled_exception() 的写同步
     bool await_ready() const noexcept {
+        std::lock_guard<std::mutex> lock(m_handle.promise().m_mutex);
         return m_handle.promise().m_ready;
     }
 
     void await_suspend(std::coroutine_handle<> continuation) {
+        // TSan-safe: 持锁写入 m_continuation,与 final_suspend() 的读同步
+        std::lock_guard<std::mutex> lock(m_handle.promise().m_mutex);
         m_handle.promise().m_continuation = continuation;
     }
 
     T await_resume() {
+        // TSan-safe: 持锁读取 m_exception 和 m_value,与 return_value()/unhandled_exception() 的写同步
+        std::lock_guard<std::mutex> lock(m_handle.promise().m_mutex);
         auto& promise = m_handle.promise();
         if (promise.m_exception) {
             std::rethrow_exception(promise.m_exception);
@@ -139,8 +151,8 @@ public:
         std::exception_ptr m_exception;
         std::coroutine_handle<> m_continuation;
         bool m_ready = false;
-        std::mutex m_mutex;              ///< [v1.9.2] 保护 get() 等待
-        std::condition_variable m_cv;    ///< [v1.9.2] 替代自旋等待
+        mutable std::mutex m_mutex;              ///< [v1.9.2] 保护 get() 等待 + TSan 安全
+        std::condition_variable m_cv;            ///< [v1.9.2] 替代自旋等待
 
         Task<void> get_return_object() {
             return Task<void>{std::coroutine_handle<promise_type>::from_promise(*this)};
@@ -153,8 +165,14 @@ public:
                 promise_type* m_promise;
                 bool await_ready() noexcept { return false; }
                 void await_suspend(std::coroutine_handle<promise_type> h) noexcept {
-                    if (m_promise->m_continuation) {
-                        m_promise->m_continuation.resume();
+                    // TSan-safe: 持锁读取 m_continuation,与 await_suspend() 的写同步
+                    std::coroutine_handle<> continuation;
+                    {
+                        std::lock_guard<std::mutex> lock(m_promise->m_mutex);
+                        continuation = m_promise->m_continuation;
+                    }
+                    if (continuation) {
+                        continuation.resume();
                     }
                 }
                 void await_resume() noexcept {}
@@ -196,13 +214,21 @@ public:
         if (m_handle) m_handle.destroy();
     }
 
-    bool await_ready() const noexcept { return m_handle.promise().m_ready; }
+    // TSan-safe: 持锁读取 m_ready,与 return_void()/unhandled_exception() 的写同步
+    bool await_ready() const noexcept {
+        std::lock_guard<std::mutex> lock(m_handle.promise().m_mutex);
+        return m_handle.promise().m_ready;
+    }
 
     void await_suspend(std::coroutine_handle<> continuation) {
+        // TSan-safe: 持锁写入 m_continuation,与 final_suspend() 的读同步
+        std::lock_guard<std::mutex> lock(m_handle.promise().m_mutex);
         m_handle.promise().m_continuation = continuation;
     }
 
     void await_resume() {
+        // TSan-safe: 持锁读取 m_exception,与 unhandled_exception() 的写同步
+        std::lock_guard<std::mutex> lock(m_handle.promise().m_mutex);
         auto& promise = m_handle.promise();
         if (promise.m_exception) {
             std::rethrow_exception(promise.m_exception);
