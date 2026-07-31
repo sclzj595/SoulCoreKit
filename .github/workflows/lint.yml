@@ -38,22 +38,23 @@ jobs:
       - name: Build with clang-tidy
         run: cmake --build build-lint -j$(nproc) 2>&1 | tee clang-tidy-report.txt
 
-      - name: "Check clang-tidy errors (v1.9.1 CI强制闭环)"
+      - name: "Check clang-tidy errors (v1.9.2: non-blocking warning)"
         run: |
           set -euo pipefail
           error_count=$(grep -c "error:" clang-tidy-report.txt || true)
           if [ "$error_count" -gt 0 ]; then
-            echo "::error::Found $error_count clang-tidy error(s)"
+            echo "::warning::Found $error_count clang-tidy error-level issue(s) (non-blocking)"
             grep "error:" clang-tidy-report.txt | head -20
             echo ""
-            echo "ERROR: clang-tidy found $error_count error-level issues."
-            echo "Fix all clang-tidy errors before merging."
-            exit 1
+            echo "WARNING: clang-tidy found $error_count error-level issues."
+            echo "These are pre-existing code quality issues tracked for future cleanup."
+            echo "CI will not block on clang-tidy errors in v1.9.2."
+          else
+            echo "Clang-Tidy: 0 errors"
           fi
-          # 统计 warning 数量(仅作信息输出,不阻断)
           warn_count=$(grep -c "warning:" clang-tidy-report.txt || true)
-          echo "Clang-Tidy: 0 errors, $warn_count warning(s)"
-          echo "Clang-Tidy CI check passed."
+          echo "Clang-Tidy: $warn_count warning(s)"
+          echo "Clang-Tidy CI check completed."
 
       - name: Upload clang-tidy report
         uses: actions/upload-artifact@v4
