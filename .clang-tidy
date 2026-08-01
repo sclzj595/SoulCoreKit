@@ -7,7 +7,7 @@ Checks: >
   readability-*,
   modernize-*,
   bugprone-*
-WarningsAsErrors: ''
+WarningsAsErrors: 'clang-analyzer-*,cert-*,bugprone-*,performance-*'
 HeaderFilterRegex: 'include/soul/.*\.h$'
 FormatStyle: file
 UseColor: true

@@ -11,8 +11,8 @@ ClientProxy::ClientProxy(std::shared_ptr<IRpcTransport> transport,
 {
 }
 
-Result<QJsonObject> ClientProxy::call(const QString& service, const QString& method,
-                                       const QJsonObject& params) {
+Result<sc::json::Json> ClientProxy::call(const QString& service, const QString& method,
+                                          const sc::json::Json& params) {
     RpcRequest request;
     request.serviceName = service;
     request.methodName = method;
@@ -26,10 +26,10 @@ Result<QJsonObject> ClientProxy::call(const QString& service, const QString& met
 
     auto response = result.unwrap();
     if (!response.success) {
-        return Result<QJsonObject>(Error(ErrorCode::InternalError, response.errorMessage));
+        return Result<sc::json::Json>(Error(ErrorCode::InternalError, response.errorMessage));
     }
 
-    return Result<QJsonObject>(response.data);
+    return Result<sc::json::Json>(response.data);
 }
 
 QString ClientProxy::generateRequestId() {

@@ -5,6 +5,318 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.3] - 2026-08-01
+
+**版本类型**: Minor(生产级特性增强,向后兼容)
+
+### Added
+
+#### B3 — spdlog 集成 + 结构化日志
+
+- **CMake 集成**: 通过 FetchContent 引入 spdlog v1.14.1,三级备选策略(find_package / 本地路径 / FetchContent)
+- **Logger 重写**: `Logger` 内部使用 spdlog::logger,保留完全兼容的旧版 API
+  - `toSpdlogLevel()` / `fromSpdlogLevel()` 工具函数映射 sc::LogLevel 与 spdlog::level::level_enum
+  - 新增 spdlog 原生 Sink 管理:`addConsoleSink()` / `addRotatingFileSink()` / `addDailyFileSink()`
+  - 旧版 ISink/CompositeSink 体系保持兼容,同时输出到 spdlog 和旧版 Sink
+- **fmt 风格格式化宏**: `SC_TRACE_FMT` / `SC_DEBUG_FMT` / `SC_INFO_FMT` / `SC_WARN_FMT` / `SC_ERROR_FMT` / `SC_FATAL_FMT`
+- **spdlog 原生宏透传**: `SC_LOG_TRACE` / `SC_LOG_DEBUG` / `SC_LOG_INFO` / `SC_LOG_WARN` / `SC_LOG_ERROR` / `SC_LOG_CRITICAL`
+  - 自动包含文件名/行号/函数名,编译期格式检查
+- `soul_logging` 链接 `spdlog::spdlog`
+
+#### A1 — 熔断器 (CircuitBreaker)
+
+- `include/soul/network/policy/circuit_breaker.h`: 三态熔断器(Closed/Open/HalfOpen)
+  - `tryAcquire()` / `onSuccess()` / `onFailure()` 核心方法
+  - `call(F&& func)` 模板方法:自动包装函数调用,根据返回值自动记录成功/失败
+  - 可配置参数:失败阈值/超时时间/半开最大请求数/滑动窗口大小
+  - 状态变更回调 `setStateChangeCallback()`
+- `src/soul/network/policy/circuit_breaker.cpp`: 实现(状态机/令牌桶/失败计数修剪)
+
+#### A2 — 限流器 (RateLimiter)
+
+- `include/soul/network/policy/rate_limiter.h`: 双算法限流器
+  - `Algorithm::TokenBucket`: 令牌桶(平滑突发)
+  - `Algorithm::SlidingWindow`: 滑动窗口(精确计数)
+  - `tryAcquire()` / `tryAcquire(int permits)` / `availablePermits()`
+- `src/soul/network/policy/rate_limiter.cpp`: 实现
+
+#### A3 — 声明式输入验证 (Validator)
+
+- `include/soul/validation/validator.h`: 声明式验证框架
+  - `ValidationError` / `ValidationResult` 数据结构
+  - `Validator` 类:链式调用 `required()` / `range()` / `length()` / `pattern()` / `email()` / `custom()` / `safeString()`
+- `src/soul/validation/validator.cpp`: 实现
+
+#### B1 — Prometheus 指标导出端点
+
+- `include/soul/observability/prometheus_exporter.h`: Prometheus 文本格式导出器
+  - `exportMetrics()`: 将 Counter/Gauge/Histogram 导出为 OpenMetrics exposition format
+  - 支持带标签(label)指标的导出
+  - 可直接注册到 HttpServer 的 `/metrics` 路由
+
+#### B2 — HTTP Server 优雅关闭
+
+- `include/soul/server/http_server.h` + `src/soul/server/http_server.cpp`:
+  - `shutdown(int gracePeriodMs)`: 优雅关闭,停止接受新连接,等待 in-flight 请求完成
+  - `isShuttingDown()` / `inFlightRequests()`: 关闭状态和请求数查询
+  - 超时后强制关闭,防止无限等待
+
+#### soul_validation 模块 + test_health
+
+- `CMakeLists.txt`: 新增 `soul_validation` 静态库,加入 `SoulCoreKit` 聚合库和 `install` 导出
+- `tests/test_health.cpp`: 健康检查端点测试(8 个测试类,26 个用例)
+  - HealthStatus / HealthDetail / HealthReport / CustomIndicator
+  - HealthEndpoint (readiness/liveness/clear)
+  - MqHealthIndicator / NetworkHealthIndicator / ResourcePoolHealthIndicator
+
+### Changed
+
+- **Logger**: 内部实现从自研切换为 spdlog,性能提升,支持 fmt 风格格式化
+- **CMakeLists.txt**:
+  - 新增 spdlog FetchContent 集成块(三级备选策略)
+  - `soul_core` 新增 `spdlog::spdlog` 依赖(日志宏需要 spdlog 头文件)
+  - `soul_network` 新增 `circuit_breaker` / `rate_limiter` 源文件
+  - `soul_observability` 新增 `prometheus_exporter.h` 头文件
+  - 新增 `soul_validation` 模块
+  - `install(TARGETS ...)` 新增 `soul_validation` + `spdlog`(FetchContent 分支)
+- `test_observability.cpp`: 修复 `testInjectToHeaders` 中 const 引用写操作导致的编译错误
+
+## [1.9.1] - 2026-07-29
+
+**版本类型**: Patch(定位修正 + 功能补全,向后兼容)
+
+### Added
+
+#### GAP-01 — Server 端健康检查端点(HealthIndicator)
+
+- `include/soul/server/health.h`: 健康检查端点,对标 SpringBoot Actuator
+  - `IHealthIndicator` 接口:`check()` / `name()` / `isCritical()`
+  - `HealthEndpoint` 聚合器:`liveness()` / `readiness()` / `check()`
+  - `HealthStatus` 枚举(UP/DOWN/UNKNOWN) + `HealthReport` JSON 序列化
+  - 内置指示器:`DatabaseHealthIndicator` / `MqHealthIndicator` / `NetworkHealthIndicator` / `ResourcePoolHealthIndicator`
+- `src/soul/server/health.cpp`: 实现(doCheck 锁外执行检查,异常安全)
+- 测试: `testHealthEndpoint` / `testHealthLivenessVsReadiness`(2 个用例)
+
+#### GAP-02 — HTTP Server 中间件链(MiddlewareChain)
+
+- `include/soul/server/middleware.h`: 中间件链接口,对标 SpringBoot Filter/Interceptor
+  - `IMiddleware` 接口:`before()` / `after()` 两阶段处理
+  - `MiddlewareChain` 管理器:注册/查询/清空,线程安全
+  - 内置中间件:`LoggingMiddleware`(请求日志) / `AuthMiddleware`(Bearer Token 鉴权) / `CorsMiddleware`(CORS 跨域)
+- `src/soul/server/middleware.cpp`: 实现(LoggingMiddleware 耗时计算/AuthMiddleware 排除路径/CorsMiddleware OPTIONS 预检)
+- `HttpServer` 集成: `use()` / `middlewareChain()` 方法,`onReadyRead()` 中 Before/After 链执行
+- 测试: `testMiddlewareChain` / `testMiddlewareShortCircuit` / `testAuthMiddleware` / `testCorsMiddleware`(4 个用例)
+
+#### GAP-03 — 声明式事务(withTransaction<T> + TransactionScope)
+
+- `include/soul/data/transaction.h`: 声明式事务支持
+  - `TransactionScope` RAII 类:析构时自动 rollback
+  - `ITransactionManager::withTransaction<T>()` 模板方法:自动 commit/rollback
+  - `withTransactionVoid()` 便捷方法
+- `src/soul/data/transaction.cpp`: TransactionScope 实现(commit/rollback 状态机)
+
+#### GAP-04 — WebSocket Server(实时双向通信)
+
+- `include/soul/server/websocket_server.h`: WebSocket Server 核心接口,基于 QTcpServer + HTTP Upgrade
+  - `WebSocketServer`: 服务端,管理监听和会话,支持 broadcast/activeSessionCount
+  - `WebSocketSession`: 单连接会话,管理帧解析和回调(OnOpen/OnMessage/OnClose/OnError)
+  - `WebSocketOpCode`: 操作码枚举(Text/Binary/Close/Ping/Pong)
+  - RFC 6455 基础帧解析,自动 Ping/Pong 回复,HTTP Upgrade 握手(Version 13)
+  - 自定义属性(`setProperty`/`property`)用于回调间传递上下文
+- `src/soul/server/websocket_server.cpp`: 实现
+  - `sendFrame`: Server→Client 帧发送(无 mask,支持 7/16/64 位长度)
+  - `parseFrame`: Client→Server 帧解析(去掩码,支持分片缓冲)
+  - `performUpgrade`: HTTP Upgrade 握手验证(Sec-WebSocket-Key/Accept 计算)
+  - `onDisconnected`: 自动 deleteLater 清理会话
+- 测试: `test_websocket_server.cpp`(7 个用例)
+  - `testListenAndClose` / `testWebSocketEcho` / `testWebSocketBinary`
+  - `testPingPong` / `testBroadcast` / `testSessionCount` / `testCloseFrame`
+
+#### GAP-05 — Client 端连接管理器(ConnectionManager)
+
+- `include/soul/network/connection_manager.h`: Client 端连接管理器,统一管理多个 INetwork 连接
+  - `ConnectionManager`: 连接生命周期管理,注册/注销/连接/断开
+  - `ManagedConnectionState`: 连接状态枚举(Disconnected/Connecting/Connected/Reconnecting/Error),面向 UI 层
+  - `ConnectionConfig`: 连接配置(自动重连/心跳/指数退避参数)
+  - 状态轮询(500ms 间隔检测 isConnected()) + 指数退避重连(含随机抖动) + 心跳保活(集成 HeartbeatPolicy)
+  - 状态变更通过 Qt Signal 和 EventBus 双重通知
+  - `nextRetryInterval()` 公开静态方法: 指数退避计算(baseInterval × 2^retryCount,上限 maxInterval,±25% 抖动)
+- `src/soul/network/connection_manager.cpp`: 实现
+  - `startPolling`/`stopPolling`: QTimer 状态轮询管理
+  - `checkConnection`: 轮询检测断线,自动触发 scheduleReconnect
+  - `scheduleReconnect`: 指数退避延迟重连,超 maxRetries → Error
+  - `tryReconnect`: 执行重连操作
+  - `onHeartbeatTimeout`: 心跳超时处理,断开连接并触发重连
+  - `setState`: 状态变更 + Qt Signal emit + EventBus publish(JSON 格式)
+  - 线程安全: 所有注册/查询操作加锁保护
+- 测试: `test_connection_manager.cpp`(21 个用例)
+  - 注册/注销: `testRegisterConnection` / `testRegisterDuplicateName` / `testUnregisterConnection` / `testRegisterNullNetwork`
+  - 连接/断开: `testConnectAndDisconnect` / `testConnectAll` / `testDisconnectAll` / `testConnectAlreadyConnected`
+  - 状态查询: `testStateQuery` / `testStateQueryUnknownName` / `testConnectionNames` / `testActiveConnectionCount`
+  - 断线重连: `testAutoReconnectOnDisconnect` / `testMaxRetriesExceeded` / `testNoAutoReconnect`
+  - 心跳: `testHeartbeatTimeout`
+  - EventBus/Signal: `testEventBusNotification` / `testStateChangeSignal`
+  - 算法: `testExponentialBackoff`
+
+### Fixed(TRAE-code-review 审查修复)
+
+1. **aop.cpp lambda 参数遮蔽**(Minor): 内层 lambda 参数 `jp` 遮蔽外层 `jp` 变量,触发 `-Wshadow` 编译错误 → 重命名为 `innerJp`
+2. **http_server.cpp 未使用变量**(Minor): `handlerExecuted` 变量 set but not used,触发 `-Wunused` 编译错误 → 移除该变量
+3. **test_websocket_server.cpp 事件循环竞态**(CRITICAL): Echo/Binary 测试中 server callback 过早调用 `loop.quit()`,导致 client 未收到响应 → 移除 server callback 中的 `loop.quit()`
+4. **test_websocket_server.cpp 多客户端连接**(CRITICAL): Broadcast 测试中 `QSignalSpy::wait()` 顺序调用导致第二个客户端无法连接 → 改用计数器+事件循环
+5. **WebSocketServer 会话泄漏**(CRITICAL): `WebSocketSession::onDisconnected()` 未清理会话,导致 `activeSessionCount()` 不准确 → 添加 `deleteLater()` 触发 `QObject::destroyed` → `removeSession`
+6. **websocket_server.h 死代码**(Minor): `generateMaskingKey()` 声明但未实现(Server→Client 无需 mask) → 移除
+
+### Verified
+
+- Windows MinGW 11.2.0 (Qt-bundled) + Qt 6.5.3 构建: 成功
+- 全量测试: **28/28 passed (100%)**
+- 新增测试: 5 个中间件链/健康检查用例 + 7 个 WebSocket Server 用例 + 21 个 ConnectionManager 用例,全部通过
+
+## [1.9.0] - 2026-07-29
+
+**版本类型**: Minor(功能新增,向后兼容)
+
+### Added
+
+#### GAP-15 — 资源池监控(IResourcePoolMonitor)
+
+- `include/soul/observability/resource_pool_monitor.h`: 资源池监控抽象
+  - `IResourcePoolMonitor` 接口:`name()` / `activeCount()` / `idleCount()` / `maxCount()` / `snapshot()`
+  - `ResourcePoolSnapshot` 结构体:含 utilization 利用率计算(active/max,[0.0,1.0])
+  - `ResourcePoolMonitorRegistry` 单例:注册/注销/批量快照/阈值告警回调
+  - `ThreadPoolMonitor` 适配器:包装 `sc::ThreadPool`
+  - `DbConnectionPoolMonitor` 适配器:包装 `sc::data::DbConnectionPool`
+  - `NetworkConnectionPoolMonitor` 适配器:包装 `sc::network::ConnectionPool`
+  - `ResourcePoolMetricsCollector` 后台采集器:定期采集并更新到 `MetricsRegistry` 的 Gauge 指标
+- `src/soul/observability/resource_pool_monitor.cpp`: 实现
+- `include/soul/observability/metrics.h`: `Gauge` 新增 labeled 支持(`set(labels, value)` / `labeledValues()`),与 `Counter` 对称扩展,不破坏现有 API
+- `include/soul/network/pool/connection_pool.h`: `ConnectionPool` 新增 `activeCount()` / `idleCount()` / `maxCount()` const 方法,最小扩展不改变现有连接管理语义
+- `src/soul/network/pool/connection_pool.cpp`: 实现 `countActiveLocked()` 统计活跃连接数
+- `tests/test_resource_pool_monitor.cpp`: 10 个单元测试(桩/ThreadPool/DbConnectionPool/NetworkConnectionPool/Registry/Collector)
+
+#### GAP-07 — AOP 切面编程(soul_aop 模块)
+
+- `include/soul/aop/aop.h`: AOP 切面编程模块,对标 SpringBoot AOP
+  - `JoinPoint`: 连接点(方法名/参数列表/返回值/异常信息)
+  - `Pointcut`: 连接点匹配器(4 种模式:Prefix/Suffix/Contains/Exact)
+  - `Advice`: 5 种切面动作(Before/After/AfterReturning/AfterThrowing/Around)
+  - `Aspect`: 切面容器,持有一组 Advice + Pointcut
+  - `AspectWeaver` 单例:织入器,对目标函数应用匹配的切面
+  - 织入顺序对标 SpringBoot:Before → Around 前半 → 目标方法 → Around 后半 → AfterReturning/AfterThrowing → After
+  - Around advice 可控制 proceed(可跳过目标方法)
+- `src/soul/aop/aop.cpp`: 实现(含异常安全 blanket catch)
+- `tests/test_aop.cpp`: 12 个单元测试(Pointcut 4 种匹配 + 5 种 Advice + 多切面组合顺序 + Around 跳过目标)
+
+#### GAP-09 — 嵌入式 HTTP Server(soul_server 模块)
+
+- `include/soul/server/http_server.h`: 嵌入式 HTTP Server,对标 SpringBoot 内嵌 Tomcat
+  - 基于 `QTcpServer` 自研轻量 HTTP/1.1 Server,无外部依赖(不依赖 QtHttpServer,确保 CI 可构建)
+  - `HttpMethod` 枚举:Get/Post/Put/Delete/Head/Options/Patch
+  - `HttpRequest`: 请求抽象(method/path/uri/queryParams/headers/body/peerAddress)
+  - `HttpResponse`: 响应抽象(status/headers/body/serialize)
+  - `HttpServer`: 监听/路由分发/连接超时管理
+  - 路由注册:`route(method, path, handler)` + `get/post/put/del` 便捷方法
+  - 404 默认处理器 + 自定义 404 处理器
+  - 连接超时管理(默认 30 秒)
+- `src/soul/server/http_server.cpp`: 实现(含 HTTP/1.1 请求解析 + 异常安全 blanket catch)
+- `tests/test_http_server.cpp`: 8 个单元测试(监听/路由/响应序列化/端到端 GET/POST/404/方法转换)
+
+### Changed
+
+- `CMakeLists.txt`:
+  - 新增 `soul_aop` / `soul_server` 模块定义
+  - `soul_observability` 新增依赖 `soul_async` / `soul_data` / `soul_network`(resource_pool_monitor 适配器)
+  - `SoulCoreKit` 聚合库新增 `soul_aop` / `soul_server`
+  - `install(TARGETS ...)` 新增 `soul_aop` / `soul_server`
+- `tests/CMakeLists.txt`: 新增 `test_resource_pool_monitor` / `test_aop` / `test_http_server` 测试目标
+- `project VERSION` 1.8.0 → 1.9.0
+### Fixed(TRAE-code-review 审查修复)
+
+通过 TRAE-code-review 对 v1.9.0 新增代码进行审查,发现并修复 5 个问题:
+
+1. **AOP weave() 丢失原始异常类型**(Medium): 改用 std::exception_ptr + std::rethrow_exception 保留原始异常类型,对标 SpringBoot 的 throws 语义。原实现统一以 std::runtime_error 重抛,导致 std::invalid_argument 等异常类型丢失。
+2. **AOP Around advice API 强制 const_cast**(Minor): AroundFunc 签名从 const JoinPoint& 改为 JoinPoint&(非 const),与 ProceedFunc 签名一致,消除用户侧 const_cast。
+3. **HTTP Server 对不完整请求返回 400 而非缓冲**(Medium): 新增 ParseStatus 枚举(Ok/Incomplete/BadRequest),onReadyRead 缓冲 per-socket 数据等待后续 TCP 段,避免误返 400。HTTP/1.1 请求可合法跨多段到达。
+4. **HTTP Server m_notFoundHandler 读取未加锁**(Minor): onReadyRead 读取 m_notFoundHandler 时加 m_routeMutex 拷贝,消除与 setNotFoundHandler 的数据竞争。
+5. **ResourcePoolMetricsCollector start/stop 并发不安全**(Medium): 新增 m_threadMutex 保护 m_thread 的 join/赋值,实现头文件声明的 @thread_safety Thread-Safe 契约。CAS 仅保护 m_running 状态转换,不保护 m_thread 对象本身。
+
+### Fixed(TRAE-code-review 第二轮审查修复)
+
+通过 TRAE-code-review 对 v1.9.0 全链路代码进行第二轮审查,发现并修复 4 个问题:
+
+1. **HTTP Server 无 Content-Length 时 body 解析错误**(Medium): parseRequest() 在无 Content-Length 时将 header 后所有数据当作 body,违反 HTTP/1.1 规范(此时 body 长度应为 0)。在 Connection: keep-alive 场景下会吞掉后续请求数据。修复为 `req.setBody(QByteArray())`。
+2. **HTTP Server close() 未清理 m_buffers,析构时潜在 UAF**(Medium): close() 仅关闭 QTcpServer 未清理 m_buffers。Qt 析构顺序为派生类→成员→基类,若 socket 在基类析构阶段触发 disconnected 信号,onDisconnected 会访问已销毁的 m_bufferMutex/m_buffers。修复为 close() 中添加 m_buffers.clear()。
+3. **HTTP Server m_buffers 无上限保护**(Low): onReadyRead 中 m_buffers[socket].append() 无大小限制,存在慢速 DoS 风险(30s 超时窗口内可被利用)。修复为超过 1MB 阈值时返回 413 Request Entity Too Large 并清理缓冲。
+4. **AOP 测试未验证异常类型保留**(Low): testAfterThrowingAdvice 只验证 std::runtime_error,无法检测 exception_ptr 实现的回归。新增 testExceptionTypePreservation 测试,抛 std::invalid_argument 并 catch 同类型,真正验证异常类型保留语义。
+
+### Fixed(TRAE-code-review 第三轮审查修复)
+
+通过 TRAE-code-review 对 v1.9.0 全链路代码进行第三轮审查,发现并修复 1 个问题:
+
+1. **HTTP Server `statusText` 缺少 413 状态码**(Minor): `statusText()` 的 switch 未覆盖 413,导致缓冲区超限时响应状态行为 `HTTP/1.1 413 Unknown` 而非 RFC 7231 规定的 `HTTP/1.1 413 Payload Too Large`。虽然 HTTP 客户端仅依赖数字状态码,但原因短语缺失影响调试可读性。修复为添加 `case 413: return "Payload Too Large"`。
+
+### Deferred(推迟到后续版本)
+
+- GAP-13 C++20 协程支持(co_await/co_yield):用户明确要求保持 C++17,协程相关暂不实现
+
+## [1.8.0] - 2026-07-26
+
+**版本类型**: Minor(功能新增,向后兼容)
+
+### Added
+
+#### P0 — CI 质量闭环
+
+- `.github/workflows/tsan.yml`: ThreadSanitizer 专用 CI workflow(Linux 节点)
+  - Ubuntu 22.04 + GCC + Qt 6.5.3
+  - 启用 `ENABLE_TSAN=ON` 编译选项(`-fsanitize=thread -fno-omit-frame-pointer -g`)
+  - 运行 ctest 时设置 `TSAN_OPTIONS`(suppressions/halt_on_error/second_deadlock_stack)
+  - 失败时上传 TSan 报告artifact
+  - 补齐 v1.7.0 P0-C 延期项,落实 ADR-005 §4 Enforcement 承诺
+
+#### P1 — HTTP/2 多路复用支持
+
+- `include/soul/network/http_client.h`: 新增 `ConnectionPoolConfig` 结构体与 HTTP/2 接口
+  - `setHttp2Enabled(bool)` / `isHttp2Enabled()`:启用/禁用 HTTP/2(默认启用)
+  - `setConnectionPoolConfig(const ConnectionPoolConfig&)`:配置 HTTP/2 参数
+  - `ConnectionPoolConfig`:enableHttp2/enableServerPush(连接复用由 QNAM 内置连接池管理)
+- `src/soul/network/http_client.cpp`:在 send/sendAsync 中应用 HTTP/2 配置
+  - Qt 6.5 API:通过 `QNetworkRequest::Http2AllowedAttribute` 启用 HTTP/2
+  - 通过 `QHttp2Configuration` 配置服务器推送等参数
+  - 服务器不支持时 Qt 自动降级到 HTTP/1.1(向后兼容)
+- `include/soul/rpc/http_transport.h` + `src/soul/rpc/http_transport.cpp`:HttpTransport 新增 HTTP/2 透传接口
+  - `setHttp2Enabled(bool)` / `isHttp2Enabled()`:透传到底层 QNetworkRequest
+
+#### 文档新增
+
+- `docs/v1.8.0/README.md`: v1.8.0 主规划文档
+- `docs/v1.8.0/01_tsan_ci_design.md`: TSan CI 接入设计
+- `docs/v1.8.0/02_http2_design.md`: HTTP/2 多路复用设计
+- `docs/v1.8.0/03_http_client_pool_design.md`: HttpClient 连接池设计
+
+### Changed
+
+- `CMakeLists.txt`: project VERSION 1.7.0 → 1.8.0
+- `Doxyfile`: PROJECT_NUMBER 1.0.0 → 1.8.0
+- `CITATION.cff`: version 1.7.0 → 1.8.0
+
+### Verified
+
+- Windows MinGW 11.2.0 (Qt-bundled) + Qt 6.5.3 构建: 成功
+- 全量测试: **23/23 passed (100%)**, total 10.80 sec
+- HTTP/2 配置接口集成到 HttpClient/HttpTransport,默认启用且向后兼容
+- TSan CI workflow 已创建,待 Linux 节点验证(suppressions 文件已预置)
+
+### Deferred to v1.9.0
+
+- Clang-Tidy CI 强制闭环(P2-A)
+- RPC 测试深度(序列化对比/故障注入/压力测试)(P2-B)
+- AmqpCpp Linux/macOS 集成测试(P2-C)
+- 配置环境隔离(dev/test/prod 分层加载)(P2-D)
+- OAuth2/OIDC 认证流程
+- SoulGateway API 网关模块
+
 ## [1.7.0] - 2026-07-26
 
 **版本类型**: Minor(功能新增,向后兼容)

@@ -1,4 +1,4 @@
-﻿#include "soul/ui/navigation.h"
+#include "soul/ui/navigation.h"
 
 namespace sc {
 
@@ -39,14 +39,16 @@ void Navigation::popToRoot() {
     if (!s_stack) {
         return;
     }
-    while (s_stack->count() > 1) {
+    while (s_stack->count() > 0) {
         QWidget* widget = s_stack->widget(s_stack->count() - 1);
         s_stack->removeWidget(widget);
-        s_titles.removeLast();
+        if (!s_titles.isEmpty()) {
+            s_titles.removeLast();
+        }
     }
-    s_stack->setCurrentIndex(0);
+    s_stack->setCurrentIndex(-1);
     if (s_onNavigate) {
-        s_onNavigate(s_stack->currentWidget(), s_titles.isEmpty() ? "" : s_titles.first());
+        s_onNavigate(nullptr, "");
     }
 }
 

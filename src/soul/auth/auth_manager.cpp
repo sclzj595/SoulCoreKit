@@ -89,6 +89,7 @@ void AuthManager::logout() {
         m_userInfo = UserInfo();
     }
 
+    saveAuthState();  // 清除存储中的 auth_token 等凭据,防止重启后恢复登录态
     sc::network::Session::instance().clear();
     notifyAuthStateChanged(false);
 }

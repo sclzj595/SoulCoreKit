@@ -27,7 +27,7 @@
 namespace sc {
 namespace network {
 
-class SC_NETWORK_EXPORT ConnectionPool : public QObject {
+class SC_NETWORK_EXPORT ConnectionPool : public QObject, public std::enable_shared_from_this<ConnectionPool> {
     Q_OBJECT
 public:
     struct Config {
@@ -41,10 +41,12 @@ public:
     // Automatically releases the connection back to the pool on destruction,
     // even if an exception is thrown between acquire and release.
     // Recommended usage: auto guard = pool.acquireGuarded(url).unwrap();
+    //
+    // 使用 std::weak_ptr<ConnectionPool> 防止 pool 先于 guard 析构时的 UAF
     class SC_NETWORK_EXPORT ConnectionGuard {
     public:
         ConnectionGuard() = default;
-        ConnectionGuard(ConnectionPool* pool, std::shared_ptr<INetwork> conn);
+        ConnectionGuard(std::weak_ptr<ConnectionPool> pool, std::shared_ptr<INetwork> conn);
         ~ConnectionGuard();
 
         ConnectionGuard(const ConnectionGuard&) = delete;
@@ -63,7 +65,7 @@ public:
         explicit operator bool() const { return m_conn != nullptr; }
 
     private:
-        ConnectionPool* m_pool = nullptr;
+        std::weak_ptr<ConnectionPool> m_pool;
         std::shared_ptr<INetwork> m_conn;
     };
 
@@ -86,6 +88,12 @@ public:
     void setConfig(const Config& config);
     Config config() const;
 
+    // v1.9.0: 资源池监控统计接口(供 NetworkConnectionPoolMonitor 适配器使用)
+    // 不改变现有连接管理语义,仅暴露当前水位快照
+    int activeCount() const;  ///< 正在使用的连接数
+    int idleCount() const;    ///< 空闲可复用的连接数
+    int maxCount() const;     ///< 容量上限(m_config.maxConnections)
+
 private:
     struct ConnectionEntry {
         std::shared_ptr<INetwork> connection;
@@ -94,6 +102,7 @@ private:
     };
 
     int countTotalLocked() const;
+    int countActiveLocked() const;  ///< 在锁内统计活跃连接数(供 activeCount() 复用)
 
     mutable std::mutex m_mutex;
     std::condition_variable m_cond;

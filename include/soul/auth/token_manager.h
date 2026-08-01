@@ -3,9 +3,10 @@
 
 #include <QString>
 #include <memory>
-#include <QJsonObject>
 #include "soul/core/result.h"
 #include "soul/base/base_manager.h"
+#include "soul/utils/json/json_helper.h"
+#include "soul/auth/secure_storage.h"
 
 namespace sc {
 
@@ -48,6 +49,10 @@ public:
      * @brief 构造函数
      */
     TokenManager();
+
+    /// @brief 使用安全存储构造 [v1.9.2 新增]
+    /// @param storage 安全存储实例(用于 Token 加密持久化)
+    explicit TokenManager(std::shared_ptr<auth::ISecureStorage> storage);
 
     /**
      * @brief 析构函数
@@ -140,6 +145,24 @@ public:
      */
     static bool validateTokenFormat(const QString& token);
 
+    /**
+     * @brief 设置安全存储 [v1.9.2 新增]
+     * @param storage 安全存储实例
+     */
+    void setSecureStorage(std::shared_ptr<auth::ISecureStorage> storage);
+
+    /**
+     * @brief 持久化 Token 到加密存储 [v1.9.2 新增]
+     * @return 成功返回 Ok,失败返回错误
+     */
+    Result<void> persistToken();
+
+    /**
+     * @brief 从加密存储恢复 Token [v1.9.2 新增]
+     * @return 成功返回 Ok,失败返回错误
+     */
+    Result<void> restoreToken();
+
     Result<void> init() override;
     void shutdown() override;
 
@@ -149,9 +172,10 @@ private:
     int m_expiresIn = 0;
     qint64 m_tokenIssueTime = 0;
     RefreshCallback m_refreshCallback;
-    QJsonObject m_jwtPayload;
+    sc::json::Json m_jwtPayload;
+    std::shared_ptr<auth::ISecureStorage> m_secureStorage;  ///< [v1.9.2] 安全存储
 
-    QJsonObject parseJwtPayload() const;
+    sc::json::Json parseJwtPayload() const;
     void doParseJwtPayload();
 };
 

@@ -1,8 +1,8 @@
-﻿#ifndef SOUL_STORAGE_JSON_SERIALIZER_H
+#ifndef SOUL_STORAGE_JSON_SERIALIZER_H
 #define SOUL_STORAGE_JSON_SERIALIZER_H
 
 #include "i_serializer.h"
-#include <QJsonDocument>
+#include "soul/utils/json/json_helper.h"
 
 namespace sc {
 
@@ -13,8 +13,11 @@ public:
     Result<QByteArray> serialize(const QVariant& data) const override;
     Result<QVariant> deserialize(const QByteArray& data) const override;
 
+    void setCompact(bool compact) { m_compact = compact; }
+    bool isCompact() const { return m_compact; }
+
 private:
-    QJsonDocument::JsonFormat m_format = QJsonDocument::Compact;
+    bool m_compact = true;
 };
 
 }

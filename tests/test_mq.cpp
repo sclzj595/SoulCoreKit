@@ -18,19 +18,9 @@
 using namespace sc;
 using namespace sc::mq;
 
-/**
- * @class TestInMemoryAmqpBackend
- * @brief IAmqpBackend/InMemoryAmqpBackend 单元测试
- *
- * 覆盖:
- * - 连接/断开
- * - Exchange 声明(Direct/Fanout/Topic)
- * - 队列声明/绑定/解绑
- * - 消息发布与路由(Direct/Fanout/Topic 通配符)
- * - 消费者订阅与消息分发
- * - QoS 预取计数
- * - 消息确认(ack/nack/reject)与重新入队
- */
+// ============================================================================
+// TestInMemoryAmqpBackend — 内存 AMQP 后端单元测试
+// ============================================================================
 class TestInMemoryAmqpBackend : public QObject {
     Q_OBJECT
 
@@ -48,9 +38,9 @@ private slots:
     void testConsumeAndAck();
     void testConsumeAndNackRequeue();
     void testPrefetchCount();
-    void testMultipleQueuesSingleConsumer();  // 多队列单消费者场景
+    void testMultipleQueuesSingleConsumer();
     void testCancelConsume();
-    void testCancelConsumeInCallback();  // 回归测试: 回调中 cancelConsume 不应 UAF
+    void testCancelConsumeInCallback();
     void testTopicPatternMatching_data();
     void testTopicPatternMatching();
 };
@@ -77,15 +67,12 @@ void TestInMemoryAmqpBackend::testDeclareExchange() {
     InMemoryAmqpBackend backend;
     (void)backend.connect({});
 
-    // 正常声明
     QVERIFY(backend.declareExchange("ex1", ExchangeType::Direct).isOk());
     QVERIFY(backend.declareExchange("ex2", ExchangeType::Fanout).isOk());
     QVERIFY(backend.declareExchange("ex3", ExchangeType::Topic).isOk());
 
-    // 幂等声明(同名重复声明返回成功)
     QVERIFY(backend.declareExchange("ex1", ExchangeType::Direct).isOk());
 
-    // 空名称拒绝
     auto r = backend.declareExchange("", ExchangeType::Direct);
     QVERIFY(!r.isOk());
     QCOMPARE(r.unwrapErr().code(), ErrorCode::InvalidArgument);
@@ -95,18 +82,15 @@ void TestInMemoryAmqpBackend::testDeclareQueue() {
     InMemoryAmqpBackend backend;
     (void)backend.connect({});
 
-    // 指定名称
     auto r1 = backend.declareQueue("q1");
     QVERIFY(r1.isOk());
     QCOMPARE(r1.unwrap(), QString("q1"));
 
-    // 自动生成名称
     auto r2 = backend.declareQueue("");
     QVERIFY(r2.isOk());
     QVERIFY(!r2.unwrap().isEmpty());
     QVERIFY(r2.unwrap().startsWith("amq.gen-"));
 
-    // 幂等声明
     auto r3 = backend.declareQueue("q1");
     QVERIFY(r3.isOk());
 }
@@ -118,13 +102,10 @@ void TestInMemoryAmqpBackend::testBindUnbindQueue() {
     (void)backend.declareExchange("ex", ExchangeType::Direct);
     (void)backend.declareQueue("q1");
 
-    // 绑定
     QVERIFY(backend.bindQueue("q1", "ex", "key1").isOk());
 
-    // 解绑
     QVERIFY(backend.unbindQueue("q1", "ex", "key1").isOk());
 
-    // 重复解绑失败
     auto r = backend.unbindQueue("q1", "ex", "key1");
     QVERIFY(!r.isOk());
     QCOMPARE(r.unwrapErr().code(), ErrorCode::NotFound);
@@ -168,7 +149,6 @@ void TestInMemoryAmqpBackend::testDirectExchangeRouting() {
     msg2.body = "hello2";
     QVERIFY(backend.publish(msg2).isOk());
 
-    // 等待分发
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     backend.stopConsuming();
 
@@ -210,7 +190,6 @@ void TestInMemoryAmqpBackend::testFanoutExchangeRouting() {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     backend.stopConsuming();
 
-    // Fanout 应该投递到所有 3 个队列
     QCOMPARE(count.load(), 3);
 }
 
@@ -220,7 +199,6 @@ void TestInMemoryAmqpBackend::testTopicExchangeStarPattern() {
 
     (void)backend.declareExchange("topic_ex", ExchangeType::Topic);
     (void)backend.declareQueue("q1");
-    // '*' 匹配一个词
     (void)backend.bindQueue("q1", "topic_ex", "logs.*.error");
 
     std::atomic<int> count{0};
@@ -233,14 +211,12 @@ void TestInMemoryAmqpBackend::testTopicExchangeStarPattern() {
 
     backend.startConsuming();
 
-    // 匹配
     AmqpMessage msg1;
     msg1.exchange = "topic_ex";
     msg1.routingKey = "logs.app.error";
     msg1.body = "match1";
     (void)backend.publish(msg1);
 
-    // 不匹配(两个词在 * 位置)
     AmqpMessage msg2;
     msg2.exchange = "topic_ex";
     msg2.routingKey = "logs.app.db.error";
@@ -259,7 +235,6 @@ void TestInMemoryAmqpBackend::testTopicExchangeHashPattern() {
 
     (void)backend.declareExchange("topic_ex", ExchangeType::Topic);
     (void)backend.declareQueue("q1");
-    // '#' 匹配零个或多个词
     (void)backend.bindQueue("q1", "topic_ex", "logs.#");
 
     std::atomic<int> count{0};
@@ -290,7 +265,6 @@ void TestInMemoryAmqpBackend::testTopicExchangeHashPattern() {
     msg3.body = "match";
     (void)backend.publish(msg3);
 
-    // 不匹配(不以 logs 开头)
     AmqpMessage msg4;
     msg4.exchange = "topic_ex";
     msg4.routingKey = "metrics.app.error";
@@ -330,7 +304,6 @@ void TestInMemoryAmqpBackend::testConsumeAndAck() {
 
     QVERIFY(receivedTag > 0);
 
-    // ack 后再次 ack 应该失败(已确认)
     auto r = backend.ack(receivedTag);
     QVERIFY(!r.isOk());
     QCOMPARE(r.unwrapErr().code(), ErrorCode::NotFound);
@@ -351,10 +324,8 @@ void TestInMemoryAmqpBackend::testConsumeAndNackRequeue() {
         count++;
         if (count == 1) {
             firstTag = d.deliveryTag;
-            // 第一次:nack 并重新入队
             (void)backend.nack(d.deliveryTag, true);
         } else {
-            // 第二次:ack
             (void)backend.ack(d.deliveryTag);
         }
     });
@@ -370,7 +341,6 @@ void TestInMemoryAmqpBackend::testConsumeAndNackRequeue() {
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
     backend.stopConsuming();
 
-    // 应该收到 2 次(第一次 nack requeue,第二次 ack)
     QCOMPARE(count.load(), 2);
 }
 
@@ -384,16 +354,13 @@ void TestInMemoryAmqpBackend::testPrefetchCount() {
 
     std::atomic<int> received{0};
 
-    // prefetchCount=2,不 ack,最多投递 2 条
     (void)backend.consume("q1", [&](const AmqpDelivery& d) {
         (void)d;
         received++;
-        // 不 ack,模拟慢消费者
     }, 2);
 
     backend.startConsuming();
 
-    // 发布 5 条消息
     for (int i = 0; i < 5; ++i) {
         AmqpMessage msg;
         msg.exchange = "ex";
@@ -405,13 +372,10 @@ void TestInMemoryAmqpBackend::testPrefetchCount() {
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
     backend.stopConsuming();
 
-    // 受 prefetchCount=2 限制,只应收到 2 条
     QCOMPARE(received.load(), 2);
 }
 
 void TestInMemoryAmqpBackend::testMultipleQueuesSingleConsumer() {
-    // InMemoryAmqpBackend 当前每队列支持单消费者(m_consumers[queue]= 覆盖语义)
-    // 本测试验证:多个队列各自有消费者时,消息能正确路由到对应队列的消费者
     InMemoryAmqpBackend backend;
     (void)backend.connect({});
 
@@ -435,7 +399,6 @@ void TestInMemoryAmqpBackend::testMultipleQueuesSingleConsumer() {
 
     backend.startConsuming();
 
-    // 分别向 q1 和 q2 发送消息
     for (int i = 0; i < 3; ++i) {
         AmqpMessage msg1;
         msg1.exchange = "ex";
@@ -453,7 +416,6 @@ void TestInMemoryAmqpBackend::testMultipleQueuesSingleConsumer() {
     std::this_thread::sleep_for(std::chrono::milliseconds(150));
     backend.stopConsuming();
 
-    // 两个队列各收到 3 条消息
     QCOMPARE(q1_count.load(), 3);
     QCOMPARE(q2_count.load(), 3);
 }
@@ -473,19 +435,15 @@ void TestInMemoryAmqpBackend::testCancelConsume() {
 
     backend.startConsuming();
 
-    // 取消订阅
     QVERIFY(backend.cancelConsume("q1").isOk());
 
-    // 取消不存在的订阅
     auto r = backend.cancelConsume("nonexistent");
-    QVERIFY(r.isOk());  // erase 不存在的 key 也返回 ok
+    QVERIFY(r.isOk());
 
     backend.stopConsuming();
 }
 
 void TestInMemoryAmqpBackend::testCancelConsumeInCallback() {
-    // 回归测试: 回调中调用 cancelConsume 不应导致 use-after-free
-    // 之前实现持有 ConsumerInfo& 引用跨 callback,回调中 cancel 会失效
     InMemoryAmqpBackend backend;
     (void)backend.connect({});
 
@@ -496,14 +454,12 @@ void TestInMemoryAmqpBackend::testCancelConsumeInCallback() {
     std::atomic<int> count{0};
     (void)backend.consume("q1", [&](const AmqpDelivery& d) {
         count++;
-        // 在回调中取消自己 — 这会删除 ConsumerInfo
         (void)backend.cancelConsume("q1");
         (void)backend.ack(d.deliveryTag);
     });
 
     backend.startConsuming();
 
-    // 发布 3 条消息
     for (int i = 0; i < 3; ++i) {
         AmqpMessage msg;
         msg.exchange = "ex";
@@ -512,12 +468,9 @@ void TestInMemoryAmqpBackend::testCancelConsumeInCallback() {
         (void)backend.publish(msg);
     }
 
-    // 等待分发
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
     backend.stopConsuming();
 
-    // 第一条消息触发回调后 cancelConsume,后续消息不应再被投递
-    // 验证:无崩溃 + count == 1
     QCOMPARE(count.load(), 1);
 }
 
@@ -526,22 +479,15 @@ void TestInMemoryAmqpBackend::testTopicPatternMatching_data() {
     QTest::addColumn<QString>("key");
     QTest::addColumn<bool>("expected");
 
-    // 基本匹配
     QTest::newRow("exact_match") << "logs.error" << "logs.error" << true;
     QTest::newRow("exact_no_match") << "logs.error" << "logs.info" << false;
-
-    // * 通配符
     QTest::newRow("star_match") << "logs.*.error" << "logs.app.error" << true;
     QTest::newRow("star_no_match_extra") << "logs.*.error" << "logs.app.db.error" << false;
     QTest::newRow("star_no_match_less") << "logs.*.error" << "logs.error" << false;
-
-    // # 通配符
     QTest::newRow("hash_match_zero") << "logs.#" << "logs" << true;
     QTest::newRow("hash_match_one") << "logs.#" << "logs.app" << true;
     QTest::newRow("hash_match_many") << "logs.#" << "logs.app.db.critical" << true;
     QTest::newRow("hash_no_match") << "logs.#" << "metrics.app" << false;
-
-    // 组合
     QTest::newRow("combo_match") << "*.app.#" << "logs.app.error.critical" << true;
     QTest::newRow("combo_no_match") << "*.app.#" << "logs.system.error" << false;
 }
@@ -551,7 +497,6 @@ void TestInMemoryAmqpBackend::testTopicPatternMatching() {
     QFETCH(QString, key);
     QFETCH(bool, expected);
 
-    // matchTopicPattern 是 private static,通过 publish/consume 间接测试
     InMemoryAmqpBackend backend;
     (void)backend.connect({});
 
@@ -580,10 +525,9 @@ void TestInMemoryAmqpBackend::testTopicPatternMatching() {
     QCOMPARE(received.load(), expected);
 }
 
-/**
- * @class TestRabbitMQConnection
- * @brief RabbitMQConnection 集成测试(使用 InMemory 后端)
- */
+// ============================================================================
+// TestRabbitMQConnection — RabbitMQ 连接测试
+// ============================================================================
 class TestRabbitMQConnection : public QObject {
     Q_OBJECT
 
@@ -620,15 +564,12 @@ void TestRabbitMQConnection::testProducerConsumer() {
     QVERIFY(producer != nullptr);
     QVERIFY(consumer != nullptr);
 
-    // RabbitMQProducer 特有方法(非 IMQProducer 接口),需要 dynamic_pointer_cast
     auto rmqProducer = std::dynamic_pointer_cast<RabbitMQProducer>(producer);
     QVERIFY(rmqProducer != nullptr);
 
-    // 声明 exchange 和队列
     QVERIFY(rmqProducer->declareExchange("test_ex", "direct").isOk());
     QVERIFY(rmqProducer->bindQueue("test_q", "test_ex", "test_key").isOk());
 
-    // 订阅
     std::atomic<bool> received{false};
     QByteArray receivedBody;
 
@@ -639,10 +580,8 @@ void TestRabbitMQConnection::testProducerConsumer() {
 
     consumer->start();
 
-    // 发送消息
     QVERIFY(producer->send("test_ex", "test_key", "hello world").isOk());
 
-    // 等待接收
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
     consumer->stop();
@@ -657,9 +596,194 @@ void TestRabbitMQConnection::testFactoryCreation() {
     QVERIFY(conn != nullptr);
 
     auto conn2 = MQFactory::createConnection(MQType::Kafka);
-    QCOMPARE(conn2, nullptr);  // Kafka 暂未实现
+    QCOMPARE(conn2, nullptr);
 }
 
-QTEST_GUILESS_MAIN(TestInMemoryAmqpBackend)
+// ============================================================================
+// TestMQAdvanced — v1.9.2 真实消息生产/消费场景 [P1-M06]
+// ============================================================================
+class TestMQAdvanced : public QObject {
+    Q_OBJECT
+
+private slots:
+    void testHighVolumePublish();
+    void testMultipleProducers();
+    void testMessageRejection();
+    void testConsumerDrain();
+    void testPublishAfterDisconnect();
+};
+
+void TestMQAdvanced::testHighVolumePublish() {
+    // 验证: 大量消息发布与消费无丢失
+    InMemoryAmqpBackend backend;
+    (void)backend.connect({});
+
+    (void)backend.declareExchange("high_vol_ex", ExchangeType::Direct);
+    (void)backend.declareQueue("hv_q");
+    (void)backend.bindQueue("hv_q", "high_vol_ex", "key");
+
+    std::atomic<int> received{0};
+    (void)backend.consume("hv_q", [&](const AmqpDelivery& d) {
+        received++;
+        (void)backend.ack(d.deliveryTag);
+    });
+
+    backend.startConsuming();
+
+    const int msgCount = 100;
+    for (int i = 0; i < msgCount; ++i) {
+        AmqpMessage msg;
+        msg.exchange = "high_vol_ex";
+        msg.routingKey = "key";
+        msg.body = QByteArray::number(i);
+        QVERIFY(backend.publish(msg).isOk());
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    backend.stopConsuming();
+
+    QCOMPARE(received.load(), msgCount);
+}
+
+void TestMQAdvanced::testMultipleProducers() {
+    // 验证: 多个生产者向同一队列发消息,消费者正确接收
+    InMemoryAmqpBackend backend;
+    (void)backend.connect({});
+
+    (void)backend.declareExchange("multi_ex", ExchangeType::Direct);
+    (void)backend.declareQueue("multi_q");
+    (void)backend.bindQueue("multi_q", "multi_ex", "multi_key");
+
+    std::atomic<int> received{0};
+    (void)backend.consume("multi_q", [&](const AmqpDelivery& d) {
+        received++;
+        (void)backend.ack(d.deliveryTag);
+    });
+
+    backend.startConsuming();
+
+    // 模拟 5 个生产者
+    std::vector<std::thread> producers;
+    for (int p = 0; p < 5; ++p) {
+        producers.emplace_back([&backend, p]() {
+            for (int i = 0; i < 10; ++i) {
+                AmqpMessage msg;
+                msg.exchange = "multi_ex";
+                msg.routingKey = "multi_key";
+                msg.body = QByteArray::number(p * 100 + i);
+                (void)backend.publish(msg);
+            }
+        });
+    }
+
+    for (auto& t : producers) {
+        t.join();
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    backend.stopConsuming();
+
+    QCOMPARE(received.load(), 50);
+}
+
+void TestMQAdvanced::testMessageRejection() {
+    // 验证: nack(requeue=false) 后消息被丢弃,不再投递
+    InMemoryAmqpBackend backend;
+    (void)backend.connect({});
+
+    (void)backend.declareExchange("reject_ex", ExchangeType::Direct);
+    (void)backend.declareQueue("reject_q");
+    (void)backend.bindQueue("reject_q", "reject_ex", "key");
+
+    std::atomic<int> received{0};
+    (void)backend.consume("reject_q", [&](const AmqpDelivery& d) {
+        received++;
+        // nack 不重新入队 — 消息被丢弃
+        (void)backend.nack(d.deliveryTag, false);
+    });
+
+    backend.startConsuming();
+
+    AmqpMessage msg;
+    msg.exchange = "reject_ex";
+    msg.routingKey = "key";
+    msg.body = "reject me";
+    (void)backend.publish(msg);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    backend.stopConsuming();
+
+    // 只收到一次(nack 后丢弃)
+    QCOMPARE(received.load(), 1);
+}
+
+void TestMQAdvanced::testConsumerDrain() {
+    // 验证: 先发布后消费 — 消息被缓冲,消费者启动后收到
+    InMemoryAmqpBackend backend;
+    (void)backend.connect({});
+
+    (void)backend.declareExchange("drain_ex", ExchangeType::Direct);
+    (void)backend.declareQueue("drain_q");
+    (void)backend.bindQueue("drain_q", "drain_ex", "key");
+
+    // 先发布消息(消费者尚未启动)
+    for (int i = 0; i < 5; ++i) {
+        AmqpMessage msg;
+        msg.exchange = "drain_ex";
+        msg.routingKey = "key";
+        msg.body = QByteArray::number(i);
+        QVERIFY(backend.publish(msg).isOk());
+    }
+
+    // 后订阅
+    std::atomic<int> received{0};
+    (void)backend.consume("drain_q", [&](const AmqpDelivery& d) {
+        received++;
+        (void)backend.ack(d.deliveryTag);
+    });
+
+    backend.startConsuming();
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    backend.stopConsuming();
+
+    // 应该收到积压的 5 条消息
+    QCOMPARE(received.load(), 5);
+}
+
+void TestMQAdvanced::testPublishAfterDisconnect() {
+    // 验证: 断开连接后 publish 返回错误
+    InMemoryAmqpBackend backend;
+    (void)backend.connect({});
+
+    (void)backend.declareExchange("disc_ex", ExchangeType::Direct);
+    (void)backend.declareQueue("disc_q");
+    (void)backend.bindQueue("disc_q", "disc_ex", "key");
+
+    backend.disconnect();
+    QVERIFY(!backend.isConnected());
+
+    AmqpMessage msg;
+    msg.exchange = "disc_ex";
+    msg.routingKey = "key";
+    msg.body = "after disconnect";
+    auto r = backend.publish(msg);
+    QVERIFY(!r.isOk());
+}
+
+int main(int argc, char *argv[]) {
+    QCoreApplication app(argc, argv);
+    
+    TestInMemoryAmqpBackend amqpTest;
+    TestRabbitMQConnection rmqTest;
+    TestMQAdvanced advancedTest;
+    
+    int result = 0;
+    result |= QTest::qExec(&amqpTest, argc, argv);
+    result |= QTest::qExec(&rmqTest, argc, argv);
+    result |= QTest::qExec(&advancedTest, argc, argv);
+    
+    return result;
+}
 
 #include "test_mq.moc"

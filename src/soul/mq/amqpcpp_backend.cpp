@@ -232,6 +232,7 @@ void AmqpCppBackend::disconnect() {
         } catch (const std::exception& e) {
             SC_ERROR(std::string("AmqpCppBackend: channel close exception: ") + e.what());
         } catch (...) {
+            // Blanket catch: channel-close must not throw (destructor-adjacent cleanup).
             SC_ERROR("AmqpCppBackend: channel close unknown exception");
         }
         m_channel.reset();
@@ -244,6 +245,7 @@ void AmqpCppBackend::disconnect() {
         } catch (const std::exception& e) {
             SC_ERROR(std::string("AmqpCppBackend: connection close exception: ") + e.what());
         } catch (...) {
+            // Blanket catch: connection-close must not throw (destructor-adjacent cleanup).
             SC_ERROR("AmqpCppBackend: connection close unknown exception");
         }
         m_connection.reset();

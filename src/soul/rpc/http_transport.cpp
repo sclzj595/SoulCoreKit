@@ -3,11 +3,11 @@
 #include <QNetworkReply>
 #include <QEventLoop>
 #include <QTimer>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
 #include <QUrl>
 #include <QPointer>
+#include <QHttp2Configuration>
+
+#include "soul/utils/json/json_helper.h"
 
 namespace sc {
 namespace rpc {
@@ -26,12 +26,10 @@ HttpTransport::~HttpTransport() {
 }
 
 Result<RpcResponse> HttpTransport::sendRequest(const RpcRequest& request) {
-    if (!m_running || !m_manager) {
+    if (!m_running.load(std::memory_order_acquire) || !m_manager) {
         return Result<RpcResponse>(Error(ErrorCode::NetworkError, "Transport not running"));
     }
 
-    // URL 编码 serviceName/methodName,防止路径/查询注入
-    // 例如 serviceName="a/b?c=d" 会被编码为 "a%2Fb%3Fc%3Dd",不会破坏 URL 结构
     const QString encodedService = QString::fromUtf8(
         QUrl::toPercentEncoding(request.serviceName));
     const QString encodedMethod = QString::fromUtf8(
@@ -40,28 +38,26 @@ Result<RpcResponse> HttpTransport::sendRequest(const RpcRequest& request) {
     QNetworkRequest qrequest(url);
     qrequest.setHeader(QNetworkRequest::ContentTypeHeader, m_serializer->contentType());
 
+    const bool http2Enabled = m_http2Enabled.load(std::memory_order_acquire);
+    qrequest.setAttribute(QNetworkRequest::Http2AllowedAttribute, http2Enabled);
+    if (http2Enabled) {
+        QHttp2Configuration http2Config = qrequest.http2Configuration();
+        http2Config.setServerPushEnabled(false);
+        qrequest.setHttp2Configuration(http2Config);
+    }
+
     for (auto it = m_headers.constBegin(); it != m_headers.constEnd(); ++it) {
         qrequest.setRawHeader(it.key().toUtf8(), it.value().toUtf8());
     }
 
-    // 构造 RPC envelope:包含 service/method/requestId/params
-    // requestId 必须在请求体中,服务端才能将响应关联到请求
-    QJsonObject envelope;
-    envelope["service"] = request.serviceName;
-    envelope["method"] = request.methodName;
-    envelope["requestId"] = request.requestId;
-    // params 由序列化器输出 JSON,解析后嵌入 envelope(保持序列化器抽象)
-    const QByteArray paramsJson = m_serializer->serialize(request.params);
-    const QJsonDocument paramsDoc = QJsonDocument::fromJson(paramsJson);
-    if (paramsDoc.isObject()) {
-        envelope["params"] = paramsDoc.object();
-    } else if (paramsDoc.isArray()) {
-        envelope["params"] = paramsDoc.array();
-    } else {
-        // params 不是对象/数组(可能是基础类型),作为 QJsonValue 直接嵌入
-        envelope["params"] = QJsonValue(QString::fromUtf8(paramsJson));
-    }
-    const QByteArray body = QJsonDocument(envelope).toJson(QJsonDocument::Compact);
+    // 构造 RPC envelope (使用 nlohmann/json)
+    sc::json::Json envelope = sc::json::Json::object();
+    envelope["service"] = request.serviceName.toStdString();
+    envelope["method"] = request.methodName.toStdString();
+    envelope["requestId"] = request.requestId.toStdString();
+    envelope["params"] = request.params;
+
+    const QByteArray body = sc::json::serialize(envelope);
 
     QNetworkReply* reply = m_manager->post(qrequest, body);
 
@@ -99,43 +95,41 @@ Result<RpcResponse> HttpTransport::sendRequest(const RpcRequest& request) {
     QByteArray responseBody = reply->readAll();
     reply->deleteLater();
 
-    QJsonParseError parseError;
-    QJsonDocument doc = QJsonDocument::fromJson(responseBody, &parseError);
-    if (parseError.error != QJsonParseError::NoError) {
-        return Result<RpcResponse>(Error(ErrorCode::DeserializationError, parseError.errorString()));
+    auto parseResult = sc::json::deserialize(responseBody);
+    if (parseResult.isErr()) {
+        return Result<RpcResponse>(Error(ErrorCode::DeserializationError,
+            parseResult.unwrapErr().message()));
     }
 
-    if (!doc.isObject()) {
+    sc::json::Json responseObj = parseResult.unwrap();
+    if (!responseObj.is_object()) {
         return Result<RpcResponse>(Error(ErrorCode::DeserializationError, "Invalid response format"));
     }
 
-    QJsonObject responseObj = doc.object();
     RpcResponse rpcResponse;
-    rpcResponse.success = responseObj.value("success").toBool(false);
-    rpcResponse.data = responseObj.value("data").toObject();
-    rpcResponse.errorMessage = responseObj.value("errorMessage").toString();
-    rpcResponse.requestId = responseObj.value("requestId").toString();
+    rpcResponse.success = sc::json::getBool(responseObj, "success", false);
+    rpcResponse.data = sc::json::getObject(responseObj, "data");
+    rpcResponse.errorMessage = sc::json::getString(responseObj, "errorMessage");
+    rpcResponse.requestId = sc::json::getString(responseObj, "requestId");
 
     return Result<RpcResponse>(rpcResponse);
 }
 
 void HttpTransport::start() {
-    if (m_running) return;
+    if (m_running.exchange(true)) return;
     m_manager = new QNetworkAccessManager(this);
-    m_running = true;
 }
 
 void HttpTransport::stop() {
-    if (!m_running) return;
+    if (!m_running.exchange(false)) return;
     if (m_manager) {
         m_manager->deleteLater();
         m_manager = nullptr;
     }
-    m_running = false;
 }
 
 bool HttpTransport::isRunning() const {
-    return m_running;
+    return m_running.load(std::memory_order_acquire);
 }
 
 void HttpTransport::setSerializer(std::shared_ptr<ISerializer> serializer) {
@@ -148,6 +142,14 @@ std::shared_ptr<ISerializer> HttpTransport::getSerializer() const {
 
 void HttpTransport::setReadTimeout(int ms) {
     m_readTimeout = ms;
+}
+
+void HttpTransport::setHttp2Enabled(bool enabled) {
+    m_http2Enabled.store(enabled, std::memory_order_release);
+}
+
+bool HttpTransport::isHttp2Enabled() const {
+    return m_http2Enabled.load(std::memory_order_acquire);
 }
 
 } // namespace rpc

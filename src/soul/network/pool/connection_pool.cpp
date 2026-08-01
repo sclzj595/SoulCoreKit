@@ -4,6 +4,7 @@
 #include <mutex>
 #include <chrono>
 #include <string>
+#include <algorithm>
 
 namespace sc {
 namespace network {
@@ -12,36 +13,41 @@ namespace network {
 // ConnectionGuard implementation
 // ---------------------------------------------------------------------------
 
-ConnectionPool::ConnectionGuard::ConnectionGuard(ConnectionPool* pool, std::shared_ptr<INetwork> conn)
-    : m_pool(pool), m_conn(std::move(conn)) {}
+ConnectionPool::ConnectionGuard::ConnectionGuard(std::weak_ptr<ConnectionPool> pool, std::shared_ptr<INetwork> conn)
+    : m_pool(std::move(pool)), m_conn(std::move(conn)) {}
 
 ConnectionPool::ConnectionGuard::~ConnectionGuard() {
-    if (m_pool && m_conn) {
-        m_pool->release(m_conn);
+    if (m_conn) {
+        auto pool = m_pool.lock();
+        if (pool) {
+            pool->release(m_conn);
+        }
+        // pool 已析构:连接随 m_conn 的 shared_ptr 析构自动释放,安全
     }
 }
 
 ConnectionPool::ConnectionGuard::ConnectionGuard(ConnectionGuard&& other) noexcept
-    : m_pool(other.m_pool), m_conn(std::move(other.m_conn)) {
-    other.m_pool = nullptr;
+    : m_pool(std::move(other.m_pool)), m_conn(std::move(other.m_conn)) {
     other.m_conn.reset();
 }
 
 ConnectionPool::ConnectionGuard& ConnectionPool::ConnectionGuard::operator=(ConnectionGuard&& other) noexcept {
     if (this != &other) {
-        if (m_pool && m_conn) {
-            m_pool->release(m_conn);
+        if (m_conn) {
+            auto pool = m_pool.lock();
+            if (pool) {
+                pool->release(m_conn);
+            }
         }
-        m_pool = other.m_pool;
+        m_pool = std::move(other.m_pool);
         m_conn = std::move(other.m_conn);
-        other.m_pool = nullptr;
         other.m_conn.reset();
     }
     return *this;
 }
 
 std::shared_ptr<INetwork> ConnectionPool::ConnectionGuard::release() {
-    m_pool = nullptr;
+    m_pool.reset();
     return std::move(m_conn);
 }
 
@@ -74,6 +80,35 @@ int ConnectionPool::countTotalLocked() const {
     return total;
 }
 
+int ConnectionPool::countActiveLocked() const {
+    int active = 0;
+    for (const auto& pair : m_pools) {
+        for (const auto& entry : pair.second) {
+            if (entry.inUse) {
+                ++active;
+            }
+        }
+    }
+    return active;
+}
+
+int ConnectionPool::activeCount() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return countActiveLocked();
+}
+
+int ConnectionPool::idleCount() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    const int total = countTotalLocked();
+    const int active = countActiveLocked();
+    return (total > active) ? (total - active) : 0;
+}
+
+int ConnectionPool::maxCount() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_config.maxConnections;
+}
+
 std::shared_ptr<INetwork> ConnectionPool::acquire(const QUrl& url) {
     std::unique_lock<std::mutex> lock(m_mutex);
     const std::string key = url.toString().toStdString();
@@ -104,14 +139,28 @@ std::shared_ptr<INetwork> ConnectionPool::acquire(const QUrl& url) {
             return nullptr;
         }
         // Woken up: retry once. If still no luck, fail (another thread may have grabbed it).
-        return tryAcquireFromPool();
+        // 注意:wait_for 期间 closeAll() 可能已执行 m_pools.clear() 使旧 pool 引用失效,
+        // 此处必须重新查找 pool;若已被清除则返回 nullptr(与 V-5 同类修复)。
+        auto poolIt = m_pools.find(key);
+        if (poolIt == m_pools.end()) {
+            return nullptr;
+        }
+        auto& refreshedPool = poolIt->second;
+        for (auto& entry : refreshedPool) {
+            if (!entry.inUse && entry.connection && entry.connection->isConnected()) {
+                entry.inUse = true;
+                entry.lastUsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::steady_clock::now().time_since_epoch()).count();
+                return entry.connection;
+            }
+        }
+        return nullptr;
     }
 
     // Reserve a placeholder entry (inUse=true, connection=nullptr) so the total
     // count reflects the in-flight creation while we drop the lock to perform
     // the network IO outside the critical section.
     pool.push_back(ConnectionEntry{nullptr, true, 0});
-    auto entryIt = std::prev(pool.end());
 
     lock.unlock();
     std::shared_ptr<INetwork> network;
@@ -131,16 +180,41 @@ std::shared_ptr<INetwork> ConnectionPool::acquire(const QUrl& url) {
     }
     lock.lock();
 
+    // 重新加锁后重新查找 pool 和 placeholder entryIt,
+    // 因为 unlock 期间 closeAll() 可能已执行 m_pools.clear() 使旧引用/迭代器失效。
+    auto poolIt = m_pools.find(key);
+    if (poolIt == m_pools.end()) {
+        // pool 已被 closeAll() 清除,直接返回新连接(不缓存)
+        if (network) {
+            return network;
+        }
+        m_cond.notify_one();
+        return nullptr;
+    }
+    auto& refreshedPool = poolIt->second;
+    // 查找 placeholder(inUse==true && connection==nullptr)
+    auto entryIt = std::find_if(refreshedPool.begin(), refreshedPool.end(),
+        [](const ConnectionEntry& e) { return e.inUse && !e.connection; });
+
     if (!network) {
         // Creation failed: remove placeholder and wake one waiter.
-        pool.erase(entryIt);
+        if (entryIt != refreshedPool.end()) {
+            refreshedPool.erase(entryIt);
+        }
         m_cond.notify_one();
         return nullptr;
     }
 
-    entryIt->connection = network;
-    entryIt->lastUsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::steady_clock::now().time_since_epoch()).count();
+    if (entryIt != refreshedPool.end()) {
+        entryIt->connection = network;
+        entryIt->lastUsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+    } else {
+        // placeholder 已被其他路径移除,将新连接作为新条目加入
+        refreshedPool.push_back(ConnectionEntry{network, true,
+            static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()).count())});
+    }
     return network;
 }
 
@@ -150,7 +224,7 @@ Result<ConnectionPool::ConnectionGuard> ConnectionPool::acquireGuarded(const QUr
         return Error(ErrorCode::ResourceExhausted,
             "ConnectionPool::acquireGuarded: no connection available within timeout");
     }
-    return ConnectionGuard(this, std::move(conn));
+    return ConnectionGuard(weak_from_this(), std::move(conn));
 }
 
 void ConnectionPool::release(std::shared_ptr<INetwork> connection) {
@@ -186,9 +260,18 @@ void ConnectionPool::closeAll() {
 }
 
 void ConnectionPool::setConfig(const Config& config) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_config = config;
-    m_cleanupTimer.setInterval(m_config.idleTimeoutMs);
+    // Hold the mutex only to update m_config; QTimer::setInterval must be invoked
+    // on the timer's owning thread to respect Qt thread affinity and avoid TSan
+    // reports on QTimer internal state.
+    int newIdleTimeoutMs = 0;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_config = config;
+        newIdleTimeoutMs = m_config.idleTimeoutMs;
+    }
+    QMetaObject::invokeMethod(&m_cleanupTimer,
+        [this, newIdleTimeoutMs]() { m_cleanupTimer.setInterval(newIdleTimeoutMs); },
+        Qt::QueuedConnection);
 }
 
 ConnectionPool::Config ConnectionPool::config() const {

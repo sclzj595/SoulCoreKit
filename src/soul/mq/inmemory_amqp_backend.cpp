@@ -11,7 +11,18 @@ namespace mq {
 InMemoryAmqpBackend::InMemoryAmqpBackend() = default;
 
 InMemoryAmqpBackend::~InMemoryAmqpBackend() {
-    disconnect();
+    // [v1.9.2] 确保 dispatch 线程先停止,再清理资源
+    // 避免析构时 m_mutex 仍在被 dispatch 线程使用导致崩溃
+    stopConsuming();
+    m_connected.store(false, std::memory_order_release);
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_exchanges.clear();
+        m_queues.clear();
+        m_bindings.clear();
+        m_consumers.clear();
+        m_unacked.clear();
+    }
 }
 
 Result<void> InMemoryAmqpBackend::connect(const Config& config) {
@@ -289,18 +300,28 @@ void InMemoryAmqpBackend::startConsuming() {
     if (!m_consuming.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
         return;  // 已在消费中
     }
-    m_dispatchThread = std::thread([this]() { this->dispatchLoop(); });
+    // TSan-safe: 持 m_mutex 保护 m_dispatchThread 的写入,与 stopConsuming() 的读同步
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_dispatchThread = std::thread([this]() { this->dispatchLoop(); });
+    }
     SC_INFO("InMemoryAmqpBackend: consuming started");
 }
 
 void InMemoryAmqpBackend::stopConsuming() {
-    bool expected = true;
-    if (!m_consuming.compare_exchange_strong(expected, false, std::memory_order_acq_rel)) {
-        return;  // 未在消费
-    }
+    // [v1.9.2] 先设置停止标志,再通知唤醒,最后 join 线程
+    // 必须在 join 之前设置标志,确保 dispatchLoop 能感知到停止
+    m_consuming.store(false, std::memory_order_release);
     m_cv.notify_all();
-    if (m_dispatchThread.joinable()) {
-        m_dispatchThread.join();
+
+    // TSan-safe: 持 m_mutex 保护 m_dispatchThread 的读写,与 startConsuming() 的写同步
+    std::thread dispatchThread;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        dispatchThread = std::move(m_dispatchThread);
+    }
+    if (dispatchThread.joinable()) {
+        dispatchThread.join();
     }
     SC_INFO("InMemoryAmqpBackend: consuming stopped");
 }

@@ -8,6 +8,10 @@ on:
   release:
     types: [ published ]
 
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-windows:
     name: Build on Windows
@@ -63,7 +67,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build build-essential libssl-dev
+          sudo apt-get install -y cmake ninja-build build-essential libssl-dev zlib1g-dev nlohmann-json3-dev
 
       - name: Configure CMake
         run: |
@@ -79,6 +83,9 @@ jobs:
           cmake --build build -j$(nproc)
 
       - name: Run tests
+        env:
+          # Headless CI: force offscreen Qt platform plugin (no X server/display available)
+          QT_QPA_PLATFORM: offscreen
         run: |
           cd build
           ctest --output-on-failure
@@ -113,6 +120,9 @@ jobs:
           cmake --build build -j$(sysctl -n hw.ncpu)
 
       - name: Run tests
+        env:
+          # Headless CI: force offscreen Qt platform plugin (no X server/display available)
+          QT_QPA_PLATFORM: offscreen
         run: |
           cd build
           ctest --output-on-failure

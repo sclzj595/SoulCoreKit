@@ -28,8 +28,12 @@ public:
         }
 
         ~BlurContext() {
+            // 必须先从 scene 摘除再 delete,否则 scene 析构时会再次 delete
+            // 已释放的 pixmapItem,导致 double-free / UB(与 apply() 中处理保持一致)。
             if (pixmapItem) {
+                scene.removeItem(pixmapItem);
                 delete pixmapItem;
+                pixmapItem = nullptr;
             }
         }
 

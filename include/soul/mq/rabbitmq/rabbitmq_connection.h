@@ -55,7 +55,10 @@ public:
 
     /// @brief 获取底层 backend(供 Producer/Consumer 使用)
     /// @return backend 引用;未连接时返回 nullptr
-    std::shared_ptr<IAmqpBackend> backend() { return m_backend; }
+    std::shared_ptr<IAmqpBackend> backend() {
+        QMutexLocker lock(&m_mutex);
+        return m_backend;
+    }
 
     void setReconnectEnabled(bool enabled);
     bool isReconnectEnabled() const;

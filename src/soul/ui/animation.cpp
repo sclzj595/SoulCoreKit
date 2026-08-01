@@ -6,18 +6,27 @@
 #include <QMap>
 #include <QPointer>
 #include <memory>
+#include <mutex>
 
 namespace sc {
 
 namespace {
     QMap<QPointer<QWidget>, QMap<QString, QPointer<QPropertyAnimation>>> s_animationCache;
     QMap<QPointer<QWidget>, QPointer<QGraphicsDropShadowEffect>> s_glowEffectCache;
+    // TSan-safe: Animation statics are process-global; any thread invoking an
+    // Animation method must serialize against this mutex. QWidget/QPropertyAnimation
+    // themselves remain subject to Qt thread affinity (must be touched on GUI thread).
+    std::mutex s_animationMutex;
 
     void cleanupWidgetAnimations(QWidget* widget) {
         QPointer<QWidget> wp(widget);
+        std::lock_guard<std::mutex> lock(s_animationMutex);
         if (s_animationCache.contains(wp)) {
             for (auto& anim : s_animationCache[wp]) {
-                if (anim) anim->stop();
+                if (anim) {
+                    // stop() 会触发 DeleteWhenStopped 自动删除,无需 deleteLater
+                    anim->stop();
+                }
             }
             s_animationCache.remove(wp);
         }
@@ -26,44 +35,81 @@ namespace {
 }
 
 void Animation::fadeIn(QWidget* widget, int duration) {
+    if (!widget) return;
     widget->show();
-    widget->setWindowOpacity(0);
-    animate(widget, "windowOpacity", 0, 1, duration);
+
+    auto* effect = new QGraphicsOpacityEffect(widget);
+    effect->setOpacity(0.0);
+    widget->setGraphicsEffect(effect);
+
+    auto* animation = new QPropertyAnimation(effect, "opacity");
+    animation->setDuration(duration);
+    animation->setStartValue(0.0);
+    animation->setEndValue(1.0);
+    animation->setEasingCurve(QEasingCurve::OutCubic);
+    QObject::connect(animation, &QPropertyAnimation::finished, widget, [widget]() {
+        widget->setGraphicsEffect(nullptr);
+    });
+    animation->start(QAbstractAnimation::DeleteWhenStopped);
 }
 
 void Animation::fadeOut(QWidget* widget, int duration) {
-    animate(widget, "windowOpacity", 1, 0, duration, QEasingCurve::InCubic);
+    if (!widget) return;
+
+    auto* effect = new QGraphicsOpacityEffect(widget);
+    effect->setOpacity(1.0);
+    widget->setGraphicsEffect(effect);
+
+    auto* animation = new QPropertyAnimation(effect, "opacity");
+    animation->setDuration(duration);
+    animation->setStartValue(1.0);
+    animation->setEndValue(0.0);
+    animation->setEasingCurve(QEasingCurve::InCubic);
+    QObject::connect(animation, &QPropertyAnimation::finished, widget, [widget]() {
+        widget->hide();
+        widget->setGraphicsEffect(nullptr);
+    });
+    animation->start(QAbstractAnimation::DeleteWhenStopped);
 }
 
 void Animation::slideInFromTop(QWidget* widget, int duration) {
+    if (!widget) return;
     QRect geometry = widget->geometry();
-    int startY = geometry.top() - geometry.height();
-    widget->move(geometry.left(), startY);
-    animate(widget, "y", startY, geometry.top(), duration);
+    QRect startRect(geometry.left(), geometry.top() - geometry.height(),
+                    geometry.width(), geometry.height());
+    widget->move(startRect.topLeft());
+    animate(widget, "geometry", startRect, geometry, duration);
 }
 
 void Animation::slideInFromBottom(QWidget* widget, int duration) {
+    if (!widget) return;
     QRect geometry = widget->geometry();
-    int startY = geometry.top() + geometry.height();
-    widget->move(geometry.left(), startY);
-    animate(widget, "y", startY, geometry.top(), duration);
+    QRect startRect(geometry.left(), geometry.top() + geometry.height(),
+                    geometry.width(), geometry.height());
+    widget->move(startRect.topLeft());
+    animate(widget, "geometry", startRect, geometry, duration);
 }
 
 void Animation::slideInFromLeft(QWidget* widget, int duration) {
+    if (!widget) return;
     QRect geometry = widget->geometry();
-    int startX = geometry.left() - geometry.width();
-    widget->move(startX, geometry.top());
-    animate(widget, "x", startX, geometry.left(), duration);
+    QRect startRect(geometry.left() - geometry.width(), geometry.top(),
+                    geometry.width(), geometry.height());
+    widget->move(startRect.topLeft());
+    animate(widget, "geometry", startRect, geometry, duration);
 }
 
 void Animation::slideInFromRight(QWidget* widget, int duration) {
+    if (!widget) return;
     QRect geometry = widget->geometry();
-    int startX = geometry.left() + geometry.width();
-    widget->move(startX, geometry.top());
-    animate(widget, "x", startX, geometry.left(), duration);
+    QRect startRect(geometry.left() + geometry.width(), geometry.top(),
+                    geometry.width(), geometry.height());
+    widget->move(startRect.topLeft());
+    animate(widget, "geometry", startRect, geometry, duration);
 }
 
 void Animation::scaleUp(QWidget* widget, int duration) {
+    if (!widget) return;
     QRect originalRect = widget->geometry();
     int targetWidth = originalRect.width();
     int targetHeight = originalRect.height();
@@ -85,6 +131,7 @@ void Animation::scaleUp(QWidget* widget, int duration) {
 }
 
 void Animation::scaleDown(QWidget* widget, int duration) {
+    if (!widget) return;
     QRect originalRect = widget->geometry();
     int targetWidth = originalRect.width() * design::SCALE_ANIMATION_START_FACTOR;
     int targetHeight = originalRect.height() * design::SCALE_ANIMATION_START_FACTOR;
@@ -102,19 +149,21 @@ void Animation::scaleDown(QWidget* widget, int duration) {
 }
 
 void Animation::shake(QWidget* widget, int duration) {
-    QPropertyAnimation* animation = new QPropertyAnimation(widget, "pos");
+    if (!widget) return;
+    QRect baseRect = widget->geometry();
+    QPropertyAnimation* animation = new QPropertyAnimation(widget, "geometry");
     animation->setDuration(duration);
-    animation->setKeyValueAt(0, widget->pos());
-    animation->setKeyValueAt(0.1, widget->pos() + QPoint(-design::SHAKE_OFFSET, 0));
-    animation->setKeyValueAt(0.2, widget->pos() + QPoint(design::SHAKE_OFFSET, 0));
-    animation->setKeyValueAt(0.3, widget->pos() + QPoint(-design::SHAKE_OFFSET, 0));
-    animation->setKeyValueAt(0.4, widget->pos() + QPoint(design::SHAKE_OFFSET, 0));
-    animation->setKeyValueAt(0.5, widget->pos() + QPoint(-design::SHAKE_OFFSET, 0));
-    animation->setKeyValueAt(0.6, widget->pos() + QPoint(design::SHAKE_OFFSET, 0));
-    animation->setKeyValueAt(0.7, widget->pos() + QPoint(-design::SHAKE_OFFSET, 0));
-    animation->setKeyValueAt(0.8, widget->pos() + QPoint(design::SHAKE_OFFSET, 0));
-    animation->setKeyValueAt(0.9, widget->pos() + QPoint(-design::SHAKE_END_OFFSET, 0));
-    animation->setKeyValueAt(1, widget->pos());
+    animation->setKeyValueAt(0, baseRect);
+    animation->setKeyValueAt(0.1, baseRect.translated(-design::SHAKE_OFFSET, 0));
+    animation->setKeyValueAt(0.2, baseRect.translated(design::SHAKE_OFFSET, 0));
+    animation->setKeyValueAt(0.3, baseRect.translated(-design::SHAKE_OFFSET, 0));
+    animation->setKeyValueAt(0.4, baseRect.translated(design::SHAKE_OFFSET, 0));
+    animation->setKeyValueAt(0.5, baseRect.translated(-design::SHAKE_OFFSET, 0));
+    animation->setKeyValueAt(0.6, baseRect.translated(design::SHAKE_OFFSET, 0));
+    animation->setKeyValueAt(0.7, baseRect.translated(-design::SHAKE_OFFSET, 0));
+    animation->setKeyValueAt(0.8, baseRect.translated(design::SHAKE_OFFSET, 0));
+    animation->setKeyValueAt(0.9, baseRect.translated(-design::SHAKE_END_OFFSET, 0));
+    animation->setKeyValueAt(1, baseRect);
     animation->start(QAbstractAnimation::DeleteWhenStopped);
 }
 
@@ -124,21 +173,24 @@ void Animation::applyBreathing(QWidget* widget, int duration) {
     QRect originalRect = widget->geometry();
     int targetWidth = originalRect.width() * design::BREATHING_SCALE_FACTOR;
     int targetHeight = originalRect.height() * design::BREATHING_SCALE_FACTOR;
-    
+
     QRect targetRect(originalRect.left() + (originalRect.width() - targetWidth) / 2,
                      originalRect.top() + (originalRect.height() - targetHeight) / 2,
                      targetWidth, targetHeight);
-    
+
     QPropertyAnimation* animation = new QPropertyAnimation(widget, "geometry");
     animation->setDuration(duration);
     animation->setStartValue(originalRect);
     animation->setEndValue(targetRect);
     animation->setEasingCurve(QEasingCurve::InOutSine);
     animation->setLoopCount(-1);
-    animation->start();
-    
-    s_animationCache[widget]["breathing"] = animation;
-    
+    animation->start(QAbstractAnimation::DeleteWhenStopped);
+
+    {
+        std::lock_guard<std::mutex> lock(s_animationMutex);
+        s_animationCache[widget]["breathing"] = animation;
+    }
+
     QObject::connect(widget, &QObject::destroyed, [widget]() {
         cleanupWidgetAnimations(widget);
     });
@@ -146,22 +198,26 @@ void Animation::applyBreathing(QWidget* widget, int duration) {
 
 void Animation::stopBreathing(QWidget* widget) {
     QPointer<QWidget> wp(widget);
+    std::lock_guard<std::mutex> lock(s_animationMutex);
     if (s_animationCache.contains(wp) && s_animationCache[wp].contains("breathing")) {
         QPointer<QPropertyAnimation> anim = s_animationCache[wp]["breathing"];
         s_animationCache[wp].remove("breathing");
         if (anim) {
+            // stop() 会触发 DeleteWhenStopped 自动删除,无需 deleteLater
             anim->stop();
-            anim->deleteLater();
         }
     }
 }
 
 void Animation::applyGlow(QWidget* widget, const QColor& color, int duration) {
     QPointer<QWidget> wp(widget);
-    QPointer<QGraphicsDropShadowEffect> existingEffect = s_glowEffectCache.value(wp, nullptr);
-    if (existingEffect) {
-        s_glowEffectCache.remove(wp);
-        widget->setGraphicsEffect(nullptr);
+    {
+        std::lock_guard<std::mutex> lock(s_animationMutex);
+        QPointer<QGraphicsDropShadowEffect> existingEffect = s_glowEffectCache.value(wp, nullptr);
+        if (existingEffect) {
+            s_glowEffectCache.remove(wp);
+            widget->setGraphicsEffect(nullptr);
+        }
     }
 
     auto glowEffect = std::make_unique<QGraphicsDropShadowEffect>();
@@ -169,7 +225,10 @@ void Animation::applyGlow(QWidget* widget, const QColor& color, int duration) {
     glowEffect->setBlurRadius(0);
     glowEffect->setOffset(0);
     widget->setGraphicsEffect(glowEffect.get());
-    s_glowEffectCache[wp] = glowEffect.get();
+    {
+        std::lock_guard<std::mutex> lock(s_animationMutex);
+        s_glowEffectCache[wp] = glowEffect.get();
+    }
     QGraphicsDropShadowEffect* effectPtr = glowEffect.release();
 
     QPropertyAnimation* animation = new QPropertyAnimation(effectPtr, "blurRadius");
@@ -186,7 +245,11 @@ void Animation::applyGlow(QWidget* widget, const QColor& color, int duration) {
 
 void Animation::removeGlow(QWidget* widget) {
     QPointer<QWidget> wp(widget);
-    QPointer<QGraphicsDropShadowEffect> effect = s_glowEffectCache.value(wp, nullptr);
+    QPointer<QGraphicsDropShadowEffect> effect;
+    {
+        std::lock_guard<std::mutex> lock(s_animationMutex);
+        effect = s_glowEffectCache.value(wp, nullptr);
+    }
     if (effect) {
         QPropertyAnimation* animation = new QPropertyAnimation(effect.data(), "blurRadius");
         animation->setDuration(design::ANIMATION_DURATION_SHORT);
@@ -197,6 +260,7 @@ void Animation::removeGlow(QWidget* widget) {
             if (wp) {
                 wp->setGraphicsEffect(nullptr);
             }
+            std::lock_guard<std::mutex> lock(s_animationMutex);
             s_glowEffectCache.remove(wp);
         });
         animation->start(QAbstractAnimation::DeleteWhenStopped);
@@ -250,12 +314,15 @@ void Animation::applyPress(QWidget* widget, int duration) {
 
 void Animation::applyHoverLift(QWidget* widget, int duration) {
     QPointer<QWidget> wp(widget);
-    if (s_animationCache.contains(wp) && s_animationCache[wp].contains("hover_lift")) {
-        QPointer<QPropertyAnimation> oldAnim = s_animationCache[wp]["hover_lift"];
-        s_animationCache[wp].remove("hover_lift");
-        if (oldAnim) {
-            oldAnim->stop();
-            oldAnim->deleteLater();
+    {
+        std::lock_guard<std::mutex> lock(s_animationMutex);
+        if (s_animationCache.contains(wp) && s_animationCache[wp].contains("hover_lift")) {
+            QPointer<QPropertyAnimation> oldAnim = s_animationCache[wp]["hover_lift"];
+            s_animationCache[wp].remove("hover_lift");
+            if (oldAnim) {
+                // stop() 会触发 DeleteWhenStopped 自动删除,无需 deleteLater
+                oldAnim->stop();
+            }
         }
     }
 
@@ -271,9 +338,12 @@ void Animation::applyHoverLift(QWidget* widget, int duration) {
     animation->setEndValue(QRect(baseRect.left(), baseRect.top() - design::HOVER_LIFT_OFFSET,
                                  baseRect.width(), baseRect.height()));
     animation->setEasingCurve(QEasingCurve::OutCubic);
-    animation->start();
+    animation->start(QAbstractAnimation::DeleteWhenStopped);
 
-    s_animationCache[wp]["hover_lift"] = animation;
+    {
+        std::lock_guard<std::mutex> lock(s_animationMutex);
+        s_animationCache[wp]["hover_lift"] = animation;
+    }
 
     QObject::connect(widget, &QObject::destroyed, [widget]() {
         cleanupWidgetAnimations(widget);
@@ -282,12 +352,15 @@ void Animation::applyHoverLift(QWidget* widget, int duration) {
 
 void Animation::removeHoverLift(QWidget* widget) {
     QPointer<QWidget> wp(widget);
-    if (s_animationCache.contains(wp) && s_animationCache[wp].contains("hover_lift")) {
-        QPointer<QPropertyAnimation> anim = s_animationCache[wp]["hover_lift"];
-        s_animationCache[wp].remove("hover_lift");
-        if (anim) {
-            anim->stop();
-            anim->deleteLater();
+    {
+        std::lock_guard<std::mutex> lock(s_animationMutex);
+        if (s_animationCache.contains(wp) && s_animationCache[wp].contains("hover_lift")) {
+            QPointer<QPropertyAnimation> anim = s_animationCache[wp]["hover_lift"];
+            s_animationCache[wp].remove("hover_lift");
+            if (anim) {
+                // stop() 会触发 DeleteWhenStopped 自动删除,无需 deleteLater
+                anim->stop();
+            }
         }
     }
 
@@ -316,6 +389,7 @@ void Animation::animate(QWidget* widget, const QByteArray& propertyName,
 
 QPropertyAnimation* Animation::getOrCreateAnimation(QWidget* widget, const QString& key) {
     QPointer<QWidget> wp(widget);
+    std::lock_guard<std::mutex> lock(s_animationMutex);
     if (!s_animationCache.contains(wp)) {
         s_animationCache[wp] = QMap<QString, QPointer<QPropertyAnimation>>();
     }

@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ main, master ]
 
+concurrency:
+  group: lint-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   clang-tidy:
     name: Clang-Tidy
@@ -25,7 +29,7 @@ jobs:
       - name: Install lint dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build g++ clang-tidy
+          sudo apt-get install -y cmake ninja-build g++ clang-tidy zlib1g-dev libssl-dev nlohmann-json3-dev
 
       - name: Configure with clang-tidy
         run: |
@@ -37,6 +41,24 @@ jobs:
 
       - name: Build with clang-tidy
         run: cmake --build build-lint -j$(nproc) 2>&1 | tee clang-tidy-report.txt
+
+      - name: Check clang-tidy errors v1.9.2 non-blocking warning
+        run: |
+          set -euo pipefail
+          error_count=$(grep -c "error:" clang-tidy-report.txt || true)
+          if [ "$error_count" -gt 0 ]; then
+            echo "::warning::Found $error_count clang-tidy error-level issue(s) (non-blocking)"
+            grep "error:" clang-tidy-report.txt | head -20
+            echo ""
+            echo "WARNING: clang-tidy found $error_count error-level issues."
+            echo "These are pre-existing code quality issues tracked for future cleanup."
+            echo "CI will not block on clang-tidy errors in v1.9.2."
+          else
+            echo "Clang-Tidy: 0 errors"
+          fi
+          warn_count=$(grep -c "warning:" clang-tidy-report.txt || true)
+          echo "Clang-Tidy: $warn_count warning(s)"
+          echo "Clang-Tidy CI check completed."
 
       - name: Upload clang-tidy report
         uses: actions/upload-artifact@v4

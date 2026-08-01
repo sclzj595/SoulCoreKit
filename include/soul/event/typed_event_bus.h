@@ -82,6 +82,7 @@ public:
                         } catch (const std::exception& e) {
                             detail::logEventBusException("Async handler exception: " + std::string(e.what()), "EventBus");
                         } catch (...) {
+                            // Blanket catch: async handler must not propagate exceptions to dispatcher thread.
                             detail::logEventBusUnknownException("EventBus");
                         }
                     });
@@ -93,6 +94,7 @@ public:
             } catch (const std::exception& e) {
                 detail::logEventBusException("Handler exception: " + std::string(e.what()), "EventBus");
             } catch (...) {
+                // Blanket catch: event handler must not propagate exceptions to publisher.
                 detail::logEventBusUnknownException("EventBus");
             }
         };

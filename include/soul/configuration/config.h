@@ -1,19 +1,24 @@
-﻿#ifndef SOUL_CONFIGURATION_CONFIG_H
+#ifndef SOUL_CONFIGURATION_CONFIG_H
 #define SOUL_CONFIGURATION_CONFIG_H
 
 #include <QObject>
 #include <QString>
-#include <QJsonObject>
 #include <QFileSystemWatcher>
 #include <QVariantMap>
 #include <QTimer>
+#include <QMutex>
+#include <QMutexLocker>
+#include <QRecursiveMutex>
 #include <vector>
+#include <map>
 #include <memory>
 #include <functional>
 #include <set>
+#include <atomic>
 #include "soul/core/singleton.h"
 #include "soul/core/result.h"
 #include "soul/configuration/config_schema.h"
+#include "soul/configuration/config_bind.h"
 
 namespace sc {
 
@@ -209,14 +214,17 @@ public:
     /**
      * @brief 添加配置变更回调
      * @param callback 回调函数
+     * @return 回调令牌,用于后续 removeChangeCallback 移除
+     * @note token 从 1 开始,0 表示无效令牌
      */
-    void addChangeCallback(ConfigChangeCallback callback);
+    std::size_t addChangeCallback(ConfigChangeCallback callback);
 
     /**
      * @brief 移除配置变更回调
-     * @param callback 回调函数
+     * @param token addChangeCallback 返回的令牌
+     * @return 成功移除返回 true,token 无效返回 false
      */
-    void removeChangeCallback(ConfigChangeCallback callback);
+    bool removeChangeCallback(std::size_t token);
 
     /**
      * @brief 验证配置是否符合模式
@@ -237,6 +245,97 @@ public:
      * @return 环境变量前缀
      */
     QString envPrefix() const;
+
+    // --- Profile 环境隔离(对标 SpringBoot application-{profile}.yml) ---
+
+    /**
+     * @brief 设置当前 Profile(如 "dev"/"test"/"prod")
+     *
+     * 设置后会优先加载 application-{profile}.json 配置文件,
+     * 并在 getString/getInt 等查询时优先从 profile 命名空间返回值。
+     *
+     * @param profile Profile 名称
+     */
+    void setProfile(const QString& profile);
+
+    /**
+     * @brief 获取当前 Profile
+     * @return Profile 名称(未设置时返回空)
+     */
+    QString profile() const;
+
+    /**
+     * @brief 加载指定 Profile 的配置文件
+     *
+     * 从已加载的配置目录中查找 application-{profile}.json 并合并到当前配置。
+     * 覆盖优先级: 环境变量 > profile 文件 > 主配置文件 > 默认值
+     *
+     * @param profile Profile 名称
+     * @return Result<void>,成功返回 Ok
+     */
+    Result<void> loadProfile(const QString& profile);
+
+    // --- 配置元数据绑定 [v1.9.1 新增] ---
+
+    /**
+     * @brief 类型安全配置绑定(对标 SpringBoot @ConfigurationProperties)
+     *
+     * 将 Config 中的 key-value 自动映射到 struct T 的字段上。
+     * 需要先通过 SC_CONFIG_BIND 宏声明 T 的字段绑定元数据。
+     *
+     * @tparam T 目标 struct 类型(需通过 SC_CONFIG_BIND 声明绑定)
+     * @param prefix 配置键前缀(如 "server"),最终查询 key = prefix + "." + fieldName
+     * @return 绑定后的 struct 实例
+     *
+     * @par 使用示例
+     * @code
+     * struct ServerConfig {
+     *     QString host;
+     *     int port = 0;
+     * };
+     * SC_CONFIG_BIND(ServerConfig,
+     *     SC_CFG_FIELD("host", &ServerConfig::host, "localhost")
+     *     SC_CFG_FIELD("port", &ServerConfig::port, 8080)
+     * )
+     *
+     * auto cfg = Config::instance().bind<ServerConfig>("server");
+     * // cfg.host == "localhost", cfg.port == 8080
+     * @endcode
+     */
+    template<typename T>
+    T bind(const QString& prefix = QString()) const {
+        T obj{};
+        const auto& fields = ConfigBindTraits<T>::fields();
+        if (fields.empty()) {
+            return obj;
+        }
+
+        // 使用 traits 中的 prefix 或参数传入的 prefix
+        QString effectivePrefix = prefix;
+        if (effectivePrefix.isEmpty()) {
+            const char* traitPrefix = ConfigBindTraits<T>::prefix();
+            if (traitPrefix && traitPrefix[0] != '\0') {
+                effectivePrefix = QString::fromUtf8(traitPrefix);
+            }
+        }
+
+        // 加锁一次,遍历所有字段(利用 QRecursiveMutex 可重入特性)
+        QMutexLocker lock(&m_dataMutex);
+        for (const auto& field : fields) {
+            QString fullKey = effectivePrefix.isEmpty()
+                ? QString::fromStdString(field.key)
+                : effectivePrefix + "." + QString::fromStdString(field.key);
+
+            QVariant value = getValueLocked(fullKey);
+            if (value.isValid()) {
+                field.setter(obj, value);
+            } else {
+                // 使用默认值
+                field.setter(obj, field.defaultValue);
+            }
+        }
+        return obj;
+    }
 
 private:
     /**
@@ -266,18 +365,27 @@ private:
     std::vector<std::shared_ptr<IConfiguration>> m_configSources;
     QString m_configDir;
     QString m_currentEnv;
+    QString m_profile;  // Profile 环境隔离(对标 SpringBoot application-{profile}.yml)
     bool m_hotReloadEnabled = false;
     QFileSystemWatcher m_fileWatcher;
-    std::vector<ConfigChangeCallback> m_changeCallbacks;
+    std::map<std::size_t, ConfigChangeCallback> m_changeCallbacks;  // token -> callback
     QString m_envPrefix = "SOUL_";
     QTimer m_debounceTimer;
     std::set<QString> m_pendingChanges;
 
-    bool loadJsonFile(const QString& filePath);
+    // 数据成员线程安全保护(对标 ADR-005 线程安全策略)
+    // 保护范围: m_configSources / m_configDir / m_currentEnv / m_profile /
+    //           m_hotReloadEnabled / m_changeCallbacks / m_envPrefix / m_pendingChanges
+    // 注意: m_fileWatcher / m_debounceTimer 是 QObject,必须在所属线程访问,
+    //       不由本锁保护(由 Qt 信号槽的队列连接保证线程安全)。
+    mutable QRecursiveMutex m_dataMutex;
+    std::atomic<std::size_t> m_nextCallbackToken{1};  // 回调令牌生成器(从 1 开始)
+
+    bool loadJsonFileLocked(const QString& filePath);
     void onFileChanged(const QString& path);
     void processPendingChanges();
-    QVariant getValue(const QString& key) const;
-    void setValue(const QString& key, const QVariant& value);
+    QVariant getValueLocked(const QString& key) const;
+    void setValueLocked(const QString& key, const QVariant& value);
 };
 
 }

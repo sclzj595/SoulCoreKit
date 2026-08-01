@@ -129,6 +129,10 @@ void RabbitMQConsumer::stop() {
     m_running = false;
 
     auto conn = m_connection.lock();
+    // 先解锁再调用 backend->stopConsuming(),避免 stopConsuming() 内部 join
+    // 分发线程时,分发线程回调中若访问 consumer 加锁方法形成 AB-BA 死锁。
+    lock.unlock();
+
     if (conn && conn->isConnected()) {
         auto backend = conn->backend();
         if (backend) {

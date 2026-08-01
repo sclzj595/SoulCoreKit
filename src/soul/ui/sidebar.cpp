@@ -42,7 +42,7 @@ void SideBar::addItems(const QList<SideBarItem>& items) {
 }
 
 void SideBar::removeItem(const QString& id) {
-    for (int i = 0; i < m_items.size(); ++i) {
+    for (int i = 0, sz = static_cast<int>(m_items.size()); i < sz; ++i) {
         if (m_items[i].id == id) {
             m_items.removeAt(i);
             break;
@@ -65,7 +65,7 @@ void SideBar::clearItems() {
 
 void SideBar::setActiveItem(const QString& id) {
     m_activeId = id;
-    for (int i = 0; i < m_items.size(); ++i) {
+    for (int i = 0, sz = static_cast<int>(m_items.size()); i < sz; ++i) {
         m_items[i].isActive = (m_items[i].id == id);
     }
     updateStyle();

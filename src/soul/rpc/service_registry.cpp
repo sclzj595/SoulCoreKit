@@ -17,7 +17,7 @@ Result<void> InMemoryServiceRegistry::unregisterInstance(const QString& serviceN
         return Result<void>::err(Error(ErrorCode::NotFound, QString("Service not found: %1").arg(serviceName)));
     }
     QList<ServiceInstance>& instances = it.value();
-    for (int i = 0; i < instances.size(); ++i) {
+    for (int i = 0, sz = static_cast<int>(instances.size()); i < sz; ++i) {
         if (instances[i].host == host && instances[i].port == port) {
             instances.removeAt(i);
             if (instances.isEmpty()) {
@@ -39,12 +39,15 @@ ServiceInstance LoadBalancer::select(const QList<ServiceInstance>& instances) {
         return ServiceInstance();
     }
     std::lock_guard<std::mutex> lock(m_mutex);
+    // instances.size() is qsizetype (64-bit on 64-bit platforms); narrow to int
+    // explicitly to silence MSVC C4242 under /W4 (list size is bounded by registry).
+    const int sz = static_cast<int>(instances.size());
     if (m_roundRobin) {
-        int idx = m_counter % instances.size();
+        int idx = m_counter % sz;
         m_counter++;
         return instances.at(idx);
     } else {
-        int idx = QRandomGenerator::global()->bounded(instances.size());
+        int idx = QRandomGenerator::global()->bounded(sz);
         return instances.at(idx);
     }
 }

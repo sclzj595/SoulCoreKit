@@ -1,4 +1,4 @@
-﻿#include <QTest>
+#include <QTest>
 #include <QTemporaryFile>
 #include <QTemporaryDir>
 #include <QFile>
@@ -424,7 +424,8 @@ void TestConfiguration::testJsonLoadInvalidJson() {
     sc::JsonConfiguration config;
     auto result = config.load(file.fileName());
     QVERIFY(result.isErr());
-    QCOMPARE(result.unwrapErr().code(), sc::ErrorCode::ParseError);
+    // [v1.9.2] nlohmann/json 解析失败返回 DeserializationError(302)
+    QCOMPARE(result.unwrapErr().code(), sc::ErrorCode::DeserializationError);
 }
 
 void TestConfiguration::testJsonSave() {
@@ -506,10 +507,10 @@ void TestConfiguration::testJsonDataAccessor() {
     config.setString("key1", "val1");
     config.setInt("key2", 42);
 
-    const QJsonObject& data = config.data();
-    QVERIFY(data.contains("key1"));
-    QVERIFY(data.contains("key2"));
-    QCOMPARE(data.value("key1").toString(), QString("val1"));
+    const sc::json::Json& data = config.data();
+    QVERIFY(sc::json::contains(data, "key1"));
+    QVERIFY(sc::json::contains(data, "key2"));
+    QCOMPARE(sc::json::getString(data, "key1"), QString("val1"));
 }
 
 // =========================================================================

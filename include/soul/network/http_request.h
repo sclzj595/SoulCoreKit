@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file http_request.h
  * @brief HTTP 请求类
  * @details 封装 HTTP 请求的方法、URL、请求头、查询参数和请求体，支持链式调用
@@ -12,10 +12,10 @@
 #define SOUL_NETWORK_HTTP_REQUEST_H
 
 #include "soul/network/network_global.h"
+#include "soul/utils/json/json_helper.h"
 #include <QUrl>
 #include <QMap>
 #include <QByteArray>
-#include <QJsonDocument>
 
 namespace sc {
 namespace network {
@@ -124,7 +124,7 @@ public:
      * @param json JSON 文档
      * @return 当前 HttpRequest 对象引用（链式调用）
      */
-    HttpRequest& setJsonBody(const QJsonDocument& json);
+    HttpRequest& setJsonBody(const sc::json::Json& json);
 
     /**
      * @brief 获取请求体

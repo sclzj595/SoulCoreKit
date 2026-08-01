@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file http_api.h
  * @brief HTTP API 链式调用封装
  * @details 泛型模板类，提供类型安全的 HTTP API 调用封装，支持 GET/POST/PUT/DELETE 和 JSON 响应
@@ -15,6 +15,7 @@
 #include "soul/network/http_request.h"
 #include "soul/network/http_response.h"
 #include "soul/core/result.h"
+#include "soul/utils/json/json_helper.h"
 #include <functional>
 #include <memory>
 
@@ -39,7 +40,7 @@ namespace network {
  *    .param("page", 1)
  *    .param("limit", 10)
  *    .header("Authorization", "Bearer token")
- *    .onSuccess([](const QJsonDocument& data) {
+ *    .onSuccess([](const sc::json::Json& data) {
  *        // 处理成功响应
  *    })
  *    .onFailure([](const Error& error) {
@@ -144,25 +145,8 @@ public:
      * @param json JSON 文档
      * @return 当前 HttpApi 对象引用（链式调用）
      */
-    HttpApi& jsonBody(const QJsonDocument& json) {
+    HttpApi& jsonBody(const sc::json::Json& json) {
         m_request.setJsonBody(json);
-        return *this;
-    }
-
-    /**
-     * @brief 设置成功回调（泛型类型）
-     * @tparam T 响应数据类型
-     * @param callback 成功回调函数
-     * @return 当前 HttpApi 对象引用（链式调用）
-     */
-    template<typename T>
-    HttpApi& onSuccess(std::function<void(const T&)> callback) {
-        m_successCallback = [callback, this](const Result<HttpResponse>& result) {
-            if (result.isOk()) {
-                T data = parseResponse<T>(result.unwrap());
-                callback(data);
-            }
-        };
         return *this;
     }
 
@@ -171,7 +155,7 @@ public:
      * @param callback 成功回调函数
      * @return 当前 HttpApi 对象引用（链式调用）
      */
-    HttpApi& onSuccess(std::function<void(const QJsonDocument&)> callback) {
+    HttpApi& onSuccess(std::function<void(const sc::json::Json&)> callback) {
         m_jsonCallback = callback;
         return *this;
     }
@@ -194,9 +178,7 @@ public:
             if (result.isOk()) {
                 const HttpResponse& response = result.unwrap();
                 if (response.isSuccess()) {
-                    if (m_successCallback) {
-                        m_successCallback(result);
-                    } else if (m_jsonCallback) {
+                    if (m_jsonCallback) {
                         m_jsonCallback(response.json());
                     }
                 } else {
@@ -216,34 +198,22 @@ public:
      * @brief 执行同步请求
      * @return 包含 JSON 响应的 Result
      */
-    Result<QJsonDocument> executeSync() {
+    Result<sc::json::Json> executeSync() {
         auto result = m_client->send(m_request);
         if (result.isOk()) {
             const HttpResponse& response = result.unwrap();
             if (response.isSuccess()) {
-                return Result<QJsonDocument>(response.json());
+                return Result<sc::json::Json>(response.json());
             }
-            return Result<QJsonDocument>(Error(ErrorCode::NetworkError, response.errorString()));
+            return Result<sc::json::Json>(Error(ErrorCode::NetworkError, response.errorString()));
         }
-        return Result<QJsonDocument>(result.unwrapErr());
+        return Result<sc::json::Json>(result.unwrapErr());
     }
 
 private:
-    /**
-     * @brief 解析响应数据（默认实现，子类可重写）
-     * @tparam T 目标类型
-     * @param response HTTP 响应
-     * @return 解析后的数据
-     */
-    template<typename T>
-    T parseResponse(const HttpResponse& response) {
-        Q_UNUSED(response);
-        return T();
-    }
-
     std::shared_ptr<HttpClient> m_client;
     HttpRequest m_request;
-    std::function<void(const QJsonDocument&)> m_jsonCallback;
+    std::function<void(const sc::json::Json&)> m_jsonCallback;
     std::function<void(const Error&)> m_failureCallback;
 };
 

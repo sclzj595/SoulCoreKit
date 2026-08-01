@@ -1,5 +1,16 @@
 #include "soul/utils/compress/compress_utils.h"
+// Zlib header selection:
+// - Linux: Qt6 base-dev package doesn't export QtZlib/zlib.h (Qt private header).
+//   Use system zlib instead (requires zlib1g-dev on Ubuntu/Debian).
+// - Windows/macOS: Qt's bundled QtZlib/zlib.h is available via aqt-installed Qt.
+//   System zlib may not be present (Windows) or less tested (macOS).
+// Linking: Qt6::Core links against zlib on all platforms, so deflate/inflate
+// symbols are resolved transitively without explicit ZLIB::ZLIB linkage.
+#ifdef __linux__
+#include <zlib.h>
+#else
 #include <QtZlib/zlib.h>
+#endif
 #include <QByteArray>
 #include <vector>
 
@@ -75,6 +86,12 @@ QByteArray inflateDecompress(const QByteArray& data, int windowBits) {
 
         ret = inflate(&strm, Z_NO_FLUSH);
         if (ret == Z_NEED_DICT || ret == Z_DATA_ERROR || ret == Z_MEM_ERROR) {
+            inflateEnd(&strm);
+            return QByteArray();
+        }
+        // Z_BUF_ERROR 表示无进展(avail_in=0 但未到流尾),通常是截断/残缺数据。
+        // 若不处理会导致 do-while 循环永真(avail_in 恒为 0, ret 恒为 Z_BUF_ERROR)。
+        if (ret == Z_BUF_ERROR && strm.avail_in == 0) {
             inflateEnd(&strm);
             return QByteArray();
         }

@@ -1,4 +1,4 @@
-﻿#include "soul/utils/crypto/crypto_utils.h"
+#include "soul/utils/crypto/crypto_utils.h"
 #include <QCryptographicHash>
 #include <QMessageAuthenticationCode>
 #include <QFile>
@@ -104,8 +104,11 @@ QString generateRandomString(int length) {
     const QString chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
     QString result;
     result.reserve(length);
+    // chars.size() is qsizetype; narrow to int explicitly to silence MSVC C4242
+    // under /W4 (chars length is a compile-time constant, fits in int).
+    const int charsCount = static_cast<int>(chars.size());
     for (int i = 0; i < length; i++) {
-        result += chars.at(QRandomGenerator::global()->bounded(chars.size()));
+        result += chars.at(QRandomGenerator::global()->bounded(charsCount));
     }
     return result;
 }

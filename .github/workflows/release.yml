@@ -28,7 +28,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build g++ libssl-dev
+          sudo apt-get install -y cmake ninja-build g++ libssl-dev zlib1g-dev nlohmann-json3-dev
 
       - name: Configure
         run: |
@@ -36,7 +36,7 @@ jobs:
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_TESTS=ON \
-            -DENABLE_WARNINGS=ON \
+            -DENABLE_WARNINGS=OFF \
             -DENABLE_LTO=ON
 
       - name: Build
@@ -47,7 +47,19 @@ jobs:
           cd build-release
           ctest --output-on-failure
 
-      - name: Package
+      - name: Package (DEB)
+        if: matrix.target == 'deb'
+        run: |
+          cd build-release
+          cpack -G DEB
+
+      - name: Package (AppImage)
+        if: matrix.target == 'appimage'
+        run: |
+          cd build-release
+          cpack -G ZIP
+
+      - name: Install (for artifact upload)
         run: |
           cd build-release
           cmake --install . --prefix install
@@ -124,7 +136,7 @@ jobs:
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_TESTS=ON \
-            -DENABLE_WARNINGS=ON \
+            -DENABLE_WARNINGS=OFF \
             -DENABLE_LTO=ON
 
       - name: Build

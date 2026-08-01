@@ -1,46 +1,45 @@
-﻿#include <string>
+#include <string>
 #include "soul/network/codec/json_codec.h"
-#include <QJsonObject>
-#include <QJsonArray>
 
 namespace sc {
 namespace network {
 
+using namespace sc::json;
+
 QByteArray JsonCodec::encode(const NetworkMessage& message) {
-    QJsonObject obj;
-    obj["api"] = message.api;
-    obj["body"] = QString::fromUtf8(message.payload);
-    
-    QJsonObject metaObj;
+    Json obj;
+    obj["api"] = message.api.toStdString();
+    obj["body"] = QString::fromUtf8(message.payload).toStdString();
+
+    Json metaObj = Json::object();
     for (auto it = message.metadata.begin(); it != message.metadata.end(); ++it) {
-        QJsonValue value = QJsonValue::fromVariant(it.value());
-        metaObj.insert(it.key(), value);
+        metaObj[it.key().toStdString()] = fromQJsonValue(QJsonValue::fromVariant(it.value()));
     }
     obj["metadata"] = metaObj;
-    
-    QJsonDocument doc(obj);
-    return doc.toJson(m_compact ? QJsonDocument::Compact : QJsonDocument::Indented);
+
+    return m_compact ? serialize(obj) : serializePretty(obj);
 }
 
 NetworkMessage JsonCodec::decode(const QByteArray& data) {
-    QJsonParseError error;
-    QJsonDocument doc = QJsonDocument::fromJson(data, &error);
-    if (error.error != QJsonParseError::NoError) {
+    auto result = deserialize(data);
+    if (!result.isOk() || !result.unwrap().is_object()) {
         return NetworkMessage();
     }
-    
-    QJsonObject obj = doc.object();
+
+    Json obj = result.unwrap();
     NetworkMessage message;
-    message.api = obj["api"].toString();
-    message.payload = obj["body"].toString().toUtf8();
-    
-    if (obj.contains("metadata")) {
-        QJsonObject metaObj = obj["metadata"].toObject();
-        for (auto it = metaObj.begin(); it != metaObj.end(); ++it) {
-            message.metadata[it.key()] = it.value().toVariant();
+    message.api = getString(obj, "api");
+    message.payload = getString(obj, "body").toUtf8();
+
+    if (contains(obj, "metadata")) {
+        Json metaObj = obj["metadata"];
+        if (metaObj.is_object()) {
+            for (auto it = metaObj.begin(); it != metaObj.end(); ++it) {
+                message.metadata[QString::fromStdString(it.key())] = toQJsonValue(it.value()).toVariant();
+            }
         }
     }
-    
+
     return message;
 }
 

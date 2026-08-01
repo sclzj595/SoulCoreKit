@@ -1,7 +1,8 @@
-﻿#include "soul/network/uploader.h"
+#include "soul/network/uploader.h"
 #include "soul/logging/log_macros.h"
 #include <QHttpMultiPart>
 #include <QFileInfo>
+#include <memory>
 
 namespace sc {
 namespace network {
@@ -160,7 +161,10 @@ void Uploader::startUpload() {
 
     m_totalBytes = m_file.size();
 
-    auto multiPart = new QHttpMultiPart(QHttpMultiPart::FormDataType);
+    // 使用 unique_ptr 管理 multiPart,避免裸 new。
+    // QNetworkAccessManager::post 会接管 multiPart 所有权(reply 作为 parent),
+    // 因此在 post 之后通过 release() 转移所有权。
+    auto multiPart = std::make_unique<QHttpMultiPart>(QHttpMultiPart::FormDataType);
 
     QHttpPart filePart;
     filePart.setHeader(QNetworkRequest::ContentTypeHeader, "application/octet-stream");
@@ -170,13 +174,13 @@ void Uploader::startUpload() {
                        .arg(QFileInfo(m_filePath).fileName()));
 
     filePart.setBodyDevice(&m_file);
-    m_file.setParent(multiPart);
+    m_file.setParent(multiPart.get());
 
     multiPart->append(filePart);
 
     QNetworkRequest request(m_uploadUrl);
-    m_reply = m_manager->post(request, multiPart);
-    multiPart->setParent(m_reply);
+    // post() 调用后,reply 接管 multiPart 所有权,释放 unique_ptr 的管理权。
+    m_reply = m_manager->post(request, multiPart.release());
 
     connect(m_reply, &QNetworkReply::uploadProgress, this, &Uploader::onUploadProgress);
     connect(m_reply, &QNetworkReply::finished, this, &Uploader::onUploadFinished);

@@ -2,14 +2,16 @@
 #define SOUL_ASYNC_FUTURE_H
 
 // 注意: 本头文件为模板实现,以下 Qt 头文件无法前向声明:
-//   - <QFuture>:    QFuture<T> 作为成员变量(值类型,需要完整定义)
-//   - <QThreadPool>: 调用 QThreadPool::globalInstance() 静态方法(需要完整定义)
-// <QFutureWatcher> 已移除(未使用);soul/logging/logger.h 已通过 detail 帮助函数隔离,
+//   - <QFuture>:        QFuture<T> 作为成员变量(值类型,需要完整定义)
+//   - <QFutureWatcher>: 用于异步监听 future 完成并触发回调(避免线程池死锁)
+// soul/logging/logger.h 已通过 detail 帮助函数隔离,
 // 避免每个包含 future.h 的 TU 都传递依赖 logger.h。
 #include <QFuture>
+#include <QFutureWatcher>
 #include <QThreadPool>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <vector>
 #include "soul/async/future_detail.h"
 
@@ -17,6 +19,7 @@ namespace sc {
 
 template<typename T>
 class Future {
+    template<typename> friend class Future;  ///< [v1.9.2] 允许跨类型 then() 访问私有成员
 public:
     Future() = default;
     Future(QFuture<T> future) : m_future(std::move(future)) {}
@@ -35,6 +38,7 @@ public:
         } catch (const std::exception& e) {
             detail::logAsyncException("Future::waitForFinished", e.what());
         } catch (...) {
+            // Blanket catch: wait-boundary barrier — must not propagate unknown exceptions to caller.
             detail::logAsyncUnknownException("Future::waitForFinished");
         }
         executeCallbacks();
@@ -59,6 +63,7 @@ public:
                 promise.finish();
                 return Future<U>(promise.future());
             } catch (...) {
+                // Blanket catch: sync-then path must translate exceptions into a failed Future.
                 QPromise<U> promise;
                 promise.start();
                 promise.setException(std::current_exception());
@@ -71,24 +76,39 @@ public:
         promisePtr->start();
         auto future = promisePtr->future();
 
+        // 使用专用线程池(不与 async() 共享 QThreadPool::globalInstance()),
+        // 避免 then 任务阻塞等待 async 任务时线程池满死锁。
         QFuture<T> originalFuture = m_future;
-        QThreadPool::globalInstance()->start([promisePtr, func = std::forward<F>(func), originalFuture]() mutable {
+        static auto s_thenPool = []() {
+            auto pool = new QThreadPool();
+            pool->setMaxThreadCount(QThread::idealThreadCount() * 2);
+            return pool;
+        }();
+        s_thenPool->start([promisePtr, func = std::forward<F>(func), originalFuture]() mutable {
             try {
                 T result = originalFuture.result();
                 try {
                     promisePtr->addResult(func(std::move(result)));
                     promisePtr->finish();
                 } catch (...) {
+                    // Blanket catch: inner task exception captured into promise (must not escape).
                     promisePtr->setException(std::current_exception());
                     promisePtr->finish();
                 }
             } catch (...) {
+                // Blanket catch: outer future-result exception captured into promise.
                 promisePtr->setException(std::current_exception());
                 promisePtr->finish();
             }
         });
 
-        return Future<U>(std::move(future));
+        // TSan-safe: transfer promisePtr ownership to the returned Future<U>
+        // via m_promiseKeeper. This ensures QPromise destruction happens on the
+        // caller's thread (when Future<U> is destroyed), not on the worker thread,
+        // eliminating the cross-thread race with QFuture::result() access.
+        auto result = Future<U>(std::move(future));
+        result.m_promiseKeeper = promisePtr;
+        return result;
     }
 
     template<typename F>
@@ -99,12 +119,17 @@ public:
             } catch (const std::exception& e) {
                 detail::logAsyncException("Future::onSuccess callback", e.what());
             } catch (...) {
+                // Blanket catch: onSuccess callback must not propagate exceptions to caller.
                 detail::logAsyncUnknownException("Future::onSuccess callback");
             }
             return;
         }
         ensureCallbacks();
-        m_data->successCallbacks.push_back(std::forward<F>(func));
+        {
+            std::lock_guard<std::mutex> lock(m_data->mutex);
+            m_data->successCallbacks.push_back(std::forward<F>(func));
+        }
+        ensureWatcher();
     }
 
     template<typename F>
@@ -115,12 +140,17 @@ public:
             } catch (const std::exception& e) {
                 func(e);
             } catch (...) {
+                // Blanket catch: onFailure translates unknown exceptions to a generic runtime_error.
                 func(std::runtime_error("Unknown exception"));
             }
             return;
         }
         ensureCallbacks();
-        m_data->failureCallbacks.push_back(std::forward<F>(func));
+        {
+            std::lock_guard<std::mutex> lock(m_data->mutex);
+            m_data->failureCallbacks.push_back(std::forward<F>(func));
+        }
+        ensureWatcher();
     }
 
     void cancel() { m_future.cancel(); }
@@ -130,6 +160,10 @@ private:
     struct CallbackData {
         std::vector<std::function<void(const T&)>> successCallbacks;
         std::vector<std::function<void(const std::exception&)>> failureCallbacks;
+        // TSan-safe: onSuccess/onFailure may be called from any thread while
+        // executeCallbacksStatic (triggered by QFutureWatcher::finished) iterates
+        // and clears the vectors. All accesses must hold this mutex.
+        mutable std::mutex mutex;
     };
 
     void ensureCallbacks() {
@@ -138,39 +172,73 @@ private:
         }
     }
 
-    void executeCallbacks() {
-        if (!m_data) return;
-        if (!m_data->successCallbacks.empty()) {
+    // 使用 QFutureWatcher 异步监听 future 完成,自动触发 executeCallbacks。
+    // 避免用户必须显式调用 waitForFinished()/result() 才能触发回调。
+    // 注意: lambda 捕获 m_data(shared_ptr) 和 m_future(值拷贝),
+    // 避免捕获裸 this 导致 Future 对象析构后 UAF。
+    void ensureWatcher() {
+        if (m_watcher) return;
+        m_watcher = std::make_shared<QFutureWatcher<T>>();
+        auto data = m_data;
+        auto future = m_future;
+        QObject::connect(m_watcher.get(), &QFutureWatcher<T>::finished, [data, future]() {
+            executeCallbacksStatic(data, future);
+        });
+        m_watcher->setFuture(m_future);
+    }
+
+    // 静态版本:不依赖 this,供 ensureWatcher lambda 安全调用
+    // TSan-safe: 持锁 swap 出回调列表,释放锁后执行用户回调(防死锁/防重入)。
+    static void executeCallbacksStatic(std::shared_ptr<CallbackData> data, QFuture<T> future) {
+        if (!data) return;
+        std::vector<std::function<void(const T&)>> successCallbacks;
+        std::vector<std::function<void(const std::exception&)>> failureCallbacks;
+        {
+            std::lock_guard<std::mutex> lock(data->mutex);
+            successCallbacks.swap(data->successCallbacks);
+            failureCallbacks.swap(data->failureCallbacks);
+        }
+        if (!successCallbacks.empty()) {
             try {
-                T result = m_future.result();
-                for (auto& cb : m_data->successCallbacks) {
+                T result = future.result();
+                for (auto& cb : successCallbacks) {
                     cb(result);
                 }
             } catch (const std::exception& e) {
                 detail::logAsyncException("Future::executeCallbacks success", e.what());
             } catch (...) {
+                // Blanket catch: success-callback dispatch must not propagate exceptions.
                 detail::logAsyncUnknownException("Future::executeCallbacks success");
             }
-            m_data->successCallbacks.clear();
         }
-        if (!m_data->failureCallbacks.empty()) {
+        if (!failureCallbacks.empty()) {
             try {
-                m_future.result();
+                future.result();
             } catch (const std::exception& e) {
-                for (auto& cb : m_data->failureCallbacks) {
+                for (auto& cb : failureCallbacks) {
                     cb(e);
                 }
             } catch (...) {
-                for (auto& cb : m_data->failureCallbacks) {
+                // Blanket catch: failure-callback dispatch translates unknown exceptions to runtime_error.
+                for (auto& cb : failureCallbacks) {
                     cb(std::runtime_error("Unknown exception"));
                 }
             }
-            m_data->failureCallbacks.clear();
         }
+    }
+
+    void executeCallbacks() {
+        executeCallbacksStatic(m_data, m_future);
     }
 
     QFuture<T> m_future;
     std::shared_ptr<CallbackData> m_data;
+    std::shared_ptr<QFutureWatcher<T>> m_watcher;
+    // TSan-safe: keeps the QPromise alive so its destructor runs on the
+    // caller's thread (not the worker thread), eliminating the cross-thread
+    // race between QPromise destruction and QFuture::result() access.
+    // See then() for where this is populated.
+    std::shared_ptr<void> m_promiseKeeper;
 };
 
 template<typename F>
@@ -186,6 +254,7 @@ Future<std::invoke_result_t<F>> async(F&& func) {
             promisePtr->addResult(func());
             promisePtr->finish();
         } catch (...) {
+            // Blanket catch: async() task must translate exceptions into a failed Future.
             promisePtr->setException(std::current_exception());
             promisePtr->finish();
         }
@@ -210,6 +279,7 @@ Future<std::invoke_result_t<F>> asyncOnThreadPool(F&& func) {
             promisePtr->setException(std::current_exception());
             promisePtr->finish();
         } catch (...) {
+            // Blanket catch: asyncOnThreadPool task translates unknown exceptions into failed Future.
             promisePtr->setException(std::current_exception());
             promisePtr->finish();
         }

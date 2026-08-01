@@ -40,6 +40,7 @@ public:
                 promise.setException(std::current_exception());
                 promise.finish();
             } catch (...) {
+                // Blanket catch: run() task translates unknown exceptions into failed promise.
                 promise.setException(std::current_exception());
                 promise.finish();
             }
@@ -58,6 +59,7 @@ public:
             } catch (const std::exception& e) {
                 detail::logAsyncException("TaskRunner::runAsync task", e.what());
             } catch (...) {
+                // Blanket catch: runAsync task must not propagate exceptions to thread pool.
                 detail::logAsyncUnknownException("TaskRunner::runAsync task");
             }
             m_activeTasks.fetch_sub(1);

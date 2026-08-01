@@ -236,7 +236,7 @@ void TestQueryWrapper::testBuildUpdateSqlRejectsFullTable() {
     std::map<QString, QVariant> updates;
     updates["name"] = QString("new");
 
-    QVERIFY_EXCEPTION_THROWN(qw.buildUpdateSql("users", updates), std::runtime_error);
+    QVERIFY_THROWS_EXCEPTION(std::runtime_error, qw.buildUpdateSql("users", updates));
 }
 
 void TestQueryWrapper::testBuildUpdateSqlAllowFullTableOptIn() {
@@ -269,7 +269,7 @@ void TestQueryWrapper::testBuildDeleteSqlRejectsFullTable() {
     QueryWrapper qw;
     qw.setDialect(dialect.get());
 
-    QVERIFY_EXCEPTION_THROWN(qw.buildDeleteSql("users"), std::runtime_error);
+    QVERIFY_THROWS_EXCEPTION(std::runtime_error, qw.buildDeleteSql("users"));
 }
 
 void TestQueryWrapper::testBuildDeleteSqlAllowFullTableOptIn() {

@@ -1,8 +1,7 @@
-﻿#include <QTest>
+#include <QTest>
 #include <QUrlQuery>
-#include <QJsonObject>
-#include <QJsonDocument>
 #include "soul/network/http_request.h"
+#include "soul/utils/json/json_helper.h"
 
 class TestHttpRequest : public QObject {
     Q_OBJECT
@@ -49,11 +48,11 @@ void TestHttpRequest::testHeaders() {
 
 void TestHttpRequest::testJsonBody() {
     sc::network::HttpRequest request(sc::network::HttpMethod::Post, QUrl("https://api.example.com/users"));
-    
-    QJsonObject json;
+
+    sc::json::Json json;
     json["name"] = "John";
     json["email"] = "john@example.com";
-    request.setJsonBody(QJsonDocument(json));
+    request.setJsonBody(json);
 
     QVERIFY(request.body().size() > 0);
     QVERIFY(request.headers().contains("Content-Type"));

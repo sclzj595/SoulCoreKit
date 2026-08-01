@@ -51,7 +51,7 @@ class ToastManager : public ::QWidget {
 public:
     static ToastManager& instance();
 
-    void addToast(std::unique_ptr<Toast> toast);
+    void addToast(Toast* toast);
 
 private:
     ToastManager();

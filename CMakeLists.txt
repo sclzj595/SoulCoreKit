@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(SoulCoreKit VERSION 1.7.0 LANGUAGES CXX)
+project(SoulCoreKit VERSION 1.9.3 LANGUAGES CXX)
 
 include(GenerateExportHeader)
 
@@ -23,6 +23,7 @@ option(ENABLE_TSAN "Enable ThreadSanitizer (TSan)" OFF)
 option(ENABLE_LTO "Enable Link-Time Optimization" OFF)
 option(ENABLE_COVERAGE "Enable code coverage" OFF)
 option(ENABLE_IPO "Enable Inter-Procedural Optimization" OFF)
+option(ENABLE_CXX20 "Enable C++20 coroutine support" OFF)
 
 set(QT6_DIR "" CACHE PATH "Qt6 CMake config directory (optional)")
 if(QT6_DIR)
@@ -30,6 +31,84 @@ if(QT6_DIR)
 endif()
 
 find_package(Qt6 REQUIRED COMPONENTS Core Network WebSockets Sql Xml)
+
+# ============================================================================
+# nlohmann/json - 全局 JSON 处理(v1.9.2 统一 JSON 方案)
+# ============================================================================
+# 用于配置、RPC、认证、存储等所有非 UI 模块的 JSON 序列化。
+# Qt JSON (QJsonDocument/QJsonObject) 仅保留用于 UI 临时数据序列化。
+# nlohmann/json 是 header-only 库,三级备选策略:
+#   1. find_package(nlohmann_json) — CI 环境通过 apt install nlohmann-json3-dev
+#   2. 本地预装路径 G:/MinGW/nlohmann — 开发者本地 Windows 环境
+#   3. FetchContent Git shallow clone — 最终备选,需网络访问 GitHub
+find_package(nlohmann_json 3.10.0 QUIET)
+if(nlohmann_json_FOUND)
+    message(STATUS "Using nlohmann/json v${nlohmann_json_VERSION} via find_package")
+elseif(EXISTS "G:/MinGW/nlohmann/json.hpp")
+    message(STATUS "Using local nlohmann/json from G:/MinGW/nlohmann")
+    add_library(nlohmann_json INTERFACE)
+    target_include_directories(nlohmann_json INTERFACE "G:/MinGW")
+    add_library(nlohmann_json::nlohmann_json ALIAS nlohmann_json)
+    install(TARGETS nlohmann_json EXPORT SoulCoreKitTargets)
+else()
+    message(STATUS "Fetching nlohmann/json v3.11.3 via FetchContent (shallow clone)...")
+    include(FetchContent)
+    FetchContent_Declare(
+        nlohmann_json
+        GIT_REPOSITORY https://github.com/nlohmann/json.git
+        GIT_TAG        v3.11.3
+        GIT_SHALLOW    TRUE
+        GIT_PROGRESS   TRUE
+    )
+    set(JSON_BuildTests OFF CACHE INTERNAL "")
+    FetchContent_MakeAvailable(nlohmann_json)
+    message(STATUS "nlohmann/json v3.11.3 fetched via FetchContent successfully")
+endif()
+
+# ============================================================================
+# spdlog - 高性能结构化日志库 (v1.9.3 集成)
+# ============================================================================
+# 替代自研 Logger,提供 fmt 风格格式化 / 异步日志 / JSON 输出
+# 三级备选策略:
+#   1. find_package(spdlog) — CI 环境通过 apt install libspdlog-dev
+#   2. 本地预装路径 G:/MinGW/spdlog — 开发者本地 Windows 环境
+#   3. FetchContent Git shallow clone — 最终备选,需网络访问 GitHub
+find_package(spdlog 1.12.0 QUIET)
+if(spdlog_FOUND)
+    message(STATUS "Using spdlog v${spdlog_VERSION} via find_package")
+elseif(EXISTS "G:/MinGW/spdlog/include/spdlog/spdlog.h")
+    message(STATUS "Using local spdlog from G:/MinGW/spdlog")
+    add_library(spdlog INTERFACE)
+    target_include_directories(spdlog INTERFACE "G:/MinGW/spdlog/include")
+    add_library(spdlog::spdlog ALIAS spdlog)
+    install(TARGETS spdlog EXPORT SoulCoreKitTargets)
+else()
+    message(STATUS "Fetching spdlog v1.14.1 via FetchContent (shallow clone)...")
+    include(FetchContent)
+    FetchContent_Declare(
+        spdlog
+        GIT_REPOSITORY https://github.com/gabime/spdlog.git
+        GIT_TAG        v1.14.1
+        GIT_SHALLOW    TRUE
+        GIT_PROGRESS   TRUE
+    )
+    set(SPDLOG_BUILD_EXAMPLE OFF CACHE INTERNAL "")
+    set(SPDLOG_BUILD_TESTS OFF CACHE INTERNAL "")
+    set(SPDLOG_FMT_EXTERNAL OFF CACHE INTERNAL "")
+    FetchContent_MakeAvailable(spdlog)
+    install(TARGETS spdlog EXPORT SoulCoreKitTargets)
+    message(STATUS "spdlog v1.14.1 fetched via FetchContent successfully")
+endif()
+
+# ZLIB: compress_utils.cpp uses deflate/inflate directly.
+# On Linux we include system <zlib.h>; on Windows/macOS we use Qt's <QtZlib/zlib.h>.
+# find_package(ZLIB) is REQUIRED on Linux (system zlib), but QUIET on Win/macOS
+# (where Qt provides zlib symbols transitively via Qt6::Core).
+if(UNIX AND NOT APPLE)
+    find_package(ZLIB REQUIRED)
+else()
+    find_package(ZLIB QUIET)
+endif()
 
 # 尝试加载 Gui 和 Widgets（可能因为 GuiTools/WidgetsTools 缺失而失败）
 # 在某些 Qt 安装中（如仅安装了核心模块），Gui 的工具包可能缺失
@@ -171,6 +250,17 @@ function(windeployqt_post_build TARGET_NAME IS_TEST)
             "$<TARGET_FILE:${TARGET_NAME}>"
         COMMENT "Deploying Qt dependencies for ${TARGET_NAME}"
     )
+
+    # Copy qoffscreen.dll platform plugin (missing from windeployqt output)
+    get_filename_component(QT6_PLUGINS_DIR "${QT6_BIN_DIR}/../plugins" ABSOLUTE)
+    add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "$<TARGET_FILE_DIR:${TARGET_NAME}>/platforms"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "${QT6_PLUGINS_DIR}/platforms/qoffscreen.dll"
+            "$<TARGET_FILE_DIR:${TARGET_NAME}>/platforms/qoffscreen.dll"
+        COMMENT "Copying qoffscreen.dll platform plugin for ${TARGET_NAME}"
+    )
 endfunction()
 
 set(SOUL_CORE_HEADERS
@@ -185,6 +275,11 @@ set(SOUL_CORE_HEADERS
     include/soul/core/environment.h
     include/soul/core/platform.h
     include/soul/core/application.h
+    include/soul/core/module.h
+    include/soul/core/scaffold.h
+    include/soul/core/module_registry.h
+    include/soul/core/crash_handler.h
+    include/soul/core/benchmark.h
 )
 
 set(SOUL_DI_HEADERS
@@ -216,6 +311,8 @@ set(SOUL_CORE_SOURCES
     src/soul/core/environment.cpp
     src/soul/core/platform.cpp
     src/soul/core/application.cpp
+    src/soul/core/scaffold.cpp
+    src/soul/core/module_registry.cpp
 )
 
 set(SOUL_BASE_HEADERS
@@ -256,6 +353,7 @@ set(SOUL_LOGGING_SOURCES
 
 set(SOUL_NETWORK_HEADERS
     include/soul/network/network_global.h
+    include/soul/network/connection_manager.h
     include/soul/network/http_request.h
     include/soul/network/http_response.h
     include/soul/network/http_client.h
@@ -277,6 +375,8 @@ set(SOUL_NETWORK_HEADERS
     include/soul/network/policy/retry_policy.h
     include/soul/network/policy/reconnect_policy.h
     include/soul/network/policy/heartbeat_policy.h
+    include/soul/network/policy/circuit_breaker.h
+    include/soul/network/policy/rate_limiter.h
     include/soul/network/interceptor/i_interceptor.h
     include/soul/network/interceptor/logging_interceptor.h
     include/soul/network/interceptor/auth_interceptor.h
@@ -308,10 +408,13 @@ set(SOUL_NETWORK_SOURCES
     src/soul/network/uploader.cpp
     src/soul/network/network_error.cpp
     src/soul/network/cookie_jar.cpp
+    src/soul/network/connection_manager.cpp
     src/soul/network/policy/timeout_policy.cpp
     src/soul/network/policy/retry_policy.cpp
     src/soul/network/policy/reconnect_policy.cpp
     src/soul/network/policy/heartbeat_policy.cpp
+    src/soul/network/policy/circuit_breaker.cpp
+    src/soul/network/policy/rate_limiter.cpp
     src/soul/network/interceptor/logging_interceptor.cpp
     src/soul/network/interceptor/auth_interceptor.cpp
     src/soul/network/codec/json_codec.cpp
@@ -332,6 +435,7 @@ set(SOUL_NETWORK_SOURCES
 
 set(SOUL_UTILS_HEADERS
     include/soul/utils/json/json_utils.h
+    include/soul/utils/json/json_helper.h
     include/soul/utils/file/file_utils.h
     include/soul/utils/string/string_utils.h
     include/soul/utils/crypto/crypto_utils.h
@@ -362,6 +466,10 @@ set(SOUL_CONFIGURATION_HEADERS
     include/soul/configuration/ini_configuration.h
     include/soul/configuration/config_schema.h
     include/soul/configuration/config.h
+    include/soul/configuration/config_bind.h
+    include/soul/configuration/remote_config.h
+    include/soul/configuration/nacos_source.h
+    include/soul/configuration/etcd_source.h
 )
 
 set(SOUL_CONFIGURATION_SOURCES
@@ -369,6 +477,9 @@ set(SOUL_CONFIGURATION_SOURCES
     src/soul/configuration/ini_configuration.cpp
     src/soul/configuration/config_schema.cpp
     src/soul/configuration/config.cpp
+    src/soul/configuration/remote_config.cpp
+    src/soul/configuration/nacos_source.cpp
+    src/soul/configuration/etcd_source.cpp
 )
 
 set(SOUL_STORAGE_HEADERS
@@ -413,6 +524,7 @@ set(SOUL_ASYNC_HEADERS
     include/soul/async/cancelable_task.h
     include/soul/async/thread_pool.h
     include/soul/async/task_runner.h
+    include/soul/async/coroutine.h
 )
 
 set(SOUL_ASYNC_SOURCES
@@ -450,12 +562,17 @@ set(SOUL_AUTH_HEADERS
     include/soul/auth/token.h
     include/soul/auth/user.h
     include/soul/auth/permissions.h
+    include/soul/auth/oauth2.h
+    include/soul/auth/oidc.h
+    include/soul/auth/secure_storage.h
 )
 
 set(SOUL_AUTH_SOURCES
     src/soul/auth/auth_manager.cpp
     src/soul/auth/token_manager.cpp
     src/soul/auth/permission.cpp
+    src/soul/auth/oauth2.cpp
+    src/soul/auth/oidc.cpp
 )
 
 set(SOUL_UI_HEADERS
@@ -545,6 +662,8 @@ target_include_directories(soul_core PUBLIC
 
 target_link_libraries(soul_core PUBLIC
     Qt6::Core
+    nlohmann_json::nlohmann_json
+    spdlog::spdlog
 )
 
 set(SOUL_DATA_HEADERS
@@ -552,6 +671,7 @@ set(SOUL_DATA_HEADERS
     include/soul/data/memory_repository.h
     include/soul/data/transaction.h
     include/soul/data/database_driver.h
+    include/soul/data/database_driver_base.h
     include/soul/data/connection_pool.h
 )
 
@@ -606,6 +726,7 @@ target_include_directories(soul_logging PUBLIC
 target_link_libraries(soul_logging PUBLIC
     Qt6::Core
     soul_core
+    spdlog::spdlog
 )
 
 add_library(soul_network STATIC
@@ -647,7 +768,15 @@ target_link_libraries(soul_utils PUBLIC
     Qt6::Core
     Qt6::Xml
     soul_core
+    nlohmann_json::nlohmann_json
 )
+
+# compress_utils.cpp uses zlib deflate/inflate directly.
+# On Linux: link system zlib explicitly.
+# On Windows/macOS: Qt6::Core provides zlib symbols transitively (no explicit link needed).
+if(UNIX AND NOT APPLE)
+    target_link_libraries(soul_utils PRIVATE ZLIB::ZLIB)
+endif()
 
 if(TARGET Qt6::Gui)
     target_link_libraries(soul_utils PUBLIC Qt6::Gui)
@@ -665,6 +794,7 @@ target_include_directories(soul_configuration PUBLIC
 
 target_link_libraries(soul_configuration PUBLIC
     Qt6::Core
+    Qt6::Network
     soul_core
     soul_utils
     soul_logging
@@ -725,6 +855,20 @@ target_link_libraries(soul_async PRIVATE
     soul_logging
 )
 
+# C++20 Coroutine support (experimental)
+if(ENABLE_CXX20)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "11.0")
+        message(FATAL_ERROR "GCC 11+ required for C++20 coroutines")
+    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "14.0")
+        message(FATAL_ERROR "Clang 14+ required for C++20 coroutines")
+    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "19.29")
+        message(FATAL_ERROR "MSVC 2019 16.11+ required for C++20 coroutines")
+    endif()
+
+    target_compile_definitions(soul_async PUBLIC SOUL_ENABLE_CXX20)
+    target_compile_features(soul_async PUBLIC cxx_std_20)
+endif()
+
 add_library(soul_event STATIC
     ${SOUL_EVENT_HEADERS}
     ${SOUL_EVENT_SOURCES}
@@ -763,6 +907,7 @@ target_link_libraries(soul_auth PUBLIC
     soul_network
     soul_storage
     soul_utils
+    nlohmann_json::nlohmann_json
 )
 
 set(SOUL_MQ_HEADERS
@@ -858,6 +1003,7 @@ set(SOUL_ORM_HEADERS
     include/soul/orm/reflection.h
     include/soul/orm/reflection_macros.h
     include/soul/orm/migration.h
+    include/soul/orm/query_result_cache.h
 )
 
 set(SOUL_ORM_SOURCES
@@ -894,12 +1040,15 @@ set(SOUL_OBSERVABILITY_HEADERS
     include/soul/observability/metrics.h
     include/soul/observability/tracing.h
     include/soul/observability/json_sink.h
+    include/soul/observability/resource_pool_monitor.h
+    include/soul/observability/prometheus_exporter.h
 )
 
 set(SOUL_OBSERVABILITY_SOURCES
     src/soul/observability/metrics.cpp
     src/soul/observability/tracing.cpp
     src/soul/observability/json_sink.cpp
+    src/soul/observability/resource_pool_monitor.cpp
 )
 
 add_library(soul_observability STATIC
@@ -912,10 +1061,146 @@ target_include_directories(soul_observability PUBLIC
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
+# v1.9.0: resource_pool_monitor 适配 ThreadPool / network::ConnectionPool /
+# data::DbConnectionPool,因此依赖 async / network / data 模块。
+# 注意: soul_network 依赖 soul_observability(用于 monitor/metrics),
+# 为避免循环依赖,resource_pool_monitor 的三个适配器实现放在 .cpp 中,
+# 头文件仅用前置声明,链接期解析。
 target_link_libraries(soul_observability PUBLIC
+    Qt6::Core
+    Qt6::Network
+    soul_core
+    soul_logging
+    soul_async
+    soul_data
+    soul_network
+    nlohmann_json::nlohmann_json
+)
+
+# ============================================================================
+# soul_validation 模块 — 声明式输入验证 [v1.9.3 新增]
+# ============================================================================
+
+set(SOUL_VALIDATION_HEADERS
+    include/soul/validation/validator.h
+)
+
+set(SOUL_VALIDATION_SOURCES
+    src/soul/validation/validator.cpp
+)
+
+add_library(soul_validation STATIC
+    ${SOUL_VALIDATION_HEADERS}
+    ${SOUL_VALIDATION_SOURCES}
+)
+
+target_include_directories(soul_validation PUBLIC
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
+
+target_link_libraries(soul_validation PUBLIC
+    Qt6::Core
+    soul_core
+)
+
+# ============================================================================
+# soul_aop 模块 — AOP 切面编程(v1.9.0 新增)
+# 对标 SpringBoot AOP: JoinPoint / Pointcut / Advice(Before/After/Around) / AspectWeaver
+# ============================================================================
+
+set(SOUL_AOP_HEADERS
+    include/soul/aop/aop.h
+)
+
+set(SOUL_AOP_SOURCES
+    src/soul/aop/aop.cpp
+)
+
+add_library(soul_aop STATIC
+    ${SOUL_AOP_HEADERS}
+    ${SOUL_AOP_SOURCES}
+)
+
+target_include_directories(soul_aop PUBLIC
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
+
+target_link_libraries(soul_aop PUBLIC
     Qt6::Core
     soul_core
     soul_logging
+)
+
+# ============================================================================
+# soul_scheduler 模块 — 定时任务框架(v1.9.1 新增)
+# 对标 SpringBoot @Scheduled: 支持 cron 表达式 / fixedRate / fixedDelay
+# ============================================================================
+
+set(SOUL_SCHEDULER_HEADERS
+    include/soul/scheduler/scheduled_task.h
+    include/soul/scheduler/scheduler.h
+    include/soul/scheduler/module.h
+)
+
+set(SOUL_SCHEDULER_SOURCES
+    src/soul/scheduler/scheduled_task.cpp
+    src/soul/scheduler/scheduler.cpp
+    src/soul/scheduler/module.cpp
+)
+
+add_library(soul_scheduler STATIC
+    ${SOUL_SCHEDULER_HEADERS}
+    ${SOUL_SCHEDULER_SOURCES}
+)
+
+target_include_directories(soul_scheduler PUBLIC
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
+
+target_link_libraries(soul_scheduler PUBLIC
+    Qt6::Core
+    soul_core
+    soul_di
+)
+
+# ============================================================================
+# soul_server 模块 — 嵌入式 HTTP Server(v1.9.0 新增)
+# 对标 SpringBoot 内嵌 Tomcat: 基于 QTcpServer 自研轻量 HTTP/1.1 Server
+# ============================================================================
+
+set(SOUL_SERVER_HEADERS
+    include/soul/server/http_server.h
+    include/soul/server/middleware.h
+    include/soul/server/health.h
+    include/soul/server/websocket_server.h
+)
+
+set(SOUL_SERVER_SOURCES
+    src/soul/server/http_server.cpp
+    src/soul/server/middleware.cpp
+    src/soul/server/health.cpp
+    src/soul/server/websocket_server.cpp
+)
+
+add_library(soul_server STATIC
+    ${SOUL_SERVER_HEADERS}
+    ${SOUL_SERVER_SOURCES}
+)
+
+target_include_directories(soul_server PUBLIC
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
+
+target_link_libraries(soul_server PUBLIC
+    Qt6::Core
+    Qt6::Network
+    soul_core
+    soul_logging
+    nlohmann_json::nlohmann_json
 )
 
 set(SOUL_RPC_SOURCES
@@ -951,6 +1236,7 @@ target_link_libraries(soul_rpc PUBLIC
     Qt6::Core
     Qt6::Network
     soul_core
+    nlohmann_json::nlohmann_json
 )
 
 set_target_properties(soul_rpc PROPERTIES
@@ -1028,6 +1314,12 @@ target_link_libraries(soul_plugin PUBLIC
     soul_logging
 )
 
+# ============================================================================
+# 顶层聚合 INTERFACE 库
+# ============================================================================
+# 设计原则: 严格遵循"轻量骨架"定位,SoulCoreKit 核心库默认不包含 UI 模块,
+# 避免纯后端项目(CLI 工具/服务进程/Headless 服务)被迫引入 Qt Widgets/Gui 依赖。
+# 需要 UI 的项目显式链接 SoulCoreKitUi。
 add_library(SoulCoreKit INTERFACE)
 
 target_link_libraries(SoulCoreKit INTERFACE
@@ -1039,15 +1331,28 @@ target_link_libraries(SoulCoreKit INTERFACE
     soul_utils
     soul_configuration
     soul_storage
+    soul_cache
     soul_async
     soul_event
     soul_auth
     soul_mq
     soul_orm
     soul_rpc
-    soul_ui
+    soul_observability
+    soul_aop
+    soul_validation
+    soul_scheduler
+    soul_server
     soul_di
     soul_plugin
+)
+
+# SoulCoreKitUi: 包含 UI 模块的聚合库(可选)。
+# 用法: target_link_libraries(MyApp PRIVATE SoulCoreKit SoulCoreKitUi)
+add_library(SoulCoreKitUi INTERFACE)
+target_link_libraries(SoulCoreKitUi INTERFACE
+    SoulCoreKit
+    soul_ui
 )
 
 if(BUILD_EXAMPLES)
@@ -1093,9 +1398,11 @@ endif()
 
 include(GNUInstallDirs)
 
-install(TARGETS SoulCoreKit soul_core soul_data soul_base soul_logging soul_network
+install(TARGETS SoulCoreKit SoulCoreKitUi
+                soul_core soul_data soul_base soul_logging soul_network
                 soul_utils soul_configuration soul_storage soul_cache soul_async
                 soul_event soul_auth soul_mq soul_orm soul_rpc soul_ui soul_di soul_plugin
+                soul_observability soul_aop soul_validation soul_scheduler soul_server
         EXPORT SoulCoreKitTargets
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}

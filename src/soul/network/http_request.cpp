@@ -1,4 +1,4 @@
-﻿#include "soul/network/http_request.h"
+#include "soul/network/http_request.h"
 #include <QUrlQuery>
 
 namespace sc {
@@ -63,8 +63,8 @@ HttpRequest& HttpRequest::setBody(const QByteArray& body) {
     return *this;
 }
 
-HttpRequest& HttpRequest::setJsonBody(const QJsonDocument& json) {
-    m_body = json.toJson(QJsonDocument::Compact);
+HttpRequest& HttpRequest::setJsonBody(const sc::json::Json& json) {
+    m_body = sc::json::serialize(json);
     m_headers["Content-Type"] = "application/json";
     return *this;
 }

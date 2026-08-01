@@ -1,7 +1,6 @@
 #ifndef SOUL_RPC_SERVICE_DISPATCHER_H
 #define SOUL_RPC_SERVICE_DISPATCHER_H
 #include <QString>
-#include <QJsonObject>
 #include <QHash>
 #include <functional>
 #include <memory>

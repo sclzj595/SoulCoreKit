@@ -4,6 +4,7 @@
 #include <QGraphicsScene>
 #include <QGraphicsPixmapItem>
 #include <QGraphicsBlurEffect>
+#include <QDebug>
 
 namespace sc {
 namespace ui {
@@ -19,7 +20,9 @@ GlassWidget::GlassWidget(QWidget* parent)
 
 void GlassWidget::setBlurRadius(int radius) {
     m_blurRadius = radius;
+    qDebug() << "GlassWidget::setBlurRadius" << radius;
     updateBackground();
+    qDebug() << "GlassWidget::setBlurRadius done";
 }
 
 int GlassWidget::blurRadius() const {
@@ -73,27 +76,54 @@ void GlassWidget::moveEvent(QMoveEvent* event) {
 }
 
 void GlassWidget::updateBackground() {
+    if (m_updating) {
+        return;
+    }
+    m_updating = true;
+
     if (!parentWidget()) {
+        m_updating = false;
         return;
     }
 
     QWidget* parent = parentWidget();
+    if (!parent->isVisible() || parent->size().isEmpty()) {
+        m_updating = false;
+        return;
+    }
+
     QPoint pos = mapToParent(rect().topLeft());
     QSize size = rect().size();
 
-    QPixmap source = parent->grab(QRect(pos, size));
+    if (size.isEmpty()) {
+        m_updating = false;
+        return;
+    }
+
+    // Clamp the grab rectangle to the parent's visible area
+    QRect grabRect(pos, size);
+    QRect parentRect(QPoint(0, 0), parent->size());
+    grabRect = grabRect.intersected(parentRect);
+    if (grabRect.isEmpty()) {
+        m_updating = false;
+        return;
+    }
+
+    QPixmap source = parent->grab(grabRect);
 
     QGraphicsScene scene;
     QGraphicsPixmapItem* item = scene.addPixmap(source);
 
-    auto blurEffect = std::make_unique<QGraphicsBlurEffect>();
+    auto* blurEffect = new QGraphicsBlurEffect();
     blurEffect->setBlurRadius(m_blurRadius);
-    item->setGraphicsEffect(blurEffect.get());
+    item->setGraphicsEffect(blurEffect);
 
     m_blurredBackground = QPixmap(size);
     m_blurredBackground.fill(Qt::transparent);
     QPainter painter(&m_blurredBackground);
     scene.render(&painter);
+
+    m_updating = false;
 }
 
 } // namespace ui
