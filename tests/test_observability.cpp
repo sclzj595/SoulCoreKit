@@ -177,211 +177,177 @@ void TestHistogram::testDefaultBuckets() {
 }
 
 // ============================================================================
-// TraceContext 测试
+// SpanContext / Tracer 测试 (v1.9.3 简化版, 核心 W3C Trace Context)
 // ============================================================================
 class TestTraceContext : public QObject {
     Q_OBJECT
 private slots:
     void testGenerateTraceId();
     void testGenerateSpanId();
-    void testToTraceParent();
-    void testFromTraceParent();
-    void testFromInvalidTraceParent();
-    void testIsValid();
+    void testFormatTraceparent();
+    void testParseTraceparent();
+    void testParseInvalidTraceparent();
+    void testSpanContextValid();
+    void testExtractFromHeaders();
+    void testInjectToHeaders();
 };
 
 void TestTraceContext::testGenerateTraceId() {
-    std::string id = TraceContext::generateTraceId();
-    QCOMPARE(id.size(), static_cast<std::size_t>(32));  // 16 字节 = 32 字符十六进制
+    std::string id = Tracer::generateTraceId();
+    QCOMPARE(id.size(), static_cast<std::size_t>(32));
 
-    // 两次生成的 ID 应不同
-    std::string id2 = TraceContext::generateTraceId();
+    std::string id2 = Tracer::generateTraceId();
     QVERIFY(id != id2);
 }
 
 void TestTraceContext::testGenerateSpanId() {
-    std::string id = TraceContext::generateSpanId();
-    QCOMPARE(id.size(), static_cast<std::size_t>(16));  // 8 字节 = 16 字符十六进制
+    std::string id = Tracer::generateSpanId();
+    QCOMPARE(id.size(), static_cast<std::size_t>(16));
 
-    std::string id2 = TraceContext::generateSpanId();
+    std::string id2 = Tracer::generateSpanId();
     QVERIFY(id != id2);
 }
 
-void TestTraceContext::testToTraceParent() {
-    TraceContext ctx;
+void TestTraceContext::testFormatTraceparent() {
+    SpanContext ctx;
     ctx.traceId = "4bf92f3577b34da6a3ce929d0e0e4736";
     ctx.spanId  = "00f067aa0ba902b7";
-    std::string tp = ctx.toTraceParent();
+    ctx.sampled = true;
+    std::string tp = Tracer::formatTraceparent(ctx);
     QCOMPARE(QString::fromStdString(tp),
              QString("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"));
 }
 
-void TestTraceContext::testFromTraceParent() {
+void TestTraceContext::testParseTraceparent() {
     std::string header = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
-    TraceContext ctx = TraceContext::fromTraceParent(header);
+    SpanContext ctx = Tracer::parseTraceparent(header);
     QVERIFY(ctx.isValid());
     QCOMPARE(ctx.traceId, std::string("4bf92f3577b34da6a3ce929d0e0e4736"));
     QCOMPARE(ctx.spanId, std::string("00f067aa0ba902b7"));
+    QVERIFY(ctx.sampled);
 }
 
-void TestTraceContext::testFromInvalidTraceParent() {
-    QVERIFY(!TraceContext::fromTraceParent("").isValid());
-    QVERIFY(!TraceContext::fromTraceParent("invalid").isValid());
-    QVERIFY(!TraceContext::fromTraceParent("01-abc-abc-01").isValid());  // version 错误
+void TestTraceContext::testParseInvalidTraceparent() {
+    QVERIFY(!Tracer::parseTraceparent("").isValid());
+    QVERIFY(!Tracer::parseTraceparent("invalid").isValid());
+    QVERIFY(!Tracer::parseTraceparent("01-abc-abc-01").isValid());
 }
 
-void TestTraceContext::testIsValid() {
-    TraceContext empty;
+void TestTraceContext::testSpanContextValid() {
+    SpanContext empty;
     QVERIFY(!empty.isValid());
 
-    TraceContext valid;
+    SpanContext valid;
     valid.traceId = "abc";
     valid.spanId  = "def";
     QVERIFY(valid.isValid());
 }
 
+void TestTraceContext::testExtractFromHeaders() {
+    QMap<QString, QString> headers;
+    headers["traceparent"] = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
+    SpanContext ctx = Tracer::extractFromHeaders(headers);
+    QVERIFY(ctx.isValid());
+    QCOMPARE(ctx.traceId, std::string("4bf92f3577b34da6a3ce929d0e0e4736"));
+    QCOMPARE(ctx.spanId, std::string("00f067aa0ba902b7"));
+    QVERIFY(ctx.sampled);
+
+    QMap<QString, QString> emptyHeaders;
+    SpanContext emptyCtx = Tracer::extractFromHeaders(emptyHeaders);
+    QVERIFY(!emptyCtx.isValid());
+}
+
+void TestTraceContext::testInjectToHeaders() {
+    auto span = Tracer::instance().startSpan("test");
+
+    QMap<QString, QString> headers;
+    Tracer::injectToHeaders(span, headers);
+    QVERIFY(headers.contains("traceparent"));
+
+    // traceparent 格式: 00-traceId-spanId-01
+    std::string tp = headers["traceparent"].toStdString();
+    QVERIFY(tp.find("00-") == 0);
+    QVERIFY(tp.rfind("-01") == tp.size() - 3);
+    // traceId 32 hex + spanId 16 hex = 48 hex chars between dashes
+    auto firstDash = tp.find('-');
+    auto secondDash = tp.find('-', firstDash + 1);
+    auto thirdDash = tp.find('-', secondDash + 1);
+    QVERIFY(secondDash - firstDash - 1 == 32);  // traceId length
+    QVERIFY(thirdDash - secondDash - 1 == 16);  // spanId length
+}
+
 // ============================================================================
-// Span/Tracer 测试
+// Span / Tracer 测试 (v1.9.3 简化版)
 // ============================================================================
 class TestTracing : public QObject {
     Q_OBJECT
 private slots:
-    void initTestCase() { Tracer::instance().clear(); }
     void testStartRootSpan();
     void testStartChildSpan();
-    void testSpanAttributes();
+    void testSpanEnd();
+    void testSpanTags();
     void testSpanEvents();
     void testSpanStatus();
-    void testSpanEnd();
-    void testSpanGuard();
-    void testTracerDisabled();
-    void testEndedSpans();
 };
 
 void TestTracing::testStartRootSpan() {
-    Tracer::instance().clear();
-    Tracer::instance().setEnabled(true);
-
     auto span = Tracer::instance().startSpan("root_operation");
     QVERIFY(span != nullptr);
     QCOMPARE(span->name(), std::string("root_operation"));
     QVERIFY(span->context().isValid());
-    QVERIFY(span->context().parentSpanId.empty());  // 根 Span 无父
+    QVERIFY(span->context().parentSpanId.empty());
 }
 
 void TestTracing::testStartChildSpan() {
-    Tracer::instance().clear();
-    Tracer::instance().setEnabled(true);
-
     auto parent = Tracer::instance().startSpan("parent");
-    auto child  = Tracer::instance().startSpan("child", *parent);
+    auto child  = Tracer::instance().startSpan("child", parent->context());
 
     QVERIFY(child != nullptr);
-    // 子 Span 继承父 traceId
     QCOMPARE(child->context().traceId, parent->context().traceId);
-    // 子 Span 的 parentSpanId 等于父 spanId
     QCOMPARE(child->context().parentSpanId, parent->context().spanId);
-    // 子 Span 有自己的 spanId
     QVERIFY(child->context().spanId != parent->context().spanId);
 }
 
-void TestTracing::testSpanAttributes() {
-    Tracer::instance().clear();
-    auto span = Tracer::instance().startSpan("attr_test");
+void TestTracing::testSpanEnd() {
+    auto span = Tracer::instance().startSpan("end_test");
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    span->end();
+    QVERIFY(span->durationMs() >= 10);
+}
 
-    span->setAttribute("string_attr", "value");
-    span->setAttribute("numeric_attr", 42.5);
-    span->setAttribute("bool_attr", true);
+void TestTracing::testSpanTags() {
+    auto span = Tracer::instance().startSpan("tag_test");
+    span->setTag("http.method", "GET");
+    span->setTag("http.status_code", "200");
 
-    auto strAttrs = span->stringAttributes();
-    QCOMPARE(strAttrs["string_attr"], std::string("value"));
-    QCOMPARE(strAttrs["bool_attr"], std::string("true"));
-
-    auto numAttrs = span->numericAttributes();
-    QCOMPARE(numAttrs["numeric_attr"], 42.5);
+    const auto& tags = span->getTags();
+    QCOMPARE(tags.size(), static_cast<std::size_t>(2));
+    QCOMPARE(tags.at("http.method"), std::string("GET"));
+    QCOMPARE(tags.at("http.status_code"), std::string("200"));
 }
 
 void TestTracing::testSpanEvents() {
-    Tracer::instance().clear();
     auto span = Tracer::instance().startSpan("event_test");
+    span->addEvent("cache_miss");
+    span->addEvent("db_query", {{"table", "users"}, {"duration_ms", "15"}});
 
-    span->addEvent("simple_event");
-    span->addEvent("attributed_event", {{"key1", "value1"}});
-
-    auto events = span->events();
+    const auto& events = span->getEvents();
     QCOMPARE(events.size(), static_cast<std::size_t>(2));
-    QCOMPARE(events[0].name, std::string("simple_event"));
-    QCOMPARE(events[1].name, std::string("attributed_event"));
-    QCOMPARE(events[1].attributes.at("key1"), std::string("value1"));
+    QCOMPARE(events[0].name, std::string("cache_miss"));
+    QCOMPARE(events[1].name, std::string("db_query"));
+    QCOMPARE(events[1].attributes.at("table"), std::string("users"));
+    QCOMPARE(events[1].attributes.at("duration_ms"), std::string("15"));
 }
 
 void TestTracing::testSpanStatus() {
-    Tracer::instance().clear();
     auto span = Tracer::instance().startSpan("status_test");
+    span->setStatus(true, "OK");
+    QVERIFY(span->isOk());
+    QCOMPARE(span->statusDescription(), std::string("OK"));
 
-    QCOMPARE(span->status(), SpanStatus::Unset);
-    span->setStatus(SpanStatus::Ok);
-    QCOMPARE(span->status(), SpanStatus::Ok);
-    span->setStatus(SpanStatus::Error, "Database connection failed");
-    QCOMPARE(span->status(), SpanStatus::Error);
+    span->setStatus(false, "Database connection failed");
+    QVERIFY(!span->isOk());
     QCOMPARE(span->statusDescription(), std::string("Database connection failed"));
-}
-
-void TestTracing::testSpanEnd() {
-    Tracer::instance().clear();
-    auto span = Tracer::instance().startSpan("end_test");
-
-    QVERIFY(!span->isEnded());
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    span->end();
-    QVERIFY(span->isEnded());
-    QVERIFY(span->duration().count() >= 10);
-
-    // 重复 end 应无副作用
-    span->end();
-    QVERIFY(span->isEnded());
-}
-
-void TestTracing::testSpanGuard() {
-    Tracer::instance().clear();
-    {
-        SpanGuard guard(Tracer::instance().startSpan("guard_test"));
-        guard->setAttribute("test", "value");
-        QVERIFY(!guard->isEnded());
-        // 离开作用域时自动 end
-    }
-    auto ended = Tracer::instance().endedSpans();
-    QCOMPARE(ended.size(), static_cast<std::size_t>(1));
-    QVERIFY(ended[0]->isEnded());
-    QCOMPARE(ended[0]->name(), std::string("guard_test"));
-}
-
-void TestTracing::testTracerDisabled() {
-    Tracer::instance().clear();
-    Tracer::instance().setEnabled(false);
-
-    auto span = Tracer::instance().startSpan("should_be_null");
-    QVERIFY(span == nullptr);
-
-    Tracer::instance().setEnabled(true);
-}
-
-void TestTracing::testEndedSpans() {
-    Tracer::instance().clear();
-    Tracer::instance().setEnabled(true);
-
-    auto s1 = Tracer::instance().startSpan("s1");
-    auto s2 = Tracer::instance().startSpan("s2");
-    s1->end();
-    // s2 未结束
-
-    auto ended = Tracer::instance().endedSpans();
-    QCOMPARE(ended.size(), static_cast<std::size_t>(1));
-    QCOMPARE(ended[0]->name(), std::string("s1"));
-
-    s2->end();
-    ended = Tracer::instance().endedSpans();
-    QCOMPARE(ended.size(), static_cast<std::size_t>(2));
 }
 
 // ============================================================================

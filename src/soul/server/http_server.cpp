@@ -9,9 +9,11 @@
 #include "soul/server/middleware.h"
 #include "soul/logging/log_macros.h"
 
+#include <QEventLoop>
 #include <QUrl>
 #include <QUrlQuery>
 #include <QTimer>
+#include <QThread>
 #include <QDateTime>
 
 namespace sc {
@@ -63,8 +65,26 @@ QByteArray HttpResponse::serialize() const {
         buf.append(QByteArray::number(m_body.size()));
         buf.append("\r\n");
     }
-    if (!m_headers.contains("Connection")) {
+    bool hasConnection = false;
+    bool hasDate = false;
+    for (auto it = m_headers.begin(); it != m_headers.end(); ++it) {
+        if (!hasConnection && it.key().compare("Connection", Qt::CaseInsensitive) == 0) {
+            hasConnection = true;
+        }
+        if (!hasDate && it.key().compare("Date", Qt::CaseInsensitive) == 0) {
+            hasDate = true;
+        }
+        if (hasConnection && hasDate) break;
+    }
+    if (!hasConnection) {
         buf.append("Connection: close\r\n");
+    }
+
+    // RFC 7231: 源服务器必须在响应中包含 Date 头 [H-M8]
+    if (!hasDate) {
+        buf.append("Date: ");
+        buf.append(QDateTime::currentDateTimeUtc().toString(Qt::RFC2822Date).toUtf8());
+        buf.append("\r\n");
     }
 
     // 空行 + body
@@ -142,6 +162,59 @@ void HttpServer::close() {
     }
 }
 
+void HttpServer::shutdown(int gracePeriodMs) {
+    SC_INFO("HttpServer: starting graceful shutdown, grace period = " +
+            std::to_string(gracePeriodMs) + "ms");
+
+    // 1. 标记为关闭中,停止接受新连接
+    m_shuttingDown.store(true, std::memory_order_release);
+    if (m_tcpServer) {
+        m_tcpServer->pauseAccepting();
+    }
+
+    // 2. 等待 in-flight 请求完成
+    // 使用 QEventLoop 而非 QThread::msleep(),确保事件循环在等待期间仍能处理
+    // in-flight 请求(onReadyRead 槽函数),避免主线程阻塞导致优雅关闭永远超时。
+    if (gracePeriodMs > 0) {
+        const int pollIntervalMs = 100;
+        int elapsed = 0;
+        while (elapsed < gracePeriodMs) {
+            int inFlight = m_inFlightRequests.load(std::memory_order_acquire);
+            if (inFlight == 0) {
+                SC_INFO("HttpServer: all in-flight requests completed in " +
+                        std::to_string(elapsed) + "ms");
+                break;
+            }
+
+            // 嵌套事件循环: 处理待处理事件(包括 onReadyRead/onDisconnected),
+            // 同时通过 QTimer 确保超时控制
+            QEventLoop loop;
+            QTimer::singleShot(pollIntervalMs, &loop, &QEventLoop::quit);
+            loop.exec();
+            elapsed += pollIntervalMs;
+        }
+
+        int remaining = m_inFlightRequests.load(std::memory_order_acquire);
+        if (remaining > 0) {
+            SC_WARN("HttpServer: grace period expired, forcing close with " +
+                    std::to_string(remaining) + " in-flight requests");
+        }
+    }
+
+    // 3. 关闭所有连接
+    close();
+
+    SC_INFO("HttpServer: graceful shutdown completed");
+}
+
+bool HttpServer::isShuttingDown() const noexcept {
+    return m_shuttingDown.load(std::memory_order_acquire);
+}
+
+int HttpServer::inFlightRequests() const noexcept {
+    return m_inFlightRequests.load(std::memory_order_acquire);
+}
+
 bool HttpServer::isListening() const noexcept {
     return m_tcpServer && m_tcpServer->isListening();
 }
@@ -192,6 +265,18 @@ void HttpServer::onNewConnection() {
             continue;
         }
 
+        // v1.9.3: 优雅关闭中,拒绝新连接
+        if (m_shuttingDown.load(std::memory_order_acquire)) {
+            HttpResponse resp;
+            resp.setStatus(503);
+            resp.setBody(QByteArray("Service Unavailable - Server is shutting down"));
+            resp.setHeader("Connection", "close");
+            resp.setHeader("Retry-After", "5");
+            sendResponse(socket, resp);
+            connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
+            continue;
+        }
+
         // v1.9.1: 连接数限制检查
         int maxConns = m_maxConnections.load();
         if (maxConns > 0) {
@@ -204,6 +289,7 @@ void HttpServer::onNewConnection() {
                 resp.setBody(QByteArray("Service Unavailable - Connection limit reached"));
                 resp.setHeader("Retry-After", "5");
                 sendResponse(socket, resp);
+                connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
                 continue;
             }
         }
@@ -232,6 +318,13 @@ void HttpServer::onReadyRead() {
     if (!socket) {
         return;
     }
+
+    // v1.9.3: 追踪 in-flight 请求(RAII 自动递减)
+    m_inFlightRequests.fetch_add(1, std::memory_order_release);
+    struct InFlightGuard {
+        std::atomic<int>& counter;
+        ~InFlightGuard() { counter.fetch_sub(1, std::memory_order_release); }
+    } guard{m_inFlightRequests};
 
     // 累积本次到达的数据到 per-socket 缓冲(支持 HTTP 请求跨 TCP 段到达)
     bool tooLarge = false;

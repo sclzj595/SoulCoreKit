@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(SoulCoreKit VERSION 1.9.2 LANGUAGES CXX)
+project(SoulCoreKit VERSION 1.9.3 LANGUAGES CXX)
 
 include(GenerateExportHeader)
 
@@ -63,6 +63,41 @@ else()
     set(JSON_BuildTests OFF CACHE INTERNAL "")
     FetchContent_MakeAvailable(nlohmann_json)
     message(STATUS "nlohmann/json v3.11.3 fetched via FetchContent successfully")
+endif()
+
+# ============================================================================
+# spdlog - 高性能结构化日志库 (v1.9.3 集成)
+# ============================================================================
+# 替代自研 Logger,提供 fmt 风格格式化 / 异步日志 / JSON 输出
+# 三级备选策略:
+#   1. find_package(spdlog) — CI 环境通过 apt install libspdlog-dev
+#   2. 本地预装路径 G:/MinGW/spdlog — 开发者本地 Windows 环境
+#   3. FetchContent Git shallow clone — 最终备选,需网络访问 GitHub
+find_package(spdlog 1.12.0 QUIET)
+if(spdlog_FOUND)
+    message(STATUS "Using spdlog v${spdlog_VERSION} via find_package")
+elseif(EXISTS "G:/MinGW/spdlog/include/spdlog/spdlog.h")
+    message(STATUS "Using local spdlog from G:/MinGW/spdlog")
+    add_library(spdlog INTERFACE)
+    target_include_directories(spdlog INTERFACE "G:/MinGW/spdlog/include")
+    add_library(spdlog::spdlog ALIAS spdlog)
+    install(TARGETS spdlog EXPORT SoulCoreKitTargets)
+else()
+    message(STATUS "Fetching spdlog v1.14.1 via FetchContent (shallow clone)...")
+    include(FetchContent)
+    FetchContent_Declare(
+        spdlog
+        GIT_REPOSITORY https://github.com/gabime/spdlog.git
+        GIT_TAG        v1.14.1
+        GIT_SHALLOW    TRUE
+        GIT_PROGRESS   TRUE
+    )
+    set(SPDLOG_BUILD_EXAMPLE OFF CACHE INTERNAL "")
+    set(SPDLOG_BUILD_TESTS OFF CACHE INTERNAL "")
+    set(SPDLOG_FMT_EXTERNAL OFF CACHE INTERNAL "")
+    FetchContent_MakeAvailable(spdlog)
+    install(TARGETS spdlog EXPORT SoulCoreKitTargets)
+    message(STATUS "spdlog v1.14.1 fetched via FetchContent successfully")
 endif()
 
 # ZLIB: compress_utils.cpp uses deflate/inflate directly.
@@ -340,6 +375,8 @@ set(SOUL_NETWORK_HEADERS
     include/soul/network/policy/retry_policy.h
     include/soul/network/policy/reconnect_policy.h
     include/soul/network/policy/heartbeat_policy.h
+    include/soul/network/policy/circuit_breaker.h
+    include/soul/network/policy/rate_limiter.h
     include/soul/network/interceptor/i_interceptor.h
     include/soul/network/interceptor/logging_interceptor.h
     include/soul/network/interceptor/auth_interceptor.h
@@ -376,6 +413,8 @@ set(SOUL_NETWORK_SOURCES
     src/soul/network/policy/retry_policy.cpp
     src/soul/network/policy/reconnect_policy.cpp
     src/soul/network/policy/heartbeat_policy.cpp
+    src/soul/network/policy/circuit_breaker.cpp
+    src/soul/network/policy/rate_limiter.cpp
     src/soul/network/interceptor/logging_interceptor.cpp
     src/soul/network/interceptor/auth_interceptor.cpp
     src/soul/network/codec/json_codec.cpp
@@ -624,6 +663,7 @@ target_include_directories(soul_core PUBLIC
 target_link_libraries(soul_core PUBLIC
     Qt6::Core
     nlohmann_json::nlohmann_json
+    spdlog::spdlog
 )
 
 set(SOUL_DATA_HEADERS
@@ -686,6 +726,7 @@ target_include_directories(soul_logging PUBLIC
 target_link_libraries(soul_logging PUBLIC
     Qt6::Core
     soul_core
+    spdlog::spdlog
 )
 
 add_library(soul_network STATIC
@@ -1000,6 +1041,7 @@ set(SOUL_OBSERVABILITY_HEADERS
     include/soul/observability/tracing.h
     include/soul/observability/json_sink.h
     include/soul/observability/resource_pool_monitor.h
+    include/soul/observability/prometheus_exporter.h
 )
 
 set(SOUL_OBSERVABILITY_SOURCES
@@ -1033,6 +1075,33 @@ target_link_libraries(soul_observability PUBLIC
     soul_data
     soul_network
     nlohmann_json::nlohmann_json
+)
+
+# ============================================================================
+# soul_validation 模块 — 声明式输入验证 [v1.9.3 新增]
+# ============================================================================
+
+set(SOUL_VALIDATION_HEADERS
+    include/soul/validation/validator.h
+)
+
+set(SOUL_VALIDATION_SOURCES
+    src/soul/validation/validator.cpp
+)
+
+add_library(soul_validation STATIC
+    ${SOUL_VALIDATION_HEADERS}
+    ${SOUL_VALIDATION_SOURCES}
+)
+
+target_include_directories(soul_validation PUBLIC
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
+
+target_link_libraries(soul_validation PUBLIC
+    Qt6::Core
+    soul_core
 )
 
 # ============================================================================
@@ -1107,6 +1176,8 @@ set(SOUL_SERVER_HEADERS
     include/soul/server/middleware.h
     include/soul/server/health.h
     include/soul/server/websocket_server.h
+    include/soul/server/info_endpoint.h
+    include/soul/server/loggers_endpoint.h
 )
 
 set(SOUL_SERVER_SOURCES
@@ -1131,6 +1202,7 @@ target_link_libraries(soul_server PUBLIC
     Qt6::Network
     soul_core
     soul_logging
+    soul_network
     nlohmann_json::nlohmann_json
 )
 
@@ -1271,6 +1343,7 @@ target_link_libraries(SoulCoreKit INTERFACE
     soul_rpc
     soul_observability
     soul_aop
+    soul_validation
     soul_scheduler
     soul_server
     soul_di
@@ -1332,7 +1405,7 @@ install(TARGETS SoulCoreKit SoulCoreKitUi
                 soul_core soul_data soul_base soul_logging soul_network
                 soul_utils soul_configuration soul_storage soul_cache soul_async
                 soul_event soul_auth soul_mq soul_orm soul_rpc soul_ui soul_di soul_plugin
-                soul_observability soul_aop soul_scheduler soul_server
+                soul_observability soul_aop soul_validation soul_scheduler soul_server
         EXPORT SoulCoreKitTargets
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}

@@ -33,19 +33,37 @@ void MiddlewareChain::clear() {
 // ============================================================================
 
 bool LoggingMiddleware::before(HttpRequest& req, HttpResponse& /*resp*/) {
-    // 记录开始时间(存入请求属性,供 after 计算耗时)
-    req.setHeader("X-Middleware-StartTime",
-                  QString::number(std::chrono::steady_clock::now().time_since_epoch().count()));
+    // 生成不透明 request ID,存储开始时间到内部 map,避免污染请求头
+    std::uint64_t reqId = m_nextRequestId.fetch_add(1, std::memory_order_relaxed);
+    {
+        std::lock_guard<std::mutex> lock(m_timingMutex);
+        m_startTimes[reqId] = std::chrono::steady_clock::now();
+    }
+    // 在请求头中仅携带不透明 ID,不暴露计时数据
+    req.setHeader("X-Request-Id", QString::number(reqId));
     return true;
 }
 
 void LoggingMiddleware::after(const HttpRequest& req, HttpResponse& resp,
                               std::chrono::milliseconds /*duration*/) {
-    // 计算耗时
-    auto startNs = req.header("X-Middleware-StartTime").toLongLong();
-    auto now = std::chrono::steady_clock::now().time_since_epoch().count();
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::nanoseconds(now - startNs));
+    // 从请求头提取 request ID,计算耗时
+    std::uint64_t reqId = req.header("X-Request-Id").toULongLong();
+    std::chrono::steady_clock::time_point startTime;
+    bool found = false;
+    {
+        std::lock_guard<std::mutex> lock(m_timingMutex);
+        auto it = m_startTimes.find(reqId);
+        if (it != m_startTimes.end()) {
+            startTime = it->second;
+            m_startTimes.erase(it);
+            found = true;
+        }
+    }
+
+    auto elapsed = found
+        ? std::chrono::duration_cast<std::chrono::milliseconds>(
+              std::chrono::steady_clock::now() - startTime)
+        : std::chrono::milliseconds(0);
 
     SC_INFO("HttpServer: " + std::string(toString(req.method())) + " " +
             req.path().toStdString() + " -> " + std::to_string(resp.status()) +
@@ -167,6 +185,53 @@ void CorsMiddleware::after(const HttpRequest& /*req*/, HttpResponse& resp,
     if (m_allowCredentials) {
         resp.setHeader("Access-Control-Allow-Credentials", "true");
     }
+}
+
+// ============================================================================
+// RateLimitMiddleware 实现 [v1.9.3]
+// ============================================================================
+
+RateLimitMiddleware::RateLimitMiddleware(std::shared_ptr<sc::network::RateLimiter> limiter)
+    : m_limiter(std::move(limiter)) {
+}
+
+void RateLimitMiddleware::addExcludePath(const std::string& path) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_excludePaths.push_back(path);
+}
+
+bool RateLimitMiddleware::before(HttpRequest& req, HttpResponse& resp) {
+    // 检查排除路径(支持前缀匹配,自动处理尾部斜杠)
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        auto path = req.path().toStdString();
+        bool excluded = std::any_of(m_excludePaths.begin(), m_excludePaths.end(),
+            [&path](const std::string& ep) {
+                if (path.size() >= ep.size() && path.compare(0, ep.size(), ep) == 0) {
+                    // 精确匹配 或 前缀匹配且下一个字符是 '/'
+                    return path.size() == ep.size() || path[ep.size()] == '/';
+                }
+                return false;
+            });
+        if (excluded) {
+            return true;
+        }
+    }
+
+    // 限流检查
+    if (!m_limiter || !m_limiter->tryAcquire()) {
+        resp.setStatus(429);
+        resp.setHeader("Retry-After", "1");
+        resp.setBody(QByteArray("Too Many Requests"));
+        return false;
+    }
+
+    return true;
+}
+
+void RateLimitMiddleware::after(const HttpRequest& /*req*/, HttpResponse& /*resp*/,
+                                std::chrono::milliseconds /*duration*/) {
+    // RateLimitMiddleware 在 after 阶段无操作
 }
 
 } // namespace server

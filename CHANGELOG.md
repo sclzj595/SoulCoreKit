@@ -5,7 +5,83 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.9.1] - 2026-07-29 (In Progress)
+## [1.9.3] - 2026-08-01
+
+**版本类型**: Minor(生产级特性增强,向后兼容)
+
+### Added
+
+#### B3 — spdlog 集成 + 结构化日志
+
+- **CMake 集成**: 通过 FetchContent 引入 spdlog v1.14.1,三级备选策略(find_package / 本地路径 / FetchContent)
+- **Logger 重写**: `Logger` 内部使用 spdlog::logger,保留完全兼容的旧版 API
+  - `toSpdlogLevel()` / `fromSpdlogLevel()` 工具函数映射 sc::LogLevel 与 spdlog::level::level_enum
+  - 新增 spdlog 原生 Sink 管理:`addConsoleSink()` / `addRotatingFileSink()` / `addDailyFileSink()`
+  - 旧版 ISink/CompositeSink 体系保持兼容,同时输出到 spdlog 和旧版 Sink
+- **fmt 风格格式化宏**: `SC_TRACE_FMT` / `SC_DEBUG_FMT` / `SC_INFO_FMT` / `SC_WARN_FMT` / `SC_ERROR_FMT` / `SC_FATAL_FMT`
+- **spdlog 原生宏透传**: `SC_LOG_TRACE` / `SC_LOG_DEBUG` / `SC_LOG_INFO` / `SC_LOG_WARN` / `SC_LOG_ERROR` / `SC_LOG_CRITICAL`
+  - 自动包含文件名/行号/函数名,编译期格式检查
+- `soul_logging` 链接 `spdlog::spdlog`
+
+#### A1 — 熔断器 (CircuitBreaker)
+
+- `include/soul/network/policy/circuit_breaker.h`: 三态熔断器(Closed/Open/HalfOpen)
+  - `tryAcquire()` / `onSuccess()` / `onFailure()` 核心方法
+  - `call(F&& func)` 模板方法:自动包装函数调用,根据返回值自动记录成功/失败
+  - 可配置参数:失败阈值/超时时间/半开最大请求数/滑动窗口大小
+  - 状态变更回调 `setStateChangeCallback()`
+- `src/soul/network/policy/circuit_breaker.cpp`: 实现(状态机/令牌桶/失败计数修剪)
+
+#### A2 — 限流器 (RateLimiter)
+
+- `include/soul/network/policy/rate_limiter.h`: 双算法限流器
+  - `Algorithm::TokenBucket`: 令牌桶(平滑突发)
+  - `Algorithm::SlidingWindow`: 滑动窗口(精确计数)
+  - `tryAcquire()` / `tryAcquire(int permits)` / `availablePermits()`
+- `src/soul/network/policy/rate_limiter.cpp`: 实现
+
+#### A3 — 声明式输入验证 (Validator)
+
+- `include/soul/validation/validator.h`: 声明式验证框架
+  - `ValidationError` / `ValidationResult` 数据结构
+  - `Validator` 类:链式调用 `required()` / `range()` / `length()` / `pattern()` / `email()` / `custom()` / `safeString()`
+- `src/soul/validation/validator.cpp`: 实现
+
+#### B1 — Prometheus 指标导出端点
+
+- `include/soul/observability/prometheus_exporter.h`: Prometheus 文本格式导出器
+  - `exportMetrics()`: 将 Counter/Gauge/Histogram 导出为 OpenMetrics exposition format
+  - 支持带标签(label)指标的导出
+  - 可直接注册到 HttpServer 的 `/metrics` 路由
+
+#### B2 — HTTP Server 优雅关闭
+
+- `include/soul/server/http_server.h` + `src/soul/server/http_server.cpp`:
+  - `shutdown(int gracePeriodMs)`: 优雅关闭,停止接受新连接,等待 in-flight 请求完成
+  - `isShuttingDown()` / `inFlightRequests()`: 关闭状态和请求数查询
+  - 超时后强制关闭,防止无限等待
+
+#### soul_validation 模块 + test_health
+
+- `CMakeLists.txt`: 新增 `soul_validation` 静态库,加入 `SoulCoreKit` 聚合库和 `install` 导出
+- `tests/test_health.cpp`: 健康检查端点测试(8 个测试类,26 个用例)
+  - HealthStatus / HealthDetail / HealthReport / CustomIndicator
+  - HealthEndpoint (readiness/liveness/clear)
+  - MqHealthIndicator / NetworkHealthIndicator / ResourcePoolHealthIndicator
+
+### Changed
+
+- **Logger**: 内部实现从自研切换为 spdlog,性能提升,支持 fmt 风格格式化
+- **CMakeLists.txt**:
+  - 新增 spdlog FetchContent 集成块(三级备选策略)
+  - `soul_core` 新增 `spdlog::spdlog` 依赖(日志宏需要 spdlog 头文件)
+  - `soul_network` 新增 `circuit_breaker` / `rate_limiter` 源文件
+  - `soul_observability` 新增 `prometheus_exporter.h` 头文件
+  - 新增 `soul_validation` 模块
+  - `install(TARGETS ...)` 新增 `soul_validation` + `spdlog`(FetchContent 分支)
+- `test_observability.cpp`: 修复 `testInjectToHeaders` 中 const 引用写操作导致的编译错误
+
+## [1.9.1] - 2026-07-29
 
 **版本类型**: Patch(定位修正 + 功能补全,向后兼容)
 

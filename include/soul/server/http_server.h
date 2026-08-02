@@ -73,7 +73,7 @@ enum class HttpMethod {
 };
 
 /// @brief HTTP 方法转字符串
-inline const char* toString(HttpMethod method) {
+inline const char* toString(HttpMethod method) noexcept {
     switch (method) {
         case HttpMethod::Get:     return "GET";
         case HttpMethod::Post:    return "POST";
@@ -202,8 +202,21 @@ public:
     /// @return 是否成功
     bool listen(const QHostAddress& address = QHostAddress::Any, quint16 port = 0);
 
-    /// @brief 停止监听并关闭所有连接
+    /// @brief 停止监听并关闭所有连接(立即关闭)
     void close();
+
+    /// @brief 优雅关闭 [v1.9.3 新增]
+    /// @param gracePeriodMs 等待已完成请求的最长时间(毫秒,默认 5000)
+    /// @note 1. 停止接受新连接,返回 503 给新连接
+    ///       2. 等待 in-flight 请求完成(最多 gracePeriodMs)
+    ///       3. 超时后强制关闭所有连接
+    void shutdown(int gracePeriodMs = 5000);
+
+    /// @return 是否正在优雅关闭
+    bool isShuttingDown() const noexcept;
+
+    /// @return 当前正在处理的请求数
+    int inFlightRequests() const noexcept;
 
     /// @return 是否正在监听
     bool isListening() const noexcept;
@@ -325,6 +338,9 @@ private:
     std::unordered_map<QTcpSocket*, QByteArray> m_buffers;
     // v1.9.1: 中间件链
     std::unique_ptr<MiddlewareChain> m_middlewareChain;
+    // v1.9.3: 优雅关闭
+    std::atomic<bool> m_shuttingDown{false};
+    std::atomic<int>  m_inFlightRequests{0};
 };
 
 } // namespace server

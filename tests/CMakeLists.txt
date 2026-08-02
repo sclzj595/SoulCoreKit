@@ -403,20 +403,24 @@ add_test(NAME test_mq COMMAND test_mq)
 add_test(NAME test_ui COMMAND test_ui)
 
 # GAP-06: Split UI component tests
-add_executable(test_ui_button
-    test_ui_button.cpp
-)
+if(TARGET Qt6::Widgets)
+    add_executable(test_ui_button
+        test_ui_button.cpp
+    )
 
-target_link_libraries(test_ui_button PRIVATE
-    Qt6::Test
-    Qt6::Widgets
-    Qt6::Core
-    soul_core
-    soul_ui
-    soul_logging
-)
+    target_link_libraries(test_ui_button PRIVATE
+        Qt6::Test
+        Qt6::Widgets
+        Qt6::Core
+        soul_core
+        soul_ui
+        soul_logging
+    )
 
-windeployqt_post_build(test_ui_button TRUE)
+    windeployqt_post_build(test_ui_button TRUE)
+
+    add_test(NAME test_ui_button COMMAND test_ui_button)
+endif()
 
 add_executable(test_ui_switch
     test_ui_switch.cpp
@@ -494,7 +498,6 @@ endif()
 
 windeployqt_post_build(test_ui_window TRUE)
 
-add_test(NAME test_ui_button COMMAND test_ui_button)
 add_test(NAME test_ui_switch COMMAND test_ui_switch)
 add_test(NAME test_ui_avatar COMMAND test_ui_avatar)
 add_test(NAME test_ui_dropdown COMMAND test_ui_dropdown)
@@ -589,6 +592,23 @@ windeployqt_post_build(test_http_server TRUE)
 
 add_test(NAME test_http_server COMMAND test_http_server)
 
+# v1.9.3: 健康检查端点测试
+add_executable(test_health
+    test_health.cpp
+)
+
+target_link_libraries(test_health PRIVATE
+    Qt6::Test
+    Qt6::Core
+    soul_server
+    soul_core
+    soul_logging
+)
+
+windeployqt_post_build(test_health TRUE)
+
+add_test(NAME test_health COMMAND test_health)
+
 # v1.9.1: WebSocket Server 测试
 add_executable(test_websocket_server
     test_websocket_server.cpp
@@ -663,175 +683,146 @@ windeployqt_post_build(test_repository_factory TRUE)
 add_test(NAME test_repository_factory COMMAND test_repository_factory)
 
 # v1.9.1: UI 组件补充测试 (GlassWidget/Animation/IconManager)
-add_executable(test_ui_components1
-    test_ui_components1.cpp
-)
+if(TARGET Qt6::Widgets)
+    add_executable(test_ui_components1
+        test_ui_components1.cpp
+    )
 
-target_link_libraries(test_ui_components1 PRIVATE
-    Qt6::Test
-    Qt6::Widgets
-    Qt6::Core
-    Qt6::Gui
-    soul_core
-    soul_ui
-    soul_logging
-)
+    target_link_libraries(test_ui_components1 PRIVATE
+        Qt6::Test
+        Qt6::Widgets
+        Qt6::Core
+        Qt6::Gui
+        soul_core
+        soul_ui
+        soul_logging
+    )
 
-windeployqt_post_build(test_ui_components1 TRUE)
+    windeployqt_post_build(test_ui_components1 TRUE)
 
-add_test(NAME test_ui_components1 COMMAND test_ui_components1)
+    add_test(NAME test_ui_components1 COMMAND test_ui_components1)
+endif()
 
 # v1.9.1: UI 组件补充测试 (BaseDialog/BaseViewModel)
-add_executable(test_ui_components2
-    test_ui_components2.cpp
-)
+if(TARGET Qt6::Widgets)
+    add_executable(test_ui_components2
+        test_ui_components2.cpp
+    )
 
-target_link_libraries(test_ui_components2 PRIVATE
-    Qt6::Test
-    Qt6::Widgets
-    Qt6::Core
-    soul_core
-    soul_ui
-    soul_logging
-)
+    target_link_libraries(test_ui_components2 PRIVATE
+        Qt6::Test
+        Qt6::Widgets
+        Qt6::Core
+        soul_core
+        soul_ui
+        soul_logging
+    )
 
-windeployqt_post_build(test_ui_components2 TRUE)
+    windeployqt_post_build(test_ui_components2 TRUE)
 
-add_test(NAME test_ui_components2 COMMAND test_ui_components2)
-
-# DEBUG: 临时调试测试
-add_executable(test_debug_ui
-    test_debug_ui.cpp
-)
-
-target_link_libraries(test_debug_ui PRIVATE
-    Qt6::Test
-    Qt6::Widgets
-    Qt6::Core
-    soul_core
-    soul_ui
-    soul_logging
-)
-
-windeployqt_post_build(test_debug_ui TRUE)
-
-# Diagnostic: minimal test to isolate crash
-add_executable(test_minimal_crash
-    test_minimal_crash.cpp
-)
-target_link_libraries(test_minimal_crash PRIVATE
-    Qt6::Test
-    Qt6::Widgets
-    Qt6::Core
-    soul_core
-    soul_ui
-    soul_logging
-)
-windeployqt_post_build(test_minimal_crash TRUE)
-
-# Diagnostic: minimal test with only Qt, no soul libraries
-add_executable(test_minimal_qt
-    test_minimal_qt.cpp
-)
-target_link_libraries(test_minimal_qt PRIVATE
-    Qt6::Test
-    Qt6::Widgets
-    Qt6::Core
-)
-windeployqt_post_build(test_minimal_qt TRUE)
-
-# Diagnostic: minimal test with soul_core only
-add_executable(test_minimal_core
-    test_minimal_crash.cpp
-)
-target_link_libraries(test_minimal_core PRIVATE
-    Qt6::Test
-    Qt6::Widgets
-    Qt6::Core
-    soul_core
-)
-windeployqt_post_build(test_minimal_core TRUE)
-
-# Diagnostic: minimal test with QCoreApplication only
-add_executable(test_minimal_coreapp
-    test_minimal_coreapp.cpp
-)
-target_link_libraries(test_minimal_coreapp PRIVATE
-    Qt6::Core
-)
-windeployqt_post_build(test_minimal_coreapp TRUE)
+    add_test(NAME test_ui_components2 COMMAND test_ui_components2)
+endif()
 
 # v1.9.1: UI 组件补充测试 (Checkbox/Card/Badge/Input/Progress)
-add_executable(test_ui_components3
-    test_ui_components3.cpp
-)
+if(TARGET Qt6::Widgets)
+    add_executable(test_ui_components3
+        test_ui_components3.cpp
+    )
 
-target_link_libraries(test_ui_components3 PRIVATE
-    Qt6::Test
-    Qt6::Widgets
-    Qt6::Core
-    soul_core
-    soul_ui
-    soul_logging
-)
+    target_link_libraries(test_ui_components3 PRIVATE
+        Qt6::Test
+        Qt6::Widgets
+        Qt6::Core
+        soul_core
+        soul_ui
+        soul_logging
+    )
 
-windeployqt_post_build(test_ui_components3 TRUE)
+    windeployqt_post_build(test_ui_components3 TRUE)
 
-add_test(NAME test_ui_components3 COMMAND test_ui_components3)
+    add_test(NAME test_ui_components3 COMMAND test_ui_components3)
+endif()
 
 # v1.9.1: UI 组件补充测试 (Slider/Spinner/TabBar/Toast/ToolTip)
-add_executable(test_ui_components4
-    test_ui_components4.cpp
-)
+if(TARGET Qt6::Widgets)
+    add_executable(test_ui_components4
+        test_ui_components4.cpp
+    )
 
-target_link_libraries(test_ui_components4 PRIVATE
-    Qt6::Test
-    Qt6::Widgets
-    Qt6::Core
-    soul_core
-    soul_ui
-    soul_logging
-)
+    target_link_libraries(test_ui_components4 PRIVATE
+        Qt6::Test
+        Qt6::Widgets
+        Qt6::Core
+        soul_core
+        soul_ui
+        soul_logging
+    )
 
-windeployqt_post_build(test_ui_components4 TRUE)
+    windeployqt_post_build(test_ui_components4 TRUE)
 
-add_test(NAME test_ui_components4 COMMAND test_ui_components4)
+    add_test(NAME test_ui_components4 COMMAND test_ui_components4)
+endif()
 
 # v1.9.1: UI 组件补充测试 (Loading/EmptyWidget/Page/SideBar/Navigation)
-add_executable(test_ui_components5
-    test_ui_components5.cpp
-)
+if(TARGET Qt6::Widgets)
+    add_executable(test_ui_components5
+        test_ui_components5.cpp
+    )
 
-target_link_libraries(test_ui_components5 PRIVATE
-    Qt6::Test
-    Qt6::Widgets
-    Qt6::Core
-    soul_core
-    soul_ui
-    soul_logging
-)
+    target_link_libraries(test_ui_components5 PRIVATE
+        Qt6::Test
+        Qt6::Widgets
+        Qt6::Core
+        soul_core
+        soul_ui
+        soul_logging
+    )
 
-windeployqt_post_build(test_ui_components5 TRUE)
+    windeployqt_post_build(test_ui_components5 TRUE)
 
-add_test(NAME test_ui_components5 COMMAND test_ui_components5)
+    add_test(NAME test_ui_components5 COMMAND test_ui_components5)
+endif()
 
 # v1.9.1: UI 组件补充测试 (BaseWidget/BaseView/Icon/ScrollBar)
-add_executable(test_ui_components6
-    test_ui_components6.cpp
+if(TARGET Qt6::Widgets)
+    add_executable(test_ui_components6
+        test_ui_components6.cpp
+    )
+
+    target_link_libraries(test_ui_components6 PRIVATE
+        Qt6::Test
+        Qt6::Widgets
+        Qt6::Core
+        soul_core
+        soul_ui
+        soul_logging
+    )
+
+    windeployqt_post_build(test_ui_components6 TRUE)
+
+    add_test(NAME test_ui_components6 COMMAND test_ui_components6)
+endif()
+
+# v1.9.3: CircuitBreaker / RateLimiter / Validator / InfoEndpoint / LoggersEndpoint 综合测试
+add_executable(test_v193_components
+    test_v193_components.cpp
 )
 
-target_link_libraries(test_ui_components6 PRIVATE
+target_link_libraries(test_v193_components PRIVATE
     Qt6::Test
-    Qt6::Widgets
     Qt6::Core
+    Qt6::Network
+    soul_server
+    soul_network
+    soul_validation
+    soul_observability
     soul_core
-    soul_ui
     soul_logging
 )
 
-windeployqt_post_build(test_ui_components6 TRUE)
+windeployqt_post_build(test_v193_components TRUE)
 
-add_test(NAME test_ui_components6 COMMAND test_ui_components6)
+add_test(NAME test_v193_components COMMAND test_v193_components)
 
 # v1.9.1: C++20 coroutine support tests (GAP-15)
 if(ENABLE_CXX20)

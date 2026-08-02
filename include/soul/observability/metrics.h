@@ -5,6 +5,7 @@
 #include <QVariant>
 #include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -350,6 +351,8 @@ public:
 
     /// @brief 清空所有指标（仅用于测试）
     void clear();
+    /// @note Not safe to call concurrently with allMetrics()/exportMetrics()
+    /// (raw pointer snapshots). Test-only.
 
 private:
     MetricsRegistry() = default;

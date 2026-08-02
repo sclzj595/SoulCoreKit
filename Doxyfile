@@ -6,8 +6,8 @@
 # Project related configuration options
 #---------------------------------------------------------------------------
 PROJECT_NAME           = "SoulCoreKit"
-PROJECT_NUMBER         = "1.8.0"
-PROJECT_BRIEF          = "Qt-based cross-platform utility framework"
+PROJECT_NUMBER         = "1.9.3"
+PROJECT_BRIEF          = "Qt CS 架构 · SpringBoot 风格脚手架 — 工业级 C++ 应用开发框架"
 PROJECT_LOGO           =
 OUTPUT_DIRECTORY       = docs
 CREATE_SUBDIRS         = YES

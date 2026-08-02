@@ -1,3 +1,4 @@
+#include <QApplication>
 #include <QTest>
 #include <QSignalSpy>
 #include <QVariant>
@@ -776,5 +777,12 @@ void TestBase::testBaseDialogAddMultipleButtons() {
     QCOMPARE(buttons.at(1)->text(), QStringLiteral("Cancel"));
 }
 
-QTEST_MAIN(TestBase)
+// Custom main() to ensure QApplication is created (QTEST_MAIN may create
+// QCoreApplication when QtWidgets headers are not included before <QTest>).
+int main(int argc, char* argv[]) {
+    QApplication app(argc, argv);
+    app.setAttribute(Qt::AA_Use96Dpi, true);
+    TestBase tc;
+    return QTest::qExec(&tc, argc, argv);
+}
 #include "test_base.moc"

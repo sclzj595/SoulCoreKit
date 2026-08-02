@@ -1,6 +1,7 @@
 # Build directories
 build/
 build_*/
+build-*/
 cmake-build-*/
 Makefile
 *.make
@@ -61,6 +62,10 @@ qrc_*
 /*_log.txt
 /*_log*.txt
 /*_output.txt
+/stderr.txt
+/stdout.txt
+/*.log
+*.bak
 
 # Configuration files
 .env

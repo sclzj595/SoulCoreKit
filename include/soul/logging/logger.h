@@ -5,6 +5,11 @@
 #include "soul/logging/log_record.h"
 #include "soul/logging/i_sink.h"
 #include "soul/logging/composite_sink.h"
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/sinks/rotating_file_sink.h>
+#include <spdlog/sinks/daily_file_sink.h>
+#include <atomic>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -13,28 +18,88 @@
 
 namespace sc {
 
+// ============================================================================
+// 日志格式化工具函数
+// ============================================================================
+
+/// @brief 将 sc::LogLevel 映射为 spdlog::level::level_enum
+inline spdlog::level::level_enum toSpdlogLevel(LogLevel level) {
+    switch (level) {
+    case LogLevel::Trace: return spdlog::level::trace;
+    case LogLevel::Debug: return spdlog::level::debug;
+    case LogLevel::Info:  return spdlog::level::info;
+    case LogLevel::Warn:  return spdlog::level::warn;
+    case LogLevel::Error: return spdlog::level::err;
+    case LogLevel::Fatal: return spdlog::level::critical;
+    default:              return spdlog::level::info;
+    }
+}
+
+/// @brief 将 spdlog::level::level_enum 映射回 sc::LogLevel
+inline LogLevel fromSpdlogLevel(spdlog::level::level_enum level) {
+    switch (level) {
+    case spdlog::level::trace:    return LogLevel::Trace;
+    case spdlog::level::debug:    return LogLevel::Debug;
+    case spdlog::level::info:     return LogLevel::Info;
+    case spdlog::level::warn:     return LogLevel::Warn;
+    case spdlog::level::err:      return LogLevel::Error;
+    case spdlog::level::critical: return LogLevel::Fatal;
+    default:                      return LogLevel::Info;
+    }
+}
+
 class Logger {
 public:
     static Logger& instance();
+
+    // ========================================================================
+    // 日志级别控制
+    // ========================================================================
 
     void setLogLevel(LogLevel level);
     LogLevel logLevel() const;
 
     /// @brief 设置模块级日志级别 [v1.9.2 新增]
-    /// @param module 模块名称(如 "orm", "network", "auth")
-    /// @param level  最低输出级别
     void setModuleLogLevel(const std::string& module, LogLevel level);
 
     /// @brief 获取模块级日志级别 [v1.9.2 新增]
-    /// @param module 模块名称
-    /// @return 模块日志级别,未设置时返回全局级别
     LogLevel moduleLogLevel(const std::string& module) const;
 
-    /// @brief 移除模块级日志级别(恢复全局级别) [v1.9.2 新增]
+    /// @brief 移除模块级日志级别 [v1.9.2 新增]
     void removeModuleLogLevel(const std::string& module);
+
+    // ========================================================================
+    // Sink 管理 (兼容旧版 ISink 体系)
+    // ========================================================================
 
     void addSink(std::shared_ptr<ISink> sink);
     void removeSink(ISink* sink);
+
+    // ========================================================================
+    // spdlog 原生 Sink 管理 [v1.9.3 新增]
+    // ========================================================================
+
+    /// @brief 添加控制台输出 (带颜色)
+    void addConsoleSink();
+
+    /// @brief 添加滚动文件输出
+    /// @param filePath 日志文件路径
+    /// @param maxFileSize 单个文件最大大小(字节)
+    /// @param maxFiles 最大保留文件数
+    void addRotatingFileSink(const std::string& filePath,
+                             size_t maxFileSize = 10 * 1024 * 1024,
+                             size_t maxFiles = 5);
+
+    /// @brief 添加按天滚动文件输出
+    /// @param filePath 日志文件路径
+    /// @param hour 每天滚动时间(小时, 0-23)
+    /// @param minute 每天滚动时间(分钟, 0-59)
+    void addDailyFileSink(const std::string& filePath,
+                          int hour = 0, int minute = 0);
+
+    // ========================================================================
+    // 日志输出 API (兼容旧版)
+    // ========================================================================
 
     void log(LogLevel level, const std::string& message);
     void log(LogLevel level, const QString& message);
@@ -103,16 +168,84 @@ public:
     void fatal(const std::string& message, const std::string& module, const std::string& operation = "") { log(LogLevel::Fatal, message, module, operation); }
     void fatal(const QString& message, const QString& module, const QString& operation = "") { log(LogLevel::Fatal, message, module, operation); }
 
+    // ========================================================================
+    // fmt 风格格式化日志 [v1.9.3 新增]
+    // ========================================================================
+    // 用法: Logger::instance().logFmt(LogLevel::Info, "User {} logged in", userId);
+    //       Logger::instance().infoFmt("User {} logged in from {}", name, ip);
+
+    template<typename... Args>
+    void logFmt(LogLevel level, spdlog::format_string_t<Args...> fmt, Args&&... args) {
+        checkAndLog(level, fmt, std::forward<Args>(args)...);
+    }
+
+    template<typename... Args>
+    void traceFmt(spdlog::format_string_t<Args...> fmt, Args&&... args) {
+        checkAndLog(LogLevel::Trace, fmt, std::forward<Args>(args)...);
+    }
+
+    template<typename... Args>
+    void debugFmt(spdlog::format_string_t<Args...> fmt, Args&&... args) {
+        checkAndLog(LogLevel::Debug, fmt, std::forward<Args>(args)...);
+    }
+
+    template<typename... Args>
+    void infoFmt(spdlog::format_string_t<Args...> fmt, Args&&... args) {
+        checkAndLog(LogLevel::Info, fmt, std::forward<Args>(args)...);
+    }
+
+    template<typename... Args>
+    void warnFmt(spdlog::format_string_t<Args...> fmt, Args&&... args) {
+        checkAndLog(LogLevel::Warn, fmt, std::forward<Args>(args)...);
+    }
+
+    template<typename... Args>
+    void errorFmt(spdlog::format_string_t<Args...> fmt, Args&&... args) {
+        checkAndLog(LogLevel::Error, fmt, std::forward<Args>(args)...);
+    }
+
+    template<typename... Args>
+    void fatalFmt(spdlog::format_string_t<Args...> fmt, Args&&... args) {
+        checkAndLog(LogLevel::Fatal, fmt, std::forward<Args>(args)...);
+    }
+
+    // ========================================================================
+    // 生命周期管理
+    // ========================================================================
+
     void flush();
     void init();
     void shutdown();
 
+    /// @brief 获取底层 spdlog::logger (供高级用法)
+    std::shared_ptr<spdlog::logger> spdlogLogger() {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_spdlogLogger;
+    }
+
 private:
     Logger();
 
-    LogLevel m_level = LogLevel::Debug;
-    std::unordered_map<std::string, LogLevel> m_moduleLevels;  ///< [v1.9.2] 模块级日志级别
-    std::shared_ptr<CompositeSink> m_sink;
+    template<typename... Args>
+    void checkAndLog(LogLevel level, spdlog::format_string_t<Args...> fmt, Args&&... args) {
+        // 全局级别检查(atomic 读,防止与 setLogLevel 并发数据竞争)
+        // @note fmt 风格 API 不支持模块级过滤(API 不接受 module 参数),
+        //       仅检查全局 m_level。需要模块级过滤请使用 log(level, msg, module)。
+        if (level < m_level.load(std::memory_order_acquire)) return;
+
+        // 持锁防止与 add*Sink 并发修改 sinks 向量
+        std::lock_guard<std::mutex> lock(m_mutex);
+        // Note: Fmt-style logging bypasses the legacy ISink (m_legacySink).
+        // Use spdlog sinks (addConsoleSink etc.) for output routing.
+        if (m_spdlogLogger) {
+            m_spdlogLogger->log(toSpdlogLevel(level), fmt, std::forward<Args>(args)...);
+        }
+    }
+
+    std::atomic<LogLevel> m_level{LogLevel::Debug};
+    std::unordered_map<std::string, LogLevel> m_moduleLevels;
+    std::shared_ptr<CompositeSink> m_legacySink;   ///< 兼容旧版 ISink
+    std::shared_ptr<spdlog::logger> m_spdlogLogger;
     mutable std::mutex m_mutex;
 };
 
