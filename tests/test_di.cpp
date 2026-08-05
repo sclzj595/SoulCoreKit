@@ -6,6 +6,8 @@
 #include "soul/di/container.h"
 #include "soul/di/module.h"
 
+using namespace sc;
+
 class TestService {
 public:
     virtual ~TestService() = default;
@@ -61,6 +63,11 @@ private slots:
     void testThreadSafety();
     void testSingletonWrapper();
     void testSingletonIntegration();
+
+    // [v2.5.2] 边界测试
+    void testDoubleRegistration();
+    void testResolveUnregistered();
+    void testUnregisterAndReregister();
 };
 
 void TestDI::initTestCase()
@@ -238,6 +245,62 @@ void TestDI::testSingletonIntegration()
 
     GlobalSingleton::instance().setValue(200);
     QCOMPARE(resolved.unwrap()->value(), 200);
+}
+
+// ============================================================================
+// [v2.5.2] 边界测试
+// ============================================================================
+
+void TestDI::testDoubleRegistration()
+{
+    auto& container = sc::di::Container::instance();
+    container.clear();
+
+    // 第一次注册成功
+    auto r1 = container.bind<StatefulService>([]() { return new StatefulService(); });
+    QVERIFY(r1.isOk());
+
+    // 第二次注册同一类型应返回 AlreadyExists 错误
+    auto r2 = container.bind<StatefulService>([]() { return new StatefulService(); });
+    QVERIFY(r2.isErr());
+    QCOMPARE(r2.unwrapErr().code(), ErrorCode::AlreadyExists);
+}
+
+void TestDI::testResolveUnregistered()
+{
+    auto& container = sc::di::Container::instance();
+    container.clear();
+
+    // 解析未注册的类型应返回 NotFound 错误
+    auto result = container.resolve<StatefulService>();
+    QVERIFY(result.isErr());
+    QCOMPARE(result.unwrapErr().code(), ErrorCode::NotFound);
+}
+
+void TestDI::testUnregisterAndReregister()
+{
+    auto& container = sc::di::Container::instance();
+    container.clear();
+
+    // 注册并解析
+    (void)container.bind<StatefulService>([]() { return new StatefulService(); });
+    QVERIFY(container.isRegistered<StatefulService>());
+
+    auto r1 = container.resolve<StatefulService>();
+    QVERIFY(r1.isOk());
+    QCOMPARE(r1.unwrap()->getCounter(), 0);
+
+    // 注销
+    container.unregister<StatefulService>();
+    QVERIFY(!container.isRegistered<StatefulService>());
+
+    // 重新注册
+    auto r2 = container.bind<StatefulService>([]() { return new StatefulService(); });
+    QVERIFY(r2.isOk());
+
+    auto r3 = container.resolve<StatefulService>();
+    QVERIFY(r3.isOk());
+    QCOMPARE(r3.unwrap()->getCounter(), 0);  // 新实例，计数器重置
 }
 
 QTEST_APPLESS_MAIN(TestDI)

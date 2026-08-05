@@ -1,4 +1,4 @@
-﻿#include <QTest>
+#include <QTest>
 #include <QCoreApplication>
 #include <string>
 #include "soul/core/time.h"
@@ -6,6 +6,107 @@
 #include "soul/core/version.h"
 #include "soul/core/platform.h"
 #include "soul/core/environment.h"
+#include "soul/core/result.h"
+
+using namespace sc;
+
+// ============================================================================
+// Result<T> 边界测试 — 错误处理模式验证
+// ============================================================================
+class TestResult : public QObject {
+    Q_OBJECT
+
+private slots:
+    void testOkResult();
+    void testErrorResult();
+    void testIsOkIsErr();
+    void testUnwrapErr();
+    void testErrorCode();
+    void testMoveSemantics();
+    void testConstResult();
+    void testResultWithSharedPtr();
+};
+
+void TestResult::testOkResult()
+{
+    Result<int> result = Ok(42);
+    QVERIFY(result.isOk());
+    QVERIFY(!result.isErr());
+    QCOMPARE(result.unwrap(), 42);
+}
+
+void TestResult::testErrorResult()
+{
+    Result<int> result = Error(ErrorCode::NotFound, "resource not found");
+    QVERIFY(!result.isOk());
+    QVERIFY(result.isErr());
+}
+
+void TestResult::testIsOkIsErr()
+{
+    // Ok 路径
+    Result<std::string> ok = Ok(std::string("hello"));
+    QVERIFY(ok.isOk());
+    QVERIFY(!ok.isErr());
+
+    // Error 路径
+    Result<std::string> err = Error(ErrorCode::InternalError, "something broke");
+    QVERIFY(!err.isOk());
+    QVERIFY(err.isErr());
+}
+
+void TestResult::testUnwrapErr()
+{
+    Result<int> result = Error(ErrorCode::InvalidArgument, "bad input");
+    QVERIFY(result.isErr());
+    auto err = result.unwrapErr();
+    QCOMPARE(err.code(), ErrorCode::InvalidArgument);
+    QVERIFY(err.message().contains("bad input"));
+}
+
+void TestResult::testErrorCode()
+{
+    auto notFound = Error(ErrorCode::NotFound, "missing");
+    QCOMPARE(notFound.code(), ErrorCode::NotFound);
+
+    auto alreadyExists = Error(ErrorCode::AlreadyExists, "duplicate");
+    QCOMPARE(alreadyExists.code(), ErrorCode::AlreadyExists);
+
+    auto internal = Error(ErrorCode::InternalError, "crash");
+    QCOMPARE(internal.code(), ErrorCode::InternalError);
+}
+
+void TestResult::testMoveSemantics()
+{
+    Result<int> r1 = Ok(100);
+    QVERIFY(r1.isOk());
+
+    // 移动构造
+    Result<int> r2 = std::move(r1);
+    QVERIFY(r2.isOk());
+    QCOMPARE(r2.unwrap(), 100);
+
+    // 移动赋值
+    Result<int> r3 = Error(ErrorCode::NotFound, "gone");
+    r3 = std::move(r2);
+    QVERIFY(r3.isOk());
+    QCOMPARE(r3.unwrap(), 100);
+}
+
+void TestResult::testConstResult()
+{
+    const Result<int> result = Ok(42);
+    QVERIFY(result.isOk());
+    QCOMPARE(result.unwrap(), 42);
+}
+
+void TestResult::testResultWithSharedPtr()
+{
+    auto ptr = std::make_shared<int>(99);
+    Result<std::shared_ptr<int>> result = Ok(std::move(ptr));
+    QVERIFY(result.isOk());
+    QCOMPARE(*result.unwrap(), 99);
+}
 
 class TestTime : public QObject {
     Q_OBJECT
@@ -568,6 +669,10 @@ int main(int argc, char* argv[]) {
     QCoreApplication app(argc, argv);
     int result = 0;
 
+    {
+        TestResult t;
+        result |= QTest::qExec(&t, argc, argv);
+    }
     {
         TestTime t;
         result |= QTest::qExec(&t, argc, argv);

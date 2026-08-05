@@ -88,6 +88,26 @@ public:
     void setConfig(const Config& config);
     Config config() const;
 
+    /// @brief 设置动态扩缩容参数 [v1.9.4]
+    /// @param minSize 最小连接数(空闲时维持的基准连接)
+    /// @param maxSize 最大连接数(高峰时扩容上限)
+    /// @details 基于负载自动调整:
+    ///          - 扩容: 等待队列非空且当前连接数 < maxSize 时,按需创建新连接
+    ///          - 缩容: cleanupIdleConnections() 清理超过 minSize 的空闲连接
+    void setDynamicResize(int minSize, int maxSize) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_config.minConnections = minSize;
+        m_config.maxConnections = maxSize;
+    }
+
+    /// @brief 查询是否启用动态扩缩容 [v1.9.4]
+    /// @return true 当 minConnections > 0 且 maxConnections > minConnections
+    bool isDynamicResizeEnabled() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_config.minConnections > 0 &&
+               m_config.maxConnections > m_config.minConnections;
+    }
+
     // v1.9.0: 资源池监控统计接口(供 NetworkConnectionPoolMonitor 适配器使用)
     // 不改变现有连接管理语义,仅暴露当前水位快照
     int activeCount() const;  ///< 正在使用的连接数

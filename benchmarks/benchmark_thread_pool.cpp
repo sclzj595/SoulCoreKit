@@ -17,6 +17,9 @@ int main(int argc, char* argv[])
     const int iterations = 100000;
     std::atomic<int> counter(0);
 
+    // [v1.9.4] 初始化自定义线程池,否则 start() 回退到 QThreadPool
+    sc::ThreadPool::instance().init();
+
     timer.start();
     for (int i = 0; i < iterations; ++i)
     {

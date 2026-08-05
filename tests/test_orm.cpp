@@ -19,7 +19,7 @@ using namespace sc::data;
 
 class TestUser : public Entity<TestUser> {
 public:
-    SC_TABLE(TestUser, "users")
+    SC_ENTITY_TABLE(TestUser, "users")
 
     SC_FIELD(QString, name)
     SC_FIELD(int, age)
@@ -769,7 +769,7 @@ void TestTypedQueryWrapper::testTypeMismatchFailsToCompile() {
 // 使用反射宏的实体（与 TestUser 形成对比：零样板 getPropertyImpl/setPropertyImpl）
 class ReflectedUser : public Entity<ReflectedUser> {
 public:
-    SC_TABLE(ReflectedUser, "reflected_users")
+    SC_ENTITY_TABLE(ReflectedUser, "reflected_users")
 
     QString name;
     int     age;

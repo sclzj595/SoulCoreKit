@@ -43,10 +43,6 @@
 #include "soul/network/core/inetwork.h"
 
 namespace sc {
-class IEventBus;
-}
-
-namespace sc {
 namespace network {
 
 class HeartbeatPolicy;
@@ -100,7 +96,7 @@ struct ConnectionConfig {
 //   1. 状态轮询 — QTimer 定期检查 isConnected(),检测断线
 //   2. 指数退避重连 — 复用 ReconnectPolicy 的退避算法
 //   3. 心跳保活 — 可选 HeartbeatPolicy 集成
-//   4. 状态通知 — 通过 EventBus 发布 ConnectionStateEvent
+//   4. 状态通知 — 通过 StateListener 回调或 Qt 信号通知
 //
 // 线程安全: 注册/查询加锁,状态轮询在 Qt 事件循环线程
 //
@@ -108,9 +104,19 @@ struct ConnectionConfig {
 class SC_NETWORK_EXPORT ConnectionManager : public QObject {
     Q_OBJECT
 public:
-    /// @param eventBus 事件总线(可选,为 nullptr 则不发布事件)
+    /// @brief 状态变更监听器回调类型
+    /// @param name          连接名称
+    /// @param state         新状态
+    /// @param previousState 旧状态
+    /// @param message       附加消息（可选）
+    using StateListener = std::function<void(const std::string& name,
+                                             ManagedConnectionState state,
+                                             ManagedConnectionState previousState,
+                                             const std::string& message)>;
+
+    /// @param listener 状态变更监听器(可选,为 nullptr 则不回调)
     /// @param parent   Qt 父对象
-    explicit ConnectionManager(std::shared_ptr<IEventBus> eventBus = nullptr,
+    explicit ConnectionManager(StateListener listener = nullptr,
                                QObject* parent = nullptr);
     ~ConnectionManager() override;
 
@@ -158,11 +164,6 @@ public:
     /// @return 所有已注册连接名称
     std::vector<std::string> connectionNames() const;
 
-    // === EventBus 主题常量 ===
-
-    /// @brief 连接状态变更事件主题
-    static constexpr const char* TOPIC_CONNECTION_STATE = "network.connection.state";
-
 signals:
     /// @brief 连接状态变更信号
     void connectionStateChanged(const std::string& name,
@@ -179,7 +180,7 @@ private:
         int retryCount = 0;
     };
 
-    std::shared_ptr<IEventBus> m_eventBus;
+    StateListener m_stateListener;  // [v2.5.1] 替代 IEventBus，消除 soul_event 依赖
     std::unordered_map<std::string, ManagedConnection> m_connections;
     mutable std::mutex m_mutex;
 

@@ -458,6 +458,114 @@ utils/
 
 ---
 
+## Module: CS (Application Layer)
+
+### Responsibility
+CS 架构核心模块，对标 Spring Boot 的 Controller/Service/ViewModel 三层架构。作为 `sc::ui` 的扩展包装层，增加 SpringBoot 风格的抽象。
+
+### Layer
+**Application Layer** — 依赖 Foundation 层，不依赖 UI 实现细节。
+
+### Components
+
+| Component | Description | Spring Boot 对标 | Status |
+|-----------|-------------|-------------------|--------|
+| `CsController` | Signal/Slot 驱动的控制器 | `@RestController` | Implemented |
+| `CsRouter` | 页面路由表 + 导航 | `DispatcherServlet` + `@RequestMapping` | Implemented |
+| `CsService` | 服务基类 (DI 管理) | `@Service` | Implemented |
+| `CsViewModel` | UI 状态管理 | `ModelAndView` | Implemented |
+| `CsDataBinding` | Entity ↔ ViewModel 双向绑定 | `DataBinder` + `BeanWrapper` | Implemented |
+| `CsFormValidator` | 表单校验 | `Validator` + `@Valid` | Implemented |
+| `CsErrorHandler` | 全局错误处理 | `@ControllerAdvice` + `@ExceptionHandler` | Implemented |
+| `CsDialogManager` | 对话框管理 | Modal/Alert | Implemented |
+| `CsWindowManager` | 窗口生命周期管理 | Session/Window | Implemented |
+| `CsNavigation` | 页面导航辅助 | `redirect:` / `forward:` | Implemented |
+| `CsModule` | 模块注册与生命周期 | `@Configuration` | Implemented |
+
+### 分层职责
+
+```
+View (QWidget) → ViewModel → Controller → Service → Repository
+```
+
+| 层 | 职责 | 禁止 |
+|----|------|------|
+| **View** | 纯 UI 渲染 | 不包含业务逻辑，不直接访问 Service |
+| **ViewModel** | UI State 管理 (Q_PROPERTY) | 不直接访问 Service/Repository/数据库 |
+| **Controller** | Command/Request 分发，路由注册，输入校验 | 不直接访问 Repository |
+| **Service** | 业务逻辑，事务管理，领域编排 | 不依赖 UI（Controller/ViewModel/Widget） |
+| **Repository** | 数据访问 CRUD | 不包含业务逻辑 |
+
+### Dependencies
+- Core (Foundation)
+- Base (Foundation)
+- Storage (Foundation)
+- DI Container (Foundation)
+
+### Thread Safety
+- Controller、Router、ViewModel、DialogManager、WindowManager: GUI Thread only
+- Service: Thread-safe
+
+### 核心设计原则
+
+1. **强类型分发优先**: Controller 使用成员函数指针注册路由，编译期类型安全
+   ```cpp
+   route("list", &UserController::listUsers);  // ✅ 推荐
+   route("list", "listUsers");                  // ⚠️ 兼容
+   ```
+
+2. **CsModule 不持有所有权**: Service/Controller 所有权由 ApplicationContext 集中管理
+   ```cpp
+   // ❌ 避免: Module 持有所有对象
+   class UserModule : public CsModule {
+       UserService* m_userService;
+       UserRepository* m_userRepository;
+       UserController* m_userController;
+   };
+   
+   // ✅ 推荐: Module 仅负责注册
+   class UserModule : public CsModule {
+       void onRegister() override {
+           registerService<UserService>(repo);
+           registerController<UserController>(service);
+       }
+   };
+   ```
+
+3. **CS 与 Web 共享业务 Service**: Service 不感知调用方是 CS 还是 Web
+
+### 与 sc::ui 的关系
+
+`sc::cs` 是 `sc::ui` 的扩展包装层，而非替代：
+- `CsController` 继承/组合 `sc::ui::Page`，复用页面生命周期
+- `CsRouter` 包装 `sc::ui::Navigation`，增加路由表注册
+- `CsViewModel` 继承 `sc::ui::BaseViewModel`，增加 Service 注入
+- `CsDialogManager` 包装 `sc::ui::Dialog`/`sc::ui::Toast`
+
+---
+
+## Module: Web (Application Layer, Reserved)
+
+### Responsibility
+Web 模块预留，未来通过 Web Adapter 复用 CS 业务层。
+
+### Status
+**预留，未实现**。仅包含 `README.md`。
+
+### Layer
+**Application Layer** — 未来依赖 CS 模块。
+
+### 设计原则
+- 不提前实现 WebController/WebRouter/WebEngineView
+- 不复制业务架构
+- 通过 Web Adapter 将 HTTP 请求转换为 CsController Signal 调用
+- 业务 Service 不感知 CS/Web 调用方
+
+### Dependencies
+- 待 QtWebEngine 评估后确定
+
+---
+
 ## Module: Examples
 
 ### Responsibility

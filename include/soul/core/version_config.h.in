@@ -1,0 +1,20 @@
+// ============================================================================
+// version_config.h.in — CMake 自动生成的版本号配置 [v1.9.4]
+// ============================================================================
+//
+// 此文件由 CMake configure_file() 从 PROJECT_VERSION 自动生成。
+// 不要手动编辑此文件 — 修改 CMakeLists.txt 中的 project() 版本号即可。
+//
+// 用法:
+//   #include "soul/core/version_config.h"
+//   std::string version = SOUL_COREKIT_VERSION;  // "1.9.4"
+
+#ifndef SOUL_CORE_VERSION_CONFIG_H
+#define SOUL_CORE_VERSION_CONFIG_H
+
+#define SOUL_COREKIT_VERSION "@PROJECT_VERSION@"
+#define SOUL_COREKIT_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
+#define SOUL_COREKIT_VERSION_MINOR @PROJECT_VERSION_MINOR@
+#define SOUL_COREKIT_VERSION_PATCH @PROJECT_VERSION_PATCH@
+
+#endif // SOUL_CORE_VERSION_CONFIG_H

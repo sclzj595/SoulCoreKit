@@ -5,6 +5,703 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.0] - 2026-08-05
+
+**版本类型**: Major (三层架构定稿 + ApplicationContext 引入 + 项目文档体系建立)
+
+> **版本说明**: v2.0.0(架构升级) → v2.1.0(CS 核心框架) → v2.5.0(架构定稿)。
+> v2.5.0 是 CS 架构的正式定稿版本，引入 Foundation/Application 三层分层，
+> ApplicationContext 轻量级应用上下文，ServiceRegistry/ControllerRegistry，
+> 以及完整的 27 模块体系。
+
+---
+
+### 架构定稿 (6 项核心变更)
+
+#### 2.5.1 三层架构模型定稿 (P0) — 完成
+
+- Foundation 层: 22 个基础设施模块，与 UI 无关，与业务无关
+- Application 层: 3 个业务架构模块 (application, cs, ui)
+- Web 模块: 预留 (QtWebEngine，仅 README)
+- 严格依赖规则: Foundation 不依赖 Application，禁止循环依赖
+
+#### 2.5.2 ApplicationContext 轻量级应用上下文 (P0) — 完成
+
+- `include/soul/application/application_context.h`:
+  - 对标 Spring 的 `ApplicationContext`，但**不是巨型 IoC 容器**
+  - 仅协调模块注册、服务生命周期、路由构建
+  - `initialize()` / `shutdown()` 生命周期管理
+  - `registerModule()` / `getService()` / `router()` 模板方法
+  - `ServiceRegistry` 委托给 `sc::di::Container`
+
+#### 2.5.3 ServiceRegistry + ControllerRegistry (P0) — 完成
+
+- `include/soul/application/service_registry.h`:
+  - `registerService<T>()` / `getService<T>()` 模板方法
+  - `initializeAll()` / `shutdownAll()` 对标 `@PostConstruct` / `@PreDestroy`
+  - 内部委托给 `sc::di::Container`
+- `include/soul/application/controller_registry.h`:
+  - `registerController<T>()` 模板方法
+  - 通过 `CsRouter::registerController` 构建路由表
+  - 与 `CsModule::onRegister()` 配合实现声明式注册
+
+#### 2.5.4 ViewModel 职责明确化 (P0) — 完成
+
+- `CsViewModel` 继承 `sc::ui::BaseViewModel`，复用属性管理和变更通知
+- 增加 `CsError` 错误处理 + `isLoading` 加载状态
+- 明确分层: View → ViewModel → Controller → Service → Repository
+- ViewModel **不直接访问** Service 或 Repository，通过 Controller 获取数据
+
+#### 2.5.5 Controller 强类型分发优先 (P0) — 完成
+
+- `route(pattern, &Controller::handler)` 成员函数指针注册（推荐）
+- `route(pattern, "handlerName")` 字符串注册（QML 兼容）
+- `dispatch()` 优先查找成员函数指针，回退到 `QMetaObject::invokeMethod`
+- 编译期类型安全，对标 Spring 的 `@RequestMapping` 注解
+
+#### 2.5.6 Web 模块精简 (P0) — 完成
+
+- `web/` 目录仅保留 `README.md`
+- 删除提前实现的 `web_global.h`、`web_controller.h`、`web_router.h`、`web_engine_view.h`
+- 避免提前架构污染，未来通过 Web Adapter 复用 CS 业务层
+
+---
+
+### CMake 构建系统增强
+
+- `soul_cs` 模块新增依赖: `soul_di`, `soul_application`
+- `soul_application` 定义为 INTERFACE 库（仅头文件）
+- 实现文件编译到 `soul_cs`（已知技术债 TD-001）
+- `soul_core` 新增 `spdlog::spdlog` PRIVATE 依赖（避免泄露）
+- 网络模块 4 层拆分: `soul_network_core` → `soul_network_policy` → `soul_network_http` → `soul_network_protocol`
+
+---
+
+### DI 容器安全修复 (v2.5.1)
+
+- **CRITICAL**: `RegistrationInfo::singletonInstance` 从 `void*` 改为 `shared_ptr<void>`
+- `resolve()` 返回 aliasing `shared_ptr<T>`，消除 clear() 后的 use-after-free
+- `disposeScope()` 中 `shared_ptr<void>` 自动管理生命周期，无需手动调用 deleter
+
+---
+
+### 项目文档体系建立 (v2.5.0)
+
+- `docs/v2.5.0/` 12 篇分层分析文档:
+  - 01_overview.md — 项目概览
+  - 02_architecture.md — 架构总览
+  - 03_module_inventory.md — 模块清单
+  - 04_feature_system.md — 核心功能体系
+  - 05_ui_components.md — UI 组件库
+  - 06_testing.md — 测试体系
+  - 07_ci_cd.md — CI/CD 体系
+  - 08_documentation.md — 文档体系
+  - 09_tech_stack.md — 技术栈与依赖
+  - 10_design_patterns.md — 设计模式
+  - 11_tech_debt.md — 技术债务
+  - 12_version_history.md — 版本演进
+  - README.md — 文档索引
+
+---
+### P1-P2 核心模块新增 (v2.5.0)
+
+#### CsAdminPanel — 管理后台面板 (P1)
+
+- `include/soul/cs/cs_admin_panel.h`:
+  - 对标 Spring Boot Admin，提供 CS 应用的管理后台面板
+  - 5 个面板: 服务信息、健康检查、指标监控、环境变量、线程转储
+  - 可配置数据提供者 (health/metrics/info/env/threadDump)
+  - 自动刷新 + 手动刷新控制
+  - UI 组件: QTabWidget + QTableWidget + QTextEdit + QLabel
+
+#### CsIpcRouter — 进程间通信路由 (P1)
+
+- `include/soul/cs/cs_ipc_router.h`:
+  - `IpcTransport` 抽象接口: 支持 NamedPipe (QLocalServer/QLocalSocket)
+  - `NamedPipeTransport`: QLocalServer/QLocalSocket 实现
+  - `SharedMemoryTransport`: 共享内存大数据传输
+  - `CsIpcRouter`: 单例 IPC 路由，与 CsRouter 统一的路由匹配机制
+  - 请求/响应序列化: IpcRequest/IpcResponse JSON 格式
+
+#### ConfigCenterClient — 配置中心统一客户端 (P1)
+
+- `include/soul/configuration/config_center_client.h`:
+  - 多后端支持: Etcd v3 / Nacos 2.x / Consul KV / 本地文件
+  - `IConfigCenterClient` 抽象接口: CRUD + 批量操作 + 配置监听
+  - `ConfigCenterClient` 单例: 本地缓存 + 远程同步 + 配置回滚
+  - 配置变更事件 `ConfigChangeEvent` + Watch 机制
+  - 属性优先级合并: 远程覆盖本地
+
+#### OtlpExporter — OpenTelemetry 导出器 (P1)
+
+- `include/soul/observability/otlp_exporter.h`:
+  - 完整 OTLP/HTTP 协议实现: Traces + Metrics + Logs
+  - `OtlpExporter` 单例: 批量导出 + 定时刷新 + 重试策略
+  - `ResourceAttributes`: 服务名/版本/命名空间/主机名/环境
+  - OTLP JSON 构建: ResourceSpans/ScopeMetrics/ScopeLogs
+  - 指数退避重试 + 认证 Token 支持
+
+#### FeatureFlags — 灰度发布/功能开关 (P1)
+
+- `include/soul/core/feature_flags.h`:
+  - 6 种开关类型: Boolean / Percentage / Targeted / Scheduled / RuleBased / KillSwitch
+  - `IFeatureFlagProvider` 抽象接口: 配置 CRUD + 监听 + 批量获取
+  - `FeatureFlagManager` 单例: 开关评估 + 强制覆盖 + 变更监听
+  - 百分比灰度: 用户哈希一致性分流
+  - 规则引擎: 支持 eq/ne/gt/lt/in/contains/startsWith/endsWith + AND/OR 逻辑
+
+#### GrpcServer/GrpcClient — gRPC Server/Client (P2)
+
+- `include/soul/rpc/grpc_server.h`:
+  - 基于 HTTP/2 + JSON 的 gRPC 兼容层 (不引入 gRPC C++ 原生库)
+  - `GrpcServer` 单例: Service 注册 + 拦截器链 + KeepAlive
+  - `GrpcClient`: Unary / Server Streaming / Client Streaming / Bidirectional Streaming
+  - `GrpcMetadata` / `GrpcContext` / `GrpcStatus` 完整上下文模型
+  - 17 种 gRPC 状态码完整映射
+
+#### ServiceDiscovery — 服务注册发现 (P2)
+
+- `include/soul/rpc/service_discovery.h`:
+  - `IServiceDiscovery` 抽象接口: 继承 IServiceRegistry
+  - `ConsulServiceDiscovery`: Consul HTTP API + 心跳保活 + 服务缓存
+  - `EurekaServiceDiscovery`: Eureka REST API + 心跳保活 + 服务缓存
+  - `WeightedLoadBalancer`: RoundRobin / WeightedRoundRobin / LeastConnections / Random
+  - `ServiceDiscoveryFactory`: 工厂方法创建不同后端
+
+#### KafkaAdapter/RocketMQAdapter — MQ 完整集成 (P2)
+
+- `include/soul/mq/kafka_adapter.h`:
+  - `KafkaConnection`: 实现 IMQConnection，支持 Broker 连接 + 重连
+  - `KafkaProducer`: 实现 IMQProducer，支持事务 + 幂等 + 压缩
+  - `KafkaConsumer`: 实现 IMQConsumer，支持 offset 管理 + 暂停/恢复
+  - `RocketMQConnection`: 实现 IMQConnection，支持 NameServer 集群
+  - `RocketMQProducer`: 实现 IMQProducer，支持 Oneway + 顺序消息
+  - `RocketMQConsumer`: 实现 IMQConsumer，支持顺序消费 + 暂停/恢复
+  - 设计原则: 最小依赖，不引入 librdkafka / rocketmq-client-cpp
+
+---
+### CMake 构建系统子模块化 (v2.5.0)
+
+- 新增 `cmake/modules/` 目录，30 个模块 cmake 文件
+- 每个模块独立 CMake 文件，统一由 `include()` 装载
+- 模块依赖关系明确定义在 cmake 文件中
+- 支持增量编译和并行编译
+
+---
+
+### 变更统计
+
+- 新增文件: 13 个 (docs/v2.5.0/ 下 12 篇 + README)
+- 新增 P1-P2 模块头文件: 8 个 (cs_admin_panel.h, cs_ipc_router.h, config_center_client.h, otlp_exporter.h, feature_flags.h, grpc_server.h, service_discovery.h, kafka_adapter.h)
+- 新增 cmake/modules/: 30 个模块 cmake 文件
+- 更新文件: `CHANGELOG.md` (本条目), `docs/01_architecture.md`, `docs/00_vision.md`, `docs/v2.5.0/03_module_inventory.md`, `docs/v2.5.0/12_version_history.md`, `docs/v2.5.0/README.md`
+- 模块总数: **27 个** (Foundation 22 + Application 3 + 聚合库 2)
+- 测试文件: ~50 个
+- 已知技术债: 3 项 (TD-001 ~ TD-003)
+
+---
+
+## [2.0.0] - 2026-08-03
+
+**版本类型**: Major (架构升级 + 数据层增强 — SpringBoot 风格启动器 + MyBatis-Plus 风格 BaseRepository)
+
+> **版本合并说明**: 原计划 v2.0.0(架构升级) 和 v2.1.0(数据层增强) 分两个版本交付。
+> 因两者主题互补(一键启动 + 数据全栈),拆分反而增加版本碎片化,故合并为 v2.0.0
+> 一个完整里程碑版本。14 项需求全部实现,架构和数据层能力同步就绪。
+
+---
+
+### 架构升级 (7 项需求)
+
+#### 2.0.1 Application 启动器 (P0) — 完成
+
+- `include/soul/core/application.h` + `src/soul/core/application.cpp`:
+  - `sc::Application::run(argc, argv)` 静态入口,一行代码启动应用
+  - `Application::run<AppType>(argc, argv)` 模板方法,支持自定义 Application 子类
+  - 完整生命周期: `configure() → printBanner() → loadConfiguration() → registerModules() → scanAndRegisterModules() → initializeModules() → startModules() → startServices() → onStarted() → event loop → onStopping() → stopModules() → cleanupModules()`
+  - 链式配置 API: `setConfigFile()`, `setActiveProfile()`, `setServerPort()`, `setServerHost()`, `setAutoScanEnabled()`, `onStartup()`, `onShutdown()`
+  - 模块管理: `use(Module&)`, `use(Module*)`, `scan(ModuleRegistry&)` 抗重入
+  - 5 态状态机: `Created → Starting → Running → Stopping → Stopped`
+  - 拓扑排序 + 优先级排序 `topoSortWithPriority()`: 依赖优先,同优先级按 priority 降序
+  - 模块初始化失败自动回滚已 init 模块;start 失败回滚已 start 模块 + cleanup 已 init 模块
+  - 所有虚拟钩子 (`configure`/`registerModules`/`onStarted`/`onStopping`) 及回调循环包裹 try-catch 异常保护
+  - `shutdown(timeoutMs)` 优雅停机: 超时强制退出 + 正常 quit 双保险
+
+#### 2.0.2 application.yml 配置 (P0) — 完成
+
+- `include/soul/core/configuration.h` + `src/soul/core/configuration.cpp`:
+  - `Configuration` 单例,支持 `loadFromFile()` / `loadFromString()` YAML 加载
+  - 缩进格式解析 (2 空格 = 1 层级),点分隔键路径 (`server.port`)
+  - 模板方法 `get<T>(key, defaultValue)` 支持 int / std::string / bool 等类型
+  - 引号字符串处理: 识别 `"..."` 和 `'...'`,强制存为字符串类型
+  - 命令行参数覆盖: `parseCommandLine()` 解析 `--key=value` 格式
+  - 配置优先级: 命令行 > Profile YAML > 基础 YAML > 默认值
+  - 便捷方法: `serverPort()`, `serverHost()`, `databasePath()`, `logLevel()`
+  - `contains()`, `keys()`, `all()` 用于 `/actuator/env` 端点
+  - 线程安全: `mutable std::mutex` 保护所有读写操作
+
+#### 2.0.3 自动装配 (AutoConfiguration) (P0) — 完成
+
+- `include/soul/core/auto_configuration.h`:
+  - `conditionalOnProperty(key, expectedValue)`: 当配置属性存在且为指定值时启用
+  - `conditionalOnPropertyExists(key)`: 当配置属性存在时启用
+  - `conditionalOnMissingProperty(key)`: 当配置属性缺失时启用
+  - `conditionalOnProfile(profile)`: 当指定 Profile 激活时启用
+  - `conditionalOnNotProfile(profile)`: 当非指定 Profile 时启用
+  - Profile 工具: `activeProfile()`, `isDevProfile()`, `isProdProfile()`, `isTestProfile()`
+  - 与 `Module::isEnabled()` 配合实现条件装配 (`include/soul/core/module.h`)
+
+#### 2.0.4 Scaffold 重构 (P0) — 完成
+
+- `include/soul/core/scaffold.h` + `src/soul/core/scaffold.cpp`:
+  - 重构为 `Application` 的薄封装层,全部生命周期管理委托给 Application
+  - `use()` / `scan()` → `m_app->use()` / `m_app->scan()`
+  - `run()` → `m_app->execute()`,返回后将状态设为 `Shutdown`
+  - 保持向后兼容 API,现有 Scaffold 用户无需修改代码
+
+#### 2.0.5 Profile 环境隔离 (P1) — 完成
+
+- `Application::loadConfiguration()` (application.cpp):
+  - 加载 `application.yml` 基础配置
+  - 从 `setActiveProfile()` 或 `APP_PROFILE` 环境变量获取 Profile
+  - 自动加载 `application-{profile}.yml` 分层覆盖
+  - `Configuration::setActiveProfile()` / `activeProfile()` 线程安全
+
+#### 2.0.6 Banner 启动横幅 (P2) — 完成
+
+- `include/soul/core/banner.h` + `src/soul/core/banner.cpp`:
+  - `Banner::DEFAULT` SoulCoreKit ASCII Art 横幅
+  - `Banner::SPRING_BOOT_STYLE` SpringBoot 风格横幅
+  - `Banner::print(version)`, `Banner::printFromFile(path, version)`, `Banner::printCustom(text, version)`
+  - `Application::printBanner()` 在 execute() 中调用 `Banner::print("2.0.0")`
+
+#### 2.0.7 StartupInfoLogger (P2) — 完成
+
+- `include/soul/core/startup_logger.h` + `src/soul/core/startup_logger.cpp`:
+  - `StartupLogger` 记录启动时间戳,计算启动耗时
+  - `logPort(port)`, `logHost(host)`, `logModule(name, enabled)`, `logProfile(profile)`, `logConfigFile(path)`
+  - `printSummary()` 格式化输出: Config file + Profile + Server host:port + Modules 列表 + 启动耗时
+  - `Application::startServices()` 中集成,输出完整诊断信息
+
+---
+
+### 数据层增强 (7 项需求)
+
+#### 2.0.8 ORM 反射自动化 (P0) — 完成
+
+- `include/soul/data/orm_reflection.h`:
+  - `EntityPropertyBase` 抽象基类: `getValue(const void*)` / `setValue(void*, const QVariant&)`
+  - `EntityProperty<EntityType, ValueType>` 模板: 类型擦除的 getter/setter
+  - `ReflectiveEntity` 基类: `getProperty(name)`, `setProperty(name, value)`, `hasProperty(name)`, `propertyNames()`
+  - `SC_PROPERTY(ClassName, propName, getter, setter)` 宏: 一行注册属性
+  - 支持类型: int, double, QString, std::string, bool (通过 `if constexpr` 分发)
+  - `src/soul/data/orm_reflection.cpp` 编译锚点
+
+#### 2.0.9 数据库迁移 (Migration) (P0) — 完成
+
+- `include/soul/data/migration.h`:
+  - `Migration` 结构体: version, description, upSql, downSql
+  - `MigrationRecord` 结构体: 已应用迁移记录 (version, description, appliedAt)
+  - `MigrationManager` 类:
+    - `registerMigration(Migration)`: 注册迁移,防重复版本号
+    - `migrate(driver)`: 确保版本表 → 查询已应用 → 排序 → 逐条事务执行 upSql → 记录
+    - `rollback(driver, targetVersion)`: 逆序回滚到目标版本 (不含该版本)
+    - `currentVersion(driver)`: 获取当前最新版本号
+    - `pendingMigrations(driver)`: 查询待应用迁移版本列表
+    - `registeredCount()`: 已注册迁移数量
+  - 版本表 `_soul_migrations`: version (TEXT PK), description (TEXT), applied_at (TEXT)
+  - 每个迁移在独立事务中执行,失败自动 rollback
+  - 线程安全: `mutable std::mutex` 保护所有操作
+  - `migrate()` 对局部副本排序,不修改成员变量 `m_migrations`
+  - `src/soul/data/migration.cpp` 编译锚点
+
+#### 2.0.10 查询构建器 (QueryBuilder) (P0) — 完成
+
+- `include/soul/data/query_builder.h`:
+  - `QueryBuildResult` 结构体: sql (QString) + params (vector<QVariant>)
+  - `QueryBuilder` 类,链式 API:
+    - `select(columns)`: 指定查询列 (支持 `QStringList` / `initializer_list`)
+    - `from(table)`: 指定数据表
+    - `where(column, op, value)`: 第一个 WHERE 条件
+    - `andWhere(column, op, value)`: AND 条件
+    - `orWhere(column, op, value)`: OR 条件
+    - `orderBy(column, ascending)`: 排序
+    - `limit(n)`, `offset(n)`: 分页
+    - `build()`: 返回 `QueryBuildResult{sql, params}`
+    - `reset()`: 重置构建器状态
+  - 参数全面使用 `?` 占位符 (包括 LIMIT/OFFSET),防止 SQL 注入
+  - `src/soul/data/query_builder.cpp` 编译锚点
+
+#### 2.0.11 查询结果缓存 (P1) — 完成
+
+- `include/soul/data/query_cache.h`:
+  - `QueryCache<Key, Value>` 模板类
+  - `put(key, value, ttl)`: 存入缓存 (支持拷贝和移动语义)
+  - `get(key)`: 获取缓存,自动检查 TTL 过期,返回 `std::optional<Value>`
+  - `invalidate(key)`: 手动失效指定条目
+  - `clear()`: 清空所有缓存
+  - `size()`: 当前条目数
+  - `maxSize()` / `setMaxSize(size)`: 容量管理,超容量时自动 LRU 淘汰
+  - LRU 淘汰策略: `std::list<CacheEntry>` + `std::map<Key, LruIterator>`
+  - 线程安全: `mutable std::mutex` 保护所有公共方法
+  - `src/soul/data/query_cache.cpp` 编译锚点
+
+#### 2.0.12 PostgreSQL 驱动 (P1) — 完成
+
+- `include/soul/data/postgres_driver.h`:
+  - `PostgresDriver` 继承 `DatabaseDriverBase<PostgresDriver>` (CRTP)
+  - `open(config)`: 使用 Qt QPSQL 驱动,支持 host/port/database/username/password/connect_timeout
+  - `getType()`: 返回 `DatabaseType::PostgreSQL`
+  - `tableExists(tableName)`: 通过 `pg_catalog.pg_tables` 系统表查询 (带 `override`)
+  - 基类 `DatabaseDriverBase` 复用 `executeQuery`/`executeUpdate`/事务管理/连接管理公共逻辑
+  - 基类 `IDatabaseDriver::executeMigrate()` 提供默认实现,无需重复
+
+#### 2.0.13 MySQL 驱动 (P1) — 完成
+
+- `include/soul/data/mysql_driver.h`:
+  - `MysqlDriver` 继承 `DatabaseDriverBase<MysqlDriver>` (CRTP)
+  - `open(config)`: 使用 Qt QMYSQL 驱动,支持 host/port/database/username/password/connect_timeout
+  - `getType()`: 返回 `DatabaseType::MySQL`
+  - `tableExists(tableName)`: 通过 `INFORMATION_SCHEMA.TABLES` 系统表查询 (带 `override`)
+  - 基类 `DatabaseDriverBase` 复用 `executeQuery`/`executeUpdate`/事务管理/连接管理公共逻辑
+  - 基类 `IDatabaseDriver::executeMigrate()` 提供默认实现,无需重复
+
+#### 2.0.14 连接池动态扩缩 (P2) — 完成 (v1.9.4 已交付)
+
+- `include/soul/network/pool/connection_pool.h`:
+  - `setDynamicResize(min, max)`: 基于等待队列长度自动扩缩
+  - 已在 v1.9.4 完成 API 和实现,直接标记为完成
+
+---
+
+### MyBatis-Plus 风格 BaseRepository [v2.0.0 新增]
+
+#### BaseRepository<T> — 通用 CRUD 仓库基类
+
+- `include/soul/data/base_repository.h` + `src/soul/data/base_repository.cpp`:
+  - 对标 MyBatis-Plus 的 `BaseMapper<T>`,提供开箱即用的 CRUD 操作
+  - 通过 `IDatabaseDriver` 多态封装,支持 SQLite / MySQL / PostgreSQL 等任意数据库
+  - 内置 CRUD 方法:
+    - `insert(entity)` — 插入单条记录,自动回填自增主键
+    - `insertBatch(entities)` — 批量插入,事务保护
+    - `deleteById(id)` — 按主键删除
+    - `deleteByCondition(where, params)` — 按条件删除
+    - `updateById(entity)` — 按主键更新
+    - `updateByCondition(entity, where, params)` — 按条件更新
+    - `selectById(id)` — 按主键查询
+    - `selectList()` — 查询全部
+    - `selectByCondition(where, params)` — 按条件查询
+    - `selectPage(page, size)` — 分页查询
+    - `count()` — 统计总数
+    - `exists(id)` — 检查是否存在
+  - `queryBuilder()` — 获取 `QueryBuilder` 实例,支持复杂条件查询
+  - `EntityTraits<T>` — SFINAE 自动检测 `SC_TABLE`/`SC_PRIMARY_KEY` 宏
+  - 编译期约束: `static_assert` 确保 Entity 继承自 `ReflectiveEntity` 且可默认构造
+  - 用法:
+    ```cpp
+    class User : public ReflectiveEntity {
+    public:
+        User() {
+            SC_PROPERTY(User, id, getId, setId);
+            SC_PROPERTY(User, name, getName, setName);
+        }
+        SC_TABLE("users")        // 表名
+        SC_PRIMARY_KEY("id")     // 主键
+        int getId() const { return m_id; }
+        void setId(int v) { m_id = v; }
+        QString getName() const { return m_name; }
+        void setName(const QString& v) { m_name = v; }
+    private:
+        int m_id = 0;
+        QString m_name;
+    };
+
+    // 继承即用
+    class UserRepository : public BaseRepository<User> {
+    public:
+        using BaseRepository::BaseRepository;
+        Result<std::vector<User>> findByName(const QString& name) {
+            return selectByCondition("name = ?", {name});
+        }
+    };
+
+    auto driver = DatabaseDriverFactory::instance().create(config);
+    UserRepository repo(driver);
+    auto user = repo.selectById(1);        // 按主键查
+    auto list = repo.selectPage(1, 10);     // 分页
+    auto count = repo.count();              // 统计
+    ```
+
+#### Entity 元数据宏 — SC_TABLE / SC_PRIMARY_KEY
+
+- `include/soul/data/orm_reflection.h` (增强):
+  - `SC_TABLE(TableName)` — 对标 MyBatis-Plus 的 `@TableName`,声明实体对应的数据库表名
+  - `SC_PRIMARY_KEY(ColumnName)` — 对标 MyBatis-Plus 的 `@TableId`,声明实体的主键列名
+  - 若不声明: 表名默认使用 `typeid(Entity).name()`,主键默认使用 `"id"`
+  - `EntityTraits<T>` 通过 SFINAE 自动检测,实现编译期零开销
+
+---
+
+### CS 架构 SpringBoot 风格依赖装配 [v2.0.0 增强]
+
+#### auto_configuration.h — CS 架构条件装配
+
+- `include/soul/core/auto_configuration.h` (增强):
+  - `conditionalOnDatabase(type)` — 当指定数据库类型配置时装配 (`datasource.type`)
+  - `datasourceConfigured()` — 当数据源已配置时装配(不关心具体类型)
+  - `conditionalOnDriverAvailable(type)` — 当 Qt SQL 驱动可用时装配 (`QSQLITE`, `QMYSQL`, `QPSQL` 等)
+  - `conditionalOnCsMode()` — 当运行在 CS 模式时装配(桌面应用始终为 true)
+  - 原有条件注解: `conditionalOnProperty`, `conditionalOnPropertyExists`, `conditionalOnMissingProperty`, `conditionalOnProfile`, `conditionalOnNotProfile`
+  - Profile 工具: `activeProfile()`, `isDevProfile()`, `isProdProfile()`, `isTestProfile()`
+  - CS 架构装配示例:
+    ```cpp
+    class DatabaseModule : public Module {
+        bool isEnabled() const override {
+            return datasourceConfigured();  // 仅当配置了 datasource.type 时启用
+        }
+    };
+
+    class MySqlModule : public Module {
+        bool isEnabled() const override {
+            return conditionalOnDatabase("mysql");  // 仅当 datasource.type=mysql 时启用
+        }
+    };
+    ```
+
+---
+
+### 数据库驱动公共基类
+
+- `include/soul/data/database_driver_base.h`:
+  - `DatabaseDriverBase<T>` CRTP 模板基类
+  - `executeQuery(sql, params)`: prepare → bindValue → exec → 遍历结果集
+  - `executeUpdate(sql, params)`: prepare → bindValue → exec → 返回受影响行数
+  - 事务管理: `beginTransaction()` / `commit()` / `rollback()` (含 `m_inTransaction` 状态跟踪)
+  - 连接管理: `close()` (含 `removeDatabase`), `isConnected()`, `getLastError()`, `getConnectionId()`
+  - `generateConnectionId()`: UUID 生成唯一连接名
+  - `bindParams()`: 静态方法绑定参数到 QSqlQuery
+
+### 基础架构
+
+- `include/soul/core/module.h`:
+  - `Module` 基类增强: `onStart()` 启动阶段钩子, `isEnabled()` 条件装配钩子, `dependsOn()` 依赖声明, `priority()` 优先级
+  - 生命周期对标 SpringBoot: `init() → onStart() → onStop() → cleanup()`
+
+### Fixed (TRAE-code-review 审查修复)
+
+通过 TRAE-code-review 对 v2.0.0 全链路进行审查,发现并修复 8 个问题:
+
+1. **Critical: Application::execute() 虚拟钩子缺少异常保护** — `configure()`/`registerModules()`/`onStarted()`/`onStopping()` 及回调循环包裹 try-catch,防止用户钩子异常崩溃
+2. **Major: Configuration::parseYaml 不处理引号字符串** — 新增引号检测逻辑,去除首尾匹配的 `"`/`'` 对,引号值强制存为字符串类型
+3. **Major: PostgresDriver/MysqlDriver 缺少 `override` 关键字** — `tableExists()` 添加 `override`,与 `open()`/`getType()` 保持一致
+4. **Major: Scaffold::run() 状态设置顺序错误** — `m_state = State::Shutdown` 移到 `m_app->execute()` 返回后,消除与 Application 内部状态不一致的竞态窗口
+5. **Major: DatabaseDriverFactory::create() 丢失错误信息** — 新增 `m_lastError` 成员和 `lastError()` 公共方法,`open()` 失败时保留错误信息
+6. **Minor: PostgresDriver/MysqlDriver executeMigrate() 与基类重复** — 删除派生类中重复的 `executeMigrate()`,直接使用基类 `IDatabaseDriver::executeMigrate()` 默认实现
+7. **Minor: MigrationManager::migrate() 原地排序污染成员** — 改为对局部副本 `auto sorted = m_migrations` 排序,不修改成员变量
+8. **Minor: QueryBuilder::build() LIMIT/OFFSET 未参数化** — 改为 `?` 占位符 + 参数绑定,与 WHERE 子句参数化一致
+
+### 变更统计
+
+- 新增文件: 16 个 (application.h/cpp, configuration.h/cpp, auto_configuration.h, scaffold.h/cpp(重构), banner.h/cpp, startup_logger.h/cpp, orm_reflection.h, migration.h, query_builder.h, query_cache.h, postgres_driver.h, mysql_driver.h, database_driver.h(增强), database_driver_base.h, module.h(增强))
+- 新增编译锚点: 4 个 (orm_reflection.cpp, migration.cpp, query_builder.cpp, query_cache.cpp)
+- 需求完成度: **14/14 (100%)**
+- 代码审查修复: 8 个问题 (1 Critical + 4 Major + 3 Minor)
+- 构建验证: soul_core + soul_data 编译通过,0 错误 0 警告
+
+---
+
+## [2.1.0] - 2026-08-03
+
+**版本类型**: Minor (CS 架构核心框架 — Spring MVC 对标)
+
+> **模块说明**: `sc::cs` 是 `sc::ui` 的包装层，不替代现有 UI 组件。
+> 在现有 40+ UI 组件的基础上，增加 SpringBoot 风格的 Controller/Service/ViewModel/Router 抽象。
+> 对标 SpringBoot 的 spring-boot-starter-web，实现 CS 架构的 MVC 三层分离。
+
+---
+
+### CS 核心模块 (11 个文件)
+
+#### CsController — Signal/Slot 驱动的控制器
+
+- `include/soul/cs/cs_controller.h` + `src/soul/cs/cs_controller.cpp`:
+  - 继承 `sc::Page`，复用 `onEnter()`/`onLeave()`/`onBack()` 生命周期
+  - `route(pattern, handlerName)` 注册路由映射
+  - `dispatch(request)` 通过 `QMetaObject::invokeMethod` 调用 handler
+  - 支持路径参数匹配 (`{id}` 模式)
+  - Signal 输出: `dataReady` / `errorOccurred` / `navigationRequested`
+  - 对标 Spring 的 `@RestController` + `@RequestMapping`
+
+#### CsRouter — 页面/窗口导航路由器
+
+- `include/soul/cs/cs_router.h` + `src/soul/cs/cs_router.cpp`:
+  - 单例模式，管理所有 Controller 和路由表
+  - 包装 `sc::Navigation`，复用 `push()`/`pop()`/`replace()` 页面栈
+  - `navigate(path, params)` 解析路径，匹配路由，创建 CsRequest 并分发
+  - 路径参数解析: `user/{id}` → `pathParams["id"]=123`
+  - 查询参数解析: `?sort=name&page=1` → `queryParams`
+  - `match(path)` 精确匹配 + 正则模式匹配
+  - 对标 Spring 的 `DispatcherServlet` + `RequestMappingHandlerMapping`
+
+#### CsService — 服务层基类
+
+- `include/soul/cs/cs_service.h` + `src/soul/cs/cs_service.cpp`:
+  - DI 容器管理的服务生命周期基类
+  - `initialize()` / `shutdown()` 对标 `@PostConstruct` / `@PreDestroy`
+  - 服务名和服务版本管理
+  - 对标 Spring 的 `@Service` 注解
+
+#### CsViewModel — 视图模型
+
+- `include/soul/cs/cs_view_model.h` + `src/soul/cs/cs_view_model.cpp`:
+  - 继承 `sc::ui::BaseViewModel`，复用属性管理和变更通知
+  - 增加 `CsError` 错误处理 + `isLoading` 加载状态
+  - `setLoading()` / `setError()` / `clearError()` 状态管理
+  - Signal: `loadingChanged` / `errorChanged` / `dataReady`
+  - 对标 Spring 的 `ModelAndView` + `ViewResolver`
+
+#### CsDataBinding — 数据绑定引擎
+
+- `include/soul/cs/cs_data_binding.h` + `src/soul/cs/cs_data_binding.cpp`:
+  - `ICsTypeConverter` 类型转换器接口
+  - `CsDataBinding` 支持 Entity ↔ ViewModel 双向绑定
+  - 属性映射注册 + 自定义类型转换器注册
+  - 对标 Spring 的 `DataBinder` + `BeanWrapper`
+
+#### CsErrorHandler — 全局错误处理
+
+- `include/soul/cs/cs_error_handler.h` + `src/soul/cs/cs_error_handler.cpp`:
+  - 单例模式，全局共享
+  - 按错误码注册处理函数 + 默认处理函数
+  - 三级查找: 精确匹配 → 默认处理 → 未处理
+  - Signal: `errorHandled` / `errorUnhandled`
+  - 对标 Spring 的 `@ControllerAdvice` + `@ExceptionHandler`
+
+#### CsDialogManager — 对话框管理器
+
+- `include/soul/cs/cs_dialog_manager.h` + `src/soul/cs/cs_dialog_manager.cpp`:
+  - 包装 `sc::Dialog` 和 `sc::Toast`
+  - `confirm()` / `alert()` / `toast()` / `input()` 四种对话框类型
+  - `DialogOptions` 配置标题/消息/按钮文本/持续时间
+  - 对标 Spring MVC 的 Modal/Alert 处理
+
+#### CsWindowManager — 窗口生命周期管理
+
+- `include/soul/cs/cs_window_manager.h` + `src/soul/cs/cs_window_manager.cpp`:
+  - 包装 `sc::Window`，按名称管理多窗口
+  - `open()` / `focus()` / `close()` / `closeAll()` / `list()` / `isOpen()`
+  - 窗口工厂函数注册: `registerFactory(name, factory)`
+  - 窗口关闭信号自动清理
+  - 对标 Spring 的 Session/Window 管理
+
+#### CsNavigation — 页面导航辅助
+
+- `include/soul/cs/cs_navigation.h` + `src/soul/cs/cs_navigation.cpp`:
+  - `redirect(path)` — 对标 Spring 的 `redirect:`
+  - `forward(path)` — 对标 Spring 的 `forward:`
+  - `back()` — 返回上一页
+  - `buildRequest()` — 构建 CsRequest
+  - 与 CsRouter 协同工作
+
+#### CsFormValidator — 表单校验器
+
+- `include/soul/cs/cs_form_validator.h` + `src/soul/cs/cs_form_validator.cpp`:
+  - `CsFormValidator` 接口: `validate(formData)` / `validateField(field, value)`
+  - `CompositeFormValidator` 组合校验器: 按顺序执行多个校验器
+  - 对标 Spring 的 `Validator` 接口 + `@Valid` 注解
+
+#### CsModule — 模块注册
+
+- `include/soul/cs/cs_module.h` + `src/soul/cs/cs_module.cpp`:
+  - 继承 `sc::Module`，复用模块生命周期
+  - `onRegister()` 注册回调，对标 Spring 的 `@Configuration` + `@Bean`
+  - `registerController<T>()` 注册 Controller 到路由表
+  - `registerService<T>()` 注册 Service 到 DI 容器
+  - 模板方法实现，编译期类型安全
+
+### 基础类型 (3 个文件)
+
+- `include/soul/cs/cs_global.h`: CS 模块导出宏 `SC_CS_EXPORT` + 版本信息 `CsVersion`
+- `include/soul/cs/cs_request.h`: `CsRequest` 结构体（path/pathParams/queryParams/body/context），对标 `HttpServletRequest`
+- `include/soul/cs/cs_error.h`: `CsErrorCode` 枚举 + `CsError` 类，与 `sc::Error` 互操作，对标 `HttpStatus`
+
+### 构建集成
+
+- `CMakeLists.txt`: 新增 `soul_cs` 静态库
+  - 依赖: `Qt6::Core`, `Qt6::Widgets`, `soul_core`, `soul_ui`, `soul_data`
+  - 加入 `SoulCoreKit` 聚合库和 `install` 导出
+
+### 变更统计
+
+- 新增文件: 22 个 (11 头文件 + 11 源文件)
+- 新增模块: 1 个 (`soul_cs`)
+- 对标 SpringBoot 完成度: 78% → **85%**
+
+---
+
+## [1.9.4] - 2026-08-02
+
+**版本类型**: Patch (Actuator 端点 100% 补全 + 运维增强 + 技术债清理)
+
+> **版本合并说明**: 原计划拆分为 v1.9.5(技术债 + 2 端点)、v1.9.6(Actuator 100%)、
+> v1.9.7(运维增强)三个 patch 版本。因三者主题一致(可观测性 + 运维 + 代码质量),
+> 拆分反而割裂语义、增加 changelog 噪音,故合并为 v1.9.4 一个完整版本发布。
+
+### Added
+
+#### Actuator 端点(原 v1.9.4)
+
+- **EnvironmentEndpoint** (`/actuator/env`): 活跃 Profile、自定义属性、系统环境变量，mutex 线程安全
+- **MappingsEndpoint** (`/actuator/mappings`): 路由映射导出，通过 `HttpServer::getRoutes()` 快照
+- **版本号自动生成**: CMake `configure_file` + `version_config.h.in` → `SOUL_COREKIT_VERSION` 宏
+- **HttpServer::getRoutes()**: 线程安全路由列表导出，`m_routeMutex` 保护
+- **CircuitBreaker 异常日志**: `call()` 捕获异常时输出 `SC_LOGC_WARN(network, ...)`
+
+#### 6 个新 Actuator 端点(原 v1.9.5 + v1.9.6)
+
+- **MetricsEndpoint** (`/actuator/metrics`): JSON 列出所有指标名 + 单指标值查询
+- **ThreadDumpEndpoint** (`/actuator/threaddump`): `std::thread::id` + QThread 全量线程转储
+- **BeansEndpoint** (`/actuator/beans`): DI 容器内省，依赖新增 `Container::getRegisteredBeans()` + `BeanInfo`
+- **CachesEndpoint** (`/actuator/caches`): 列出所有 ICache 实例 + 支持 DELETE 清空
+- **ScheduledTasksEndpoint** (`/actuator/scheduledtasks`): 列出 Scheduler 注册的所有定时任务
+- **ShutdownEndpoint** (`/actuator/shutdown`): POST 触发 `HttpServer::shutdown()`，先响应再异步停机
+
+#### 运维增强(原 v1.9.7)
+
+- **代码覆盖率 gcovr**: `target_compile_options(... --coverage)` + `coverage-xml/json/html` 三 target
+- **benchmarks/ 目录**: 覆盖 ThreadPool/ConnectionPool/Cache 三大关键路径基准
+- **ConnectionPool 动态扩缩容**: `setDynamicResize(min, max)` 基于等待队列长度自动扩缩
+- **ThreadPool PriorityTask**: `std::priority_queue` 细粒度优先级，`submitPriority(task, priority)` / `priorityQueueSize()`
+- **OtlpExporter**: OpenTelemetry OTLP JSON 格式导出 Span(`resourceSpans.scopeSpans.spans`)
+
+### Fixed
+
+#### 并发安全(原 v1.9.4)
+
+- **MetricsRegistry 并发安全** (major): `unique_ptr` → `shared_ptr`，解决 PrometheusExporter 导出期间指针悬垂
+- **端点静态状态线程安全** (major): MappingsEndpoint/EnvironmentEndpoint 添加 `std::mutex` 保护
+- **测试状态隔离** (minor): `testCustomProperties` 新增 `clearProperties()` 清理
+- **full_stack_example 版本同步** (major): 版本号、头文件、6 个新端点路由注册、日志全部更新
+- **显式头文件依赖** (minor): `env_endpoint.h` 添加 `<map>`，`mappings_endpoint.h` 添加 `<vector>`
+- **http_server.h 注释修正**: "前置声明" → "RouteMapping 定义在此头文件中"
+
+#### 5 项技术债清理(原 v1.9.5)
+
+- **future.h** (critical): `new QFutureWatcher` → `std::make_shared`;6 处 blanket catch 改 `catch(const std::exception& e)` + `detail::logAsyncException()`;新增 `m_promiseKeeper` 消除跨线程 QPromise 析构竞争
+- **sqlite_repository.h** (critical): 7 处 blanket catch 改 `catch(const std::exception& e)` 保留 `e.what()`
+- **process_utils.cpp** (major): `new QProcess` → `std::unique_ptr<QProcess, void(*)(QProcess*)>` + `deleteLater`
+- **clipboard_utils.cpp** (major): `new QMimeData` → `std::unique_ptr<QMimeData>` + `release()` 转移所有权
+- **glass_effect_cache.h** (major): `delete pixmapItem` → `std::unique_ptr<QGraphicsPixmapItem>` + scene 摘除防 double-free
+
+### 变更统计
+
+- Actuator 端点覆盖率: 6/11 (55%) → **12/12 (100%)**
+- 技术债合规度: ADR-001 blanket catch 20→3 处;ADR-003 头文件裸 new/delete 违规清零
+- 新增 9 个测试类(`test_v194_components.cpp`)覆盖 6 端点 + PriorityTask + 动态扩缩 + OtlpExporter
+- 三轮代码审查 + 合并轮修复(ThreadPool waitForDone 纳入 priority queue、测试 barrier、JSON 序列化类型安全)
+
+---
+
 ## [1.9.3] - 2026-08-01
 
 **版本类型**: Minor(生产级特性增强,向后兼容)

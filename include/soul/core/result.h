@@ -7,6 +7,7 @@
 #include <cassert>
 #include <cstdlib>
 #include <functional>
+#include <iostream>
 
 #include "soul/core/error.h"
 
@@ -27,8 +28,10 @@ public:
 
     bool isErr() const { return m_isErr; }
 
+    // [v2.5.1] unwrapErr 在 Ok 状态下提供诊断信息后终止
     Error& unwrapErr() {
         if (!m_isErr) {
+            std::cerr << "[SoulCoreKit] FATAL: unwrapErr() called on Ok ResultVoid" << std::endl;
             std::abort();
         }
         return m_error;
@@ -36,6 +39,25 @@ public:
 
     const Error& unwrapErr() const {
         if (!m_isErr) {
+            std::cerr << "[SoulCoreKit] FATAL: unwrapErr() called on Ok ResultVoid" << std::endl;
+            std::abort();
+        }
+        return m_error;
+    }
+
+    /// @brief 带诊断信息的结果解包（对标 Rust expect()）
+    /// @param msg 错误上下文信息，输出到 stderr 后 abort
+    Error& expectErr(const std::string& msg) {
+        if (!m_isErr) {
+            std::cerr << "[SoulCoreKit] FATAL: " << msg << " (expected Err, got Ok)" << std::endl;
+            std::abort();
+        }
+        return m_error;
+    }
+
+    const Error& expectErr(const std::string& msg) const {
+        if (!m_isErr) {
+            std::cerr << "[SoulCoreKit] FATAL: " << msg << " (expected Err, got Ok)" << std::endl;
             std::abort();
         }
         return m_error;
@@ -79,8 +101,12 @@ public:
 
     bool isErr() const { return std::holds_alternative<Error>(m_data); }
 
+    // [v2.5.1] unwrap 在 Err 状态下提供诊断信息后终止
     T& unwrap() {
         if (!isOk()) {
+            auto& err = std::get<Error>(m_data);
+            std::cerr << "[SoulCoreKit] FATAL: unwrap() called on Err: "
+                      << err.message().toStdString() << " (code=" << static_cast<int>(err.code()) << ")" << std::endl;
             std::abort();
         }
         return std::get<T>(m_data);
@@ -88,6 +114,33 @@ public:
 
     const T& unwrap() const {
         if (!isOk()) {
+            auto& err = std::get<Error>(m_data);
+            std::cerr << "[SoulCoreKit] FATAL: unwrap() called on Err: "
+                      << err.message().toStdString() << " (code=" << static_cast<int>(err.code()) << ")" << std::endl;
+            std::abort();
+        }
+        return std::get<T>(m_data);
+    }
+
+    /// @brief 带诊断信息的结果解包（对标 Rust expect()）
+    /// @param msg 错误上下文信息，输出到 stderr 后 abort
+    T& expect(const std::string& msg) {
+        if (!isOk()) {
+            auto& err = std::get<Error>(m_data);
+            std::cerr << "[SoulCoreKit] FATAL: " << msg
+                      << " | error=" << err.message().toStdString()
+                      << " (code=" << static_cast<int>(err.code()) << ")" << std::endl;
+            std::abort();
+        }
+        return std::get<T>(m_data);
+    }
+
+    const T& expect(const std::string& msg) const {
+        if (!isOk()) {
+            auto& err = std::get<Error>(m_data);
+            std::cerr << "[SoulCoreKit] FATAL: " << msg
+                      << " | error=" << err.message().toStdString()
+                      << " (code=" << static_cast<int>(err.code()) << ")" << std::endl;
             std::abort();
         }
         return std::get<T>(m_data);
@@ -95,6 +148,7 @@ public:
 
     Error& unwrapErr() {
         if (!isErr()) {
+            std::cerr << "[SoulCoreKit] FATAL: unwrapErr() called on Ok Result" << std::endl;
             std::abort();
         }
         return std::get<Error>(m_data);
@@ -102,6 +156,7 @@ public:
 
     const Error& unwrapErr() const {
         if (!isErr()) {
+            std::cerr << "[SoulCoreKit] FATAL: unwrapErr() called on Ok Result" << std::endl;
             std::abort();
         }
         return std::get<Error>(m_data);

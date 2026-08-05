@@ -145,6 +145,34 @@ void ThreadPool::start(std::function<void()> task, Priority priority) {
 }
 
 // ============================================================================
+// 细粒度优先级任务提交 [v1.9.4]
+// ============================================================================
+
+void ThreadPool::submitPriority(std::function<void()> task, int priority) {
+    if (!task) return;
+
+    // [v1.9.4] 回退: 若工作线程未启动,映射到三级 Priority 枚举走 QThreadPool
+    bool fallback = false;
+    {
+        std::lock_guard<std::mutex> lock(m_queueMutex);
+        fallback = m_workers.empty();
+    }
+    if (fallback) {
+        Priority tier = priority >= static_cast<int>(Priority::High)   ? Priority::High
+                      : priority >= static_cast<int>(Priority::Normal) ? Priority::Normal
+                                                                       : Priority::Low;
+        start(std::move(task), tier);
+        return;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(m_queueMutex);
+        m_priorityQueue.push(PriorityTask{priority, std::move(task)});
+    }
+    m_queueCv.notify_one();
+}
+
+// ============================================================================
 // 工作线程循环 [v1.9.2]
 // ============================================================================
 
@@ -155,6 +183,8 @@ void ThreadPool::workerLoop() {
             m_activeCount.fetch_add(1, std::memory_order_relaxed);
             task();
             m_activeCount.fetch_sub(1, std::memory_order_relaxed);
+            // [v1.9.4] 通知 waitForDone 有任务完成,替代忙等轮询
+            m_doneCv.notify_all();
         }
     }
 }
@@ -162,22 +192,42 @@ void ThreadPool::workerLoop() {
 std::function<void()> ThreadPool::dequeueTask() {
     std::unique_lock<std::mutex> lock(m_queueMutex);
 
-    // 等待任务到达
+    // 等待任务到达 [v1.9.4] 增加 m_priorityQueue 唤醒源
     m_queueCv.wait(lock, [this]() {
         return !m_running.load(std::memory_order_acquire) ||
                !m_highQueue.empty() ||
                !m_normalQueue.empty() ||
-               !m_lowQueue.empty();
+               !m_lowQueue.empty() ||
+               !m_priorityQueue.empty();
     });
 
     if (!m_running.load(std::memory_order_acquire)) {
         return nullptr;
     }
 
+    // [v1.9.4] 细粒度优先级队列堆顶优先级 >= High 阈值时,优先于 High 队列执行
+    // 保证高优先级细粒度任务抢占三级队列
+    // 注意: std::priority_queue::top() 返回 const T&,不可 const_cast 后 move(UB)。
+    //       改为 copy 后 pop — std::function<void()> 无捕获时 sizeof ≤ 32B,拷贝开销可接受。
+    if (!m_priorityQueue.empty() &&
+        m_priorityQueue.top().priority >= static_cast<int>(Priority::High)) {
+        auto task = m_priorityQueue.top().task;
+        m_priorityQueue.pop();
+        return task;
+    }
+
     // 1. 优先处理 High 队列
     if (!m_highQueue.empty()) {
         auto task = std::move(m_highQueue.front());
         m_highQueue.pop_front();
+        return task;
+    }
+
+    // [v1.9.4] High 队列空时,处理细粒度优先级队列(任意剩余优先级)
+    // 同上,top() 返回 const T&,不可 const_cast 后 move,改为 copy 后 pop
+    if (!m_priorityQueue.empty()) {
+        auto task = m_priorityQueue.top().task;
+        m_priorityQueue.pop();
         return task;
     }
 
@@ -215,7 +265,8 @@ std::function<void()> ThreadPool::dequeueTask() {
 
 int ThreadPool::queueSize() const {
     std::lock_guard<std::mutex> lock(m_queueMutex);
-    return static_cast<int>(m_highQueue.size() + m_normalQueue.size() + m_lowQueue.size());
+    return static_cast<int>(m_highQueue.size() + m_normalQueue.size() +
+                            m_lowQueue.size() + m_priorityQueue.size());
 }
 
 int ThreadPool::highQueueSize() const {
@@ -231,6 +282,11 @@ int ThreadPool::normalQueueSize() const {
 int ThreadPool::lowQueueSize() const {
     std::lock_guard<std::mutex> lock(m_queueMutex);
     return static_cast<int>(m_lowQueue.size());
+}
+
+int ThreadPool::priorityQueueSize() const {
+    std::lock_guard<std::mutex> lock(m_queueMutex);
+    return static_cast<int>(m_priorityQueue.size());
 }
 
 int ThreadPool::activeThreadCount() const {
@@ -297,17 +353,31 @@ bool ThreadPool::waitForDone(int msecs) {
     if (usePriorityWorkers) {
         auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(msecs);
         while (true) {
-            {
-                std::lock_guard<std::mutex> lock(m_queueMutex);
-                if (m_highQueue.empty() && m_normalQueue.empty() && m_lowQueue.empty()
-                    && m_activeCount.load(std::memory_order_relaxed) == 0) {
+            // [v1.9.4] 使用谓词版 wait_for 合并检查+等待,消除丢失唤醒竞争
+            // lock_guard 释放后到 wait_for 上锁前存在窗口,若所有任务在此期间完成,
+            // 无谓词版本会永远错过通知。谓词版在 wait_for 返回后立即重检条件。
+            std::unique_lock<std::mutex> waitLock(m_queueMutex);
+            auto allDone = [this]() {
+                return m_highQueue.empty() && m_normalQueue.empty()
+                    && m_lowQueue.empty() && m_priorityQueue.empty()
+                    && m_activeCount.load(std::memory_order_relaxed) == 0;
+            };
+            if (msecs >= 0) {
+                auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    deadline - std::chrono::steady_clock::now());
+                if (remaining.count() <= 0) {
+                    return false;
+                }
+                if (m_doneCv.wait_for(waitLock, remaining, allDone)) {
                     return true;
                 }
+                if (std::chrono::steady_clock::now() >= deadline) {
+                    return false;
+                }
+            } else {
+                m_doneCv.wait(waitLock, allDone);
+                return true;
             }
-            if (msecs >= 0 && std::chrono::steady_clock::now() >= deadline) {
-                return false;
-            }
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     }
 

@@ -49,22 +49,21 @@ public:
         return Derived::tableMeta();
     }
 
-    virtual QVariant getProperty(const QString& name) const {
-        const Derived* derived = dynamic_cast<const Derived*>(this);
-        Q_ASSERT(derived && "Entity::getProperty: invalid derived cast");
-        if (!derived) return QVariant();
+    // [v2.5.1] 移除 virtual 关键字：CRTP 通过 static_cast 在编译期分发，
+    // virtual 增加 vtable 开销且暗示可被子类重写（与 CRTP 模式矛盾）。
+    // 如果 Derived 未实现 getPropertyImpl，编译期报错。
+    QVariant getProperty(const QString& name) const {
+        const Derived* derived = static_cast<const Derived*>(this);
         return derived->getPropertyImpl(name);
     }
 
-    virtual void setProperty(const QString& name, const QVariant& value) {
-        Derived* derived = dynamic_cast<Derived*>(this);
-        Q_ASSERT(derived && "Entity::setProperty: invalid derived cast");
-        if (!derived) return;
+    void setProperty(const QString& name, const QVariant& value) {
+        Derived* derived = static_cast<Derived*>(this);
         derived->setPropertyImpl(name, value);
     }
 };
 
-#define SC_TABLE(className, tableName) \
+#define SC_ENTITY_TABLE(className, tableName) \
     static QString TABLE_NAME() { return QStringLiteral(tableName); }
 
 #define SC_FIELD(type, name) type name;

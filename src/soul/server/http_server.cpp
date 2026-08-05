@@ -258,6 +258,16 @@ MiddlewareChain& HttpServer::middlewareChain() noexcept {
     return *m_middlewareChain;
 }
 
+std::vector<RouteMapping> HttpServer::getRoutes() const {
+    std::lock_guard<std::mutex> lock(m_routeMutex);
+    std::vector<RouteMapping> result;
+    result.reserve(m_routes.size());
+    for (const auto& [key, _] : m_routes) {
+        result.push_back({toString(key.method), key.path.toStdString()});
+    }
+    return result;
+}
+
 void HttpServer::onNewConnection() {
     while (m_tcpServer->hasPendingConnections()) {
         QTcpSocket* socket = m_tcpServer->nextPendingConnection();

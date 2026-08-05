@@ -40,6 +40,8 @@
 #include <QString>
 #include <QMap>
 
+#include "soul/utils/json/json_helper.h"  // [v1.9.4] OtlpExporter 依赖 sc::json
+
 namespace sc {
 namespace observability {
 
@@ -153,6 +155,23 @@ public:
             m_endTime - m_startTime).count();
     }
 
+    /// @return 开始时间(纳秒),用于 OtlpExporter 时间戳 [v1.9.4]
+    /// @thread_safety 线程安全
+    int64_t startTimeNs() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return std::chrono::duration_cast<std::chrono::nanoseconds>(
+            m_startTime.time_since_epoch()).count();
+    }
+
+    /// @return 结束时间(纳秒),未结束时返回 0 [v1.9.4]
+    /// @thread_safety 线程安全
+    int64_t endTimeNs() const {
+        if (!m_ended.load(std::memory_order_acquire)) return 0;
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return std::chrono::duration_cast<std::chrono::nanoseconds>(
+            m_endTime.time_since_epoch()).count();
+    }
+
 private:
     SpanContext m_context;
     std::string m_name;
@@ -264,6 +283,158 @@ public:
 private:
     Tracer();
     std::atomic<bool> m_enabled{true};  ///< v1.9.3: 追踪启停开关
+};
+
+// ============================================================================
+// OtlpExporter — OpenTelemetry OTLP 导出器 [v1.9.4]
+// ============================================================================
+//
+// 将已结束的 Span 序列化为 OTLP JSON 格式,支持发送到 OpenTelemetry Collector。
+//
+// OTLP/HTTP JSON 规范:
+//   POST /v1/traces
+//   Content-Type: application/json
+//   Body: {"resourceSpans": [{"scopeSpans": [{"spans": [...]}]}]}
+//
+// 用法:
+//   OtlpExporter exporter("http://localhost:4318/v1/traces");
+//   exporter.serialize(spans);
+//
+// @thread_safety 线程安全 — 内部 mutex 保护状态
+class OtlpExporter {
+public:
+    /// @brief 构造导出器
+    /// @param endpoint OTLP Collector HTTP 端点 (如 "http://localhost:4318/v1/traces")
+    explicit OtlpExporter(std::string endpoint = "")
+        : m_endpoint(std::move(endpoint)) {}
+
+    /// @brief 设置 Collector 端点
+    void setEndpoint(const std::string& endpoint) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_endpoint = endpoint;
+    }
+
+    /// @brief 获取当前端点
+    std::string endpoint() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_endpoint;
+    }
+
+    /// @brief 将 Span 列表序列化为 OTLP JSON
+    /// @param spans 已结束的 Span 列表
+    /// @return OTLP JSON 格式的 QByteArray
+    static QByteArray serializeSpans(const std::vector<std::shared_ptr<Span>>& spans) {
+        sc::json::Json root = sc::json::Json::object();
+        sc::json::Json resourceSpans = sc::json::Json::array();
+        sc::json::Json resourceSpan = sc::json::Json::object();
+
+        // resource
+        sc::json::Json resource = sc::json::Json::object();
+        sc::json::Json resourceAttrs = sc::json::Json::array();
+        sc::json::Json serviceNameAttr = sc::json::Json::object();
+        serviceNameAttr["key"] = "service.name";
+        sc::json::Json serviceNameValue = sc::json::Json::object();
+        serviceNameValue["stringValue"] = "SoulCoreKit";
+        serviceNameAttr["value"] = serviceNameValue;
+        resourceAttrs.push_back(serviceNameAttr);
+        resource["attributes"] = resourceAttrs;
+        resourceSpan["resource"] = resource;
+
+        // scopeSpans
+        sc::json::Json scopeSpans = sc::json::Json::array();
+        sc::json::Json scopeSpan = sc::json::Json::object();
+
+        sc::json::Json scope = sc::json::Json::object();
+        scope["name"] = "sc.observability";
+        scopeSpan["scope"] = scope;
+
+        sc::json::Json spanArray = sc::json::Json::array();
+        for (const auto& span : spans) {
+            if (!span || !span->isEnded()) continue;
+            spanArray.push_back(spanToJson(span));
+        }
+        scopeSpan["spans"] = spanArray;
+        scopeSpans.push_back(scopeSpan);
+        resourceSpan["scopeSpans"] = scopeSpans;
+        resourceSpans.push_back(resourceSpan);
+        root["resourceSpans"] = resourceSpans;
+
+        return sc::json::serialize(root);
+    }
+
+    /// @brief 将 Span 列表序列化为 OTLP JSON (实例方法,委托静态 serializeSpans)
+    /// @param spans 已结束的 Span 列表
+    /// @return OTLP JSON 格式的 QByteArray
+    QByteArray serialize(const std::vector<std::shared_ptr<Span>>& spans) {
+        return serializeSpans(spans);
+    }
+
+private:
+    /// @brief 将单个 Span 转为 OTLP JSON
+    static sc::json::Json spanToJson(const std::shared_ptr<Span>& span) {
+        sc::json::Json j = sc::json::Json::object();
+
+        const auto& ctx = span->context();
+        j["traceId"] = ctx.traceId;
+        j["spanId"] = ctx.spanId;
+        if (!ctx.parentSpanId.empty()) {
+            j["parentSpanId"] = ctx.parentSpanId;
+        }
+        j["name"] = span->name();
+
+        // 时间戳 (Unix nanoseconds) [v1.9.4] 使用 Span 实际起止时间
+        j["startTimeUnixNano"] = std::to_string(span->startTimeNs());
+        j["endTimeUnixNano"] = std::to_string(span->endTimeNs());
+
+        // 状态
+        sc::json::Json status = sc::json::Json::object();
+        status["code"] = span->isOk() ? 1 : 2;  // 1=OK, 2=ERROR
+        if (!span->statusDescription().empty()) {
+            status["message"] = span->statusDescription();
+        }
+        j["status"] = status;
+
+        // 标签 → attributes
+        sc::json::Json attrs = sc::json::Json::array();
+        for (const auto& [key, value] : span->getTags()) {
+            sc::json::Json attr = sc::json::Json::object();
+            attr["key"] = key;
+            sc::json::Json val = sc::json::Json::object();
+            val["stringValue"] = value;
+            attr["value"] = val;
+            attrs.push_back(attr);
+        }
+        j["attributes"] = attrs;
+
+        // 事件
+        sc::json::Json events = sc::json::Json::array();
+        for (const auto& event : span->getEvents()) {
+            sc::json::Json ev = sc::json::Json::object();
+            ev["name"] = event.name;
+            ev["timeUnixNano"] = std::to_string(
+                std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    event.timestamp.time_since_epoch()).count());
+            sc::json::Json evAttrs = sc::json::Json::array();
+            for (const auto& [k, v] : event.attributes) {
+                sc::json::Json attr = sc::json::Json::object();
+                attr["key"] = k;
+                sc::json::Json val = sc::json::Json::object();
+                val["stringValue"] = v;
+                attr["value"] = val;
+                evAttrs.push_back(attr);
+            }
+            ev["attributes"] = evAttrs;
+            events.push_back(ev);
+        }
+        if (!events.empty()) {
+            j["events"] = events;
+        }
+
+        return j;
+    }
+
+    mutable std::mutex m_mutex;
+    std::string m_endpoint;
 };
 
 } // namespace observability

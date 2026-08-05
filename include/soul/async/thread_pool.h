@@ -33,16 +33,43 @@ namespace sc {
 //   - 每次 Low 任务被跳过时 starvationCount++
 //   - 达到 kStarvationThreshold(默认 10)后提升到 Normal 队列执行
 //
+// [v1.9.4 增强] 细粒度优先级通道 (PriorityTask + std::priority_queue):
+//   - submitPriority(task, priority) 支持任意整数优先级(数值越大越优先)
+//   - 与三级 Priority 枚举互补,适合需要超过 3 档优先级的场景
+//   - 调度顺序: priority_queue 堆顶优先级 >= High 阈值时优先于 High 队列执行;
+//              否则按 High → priority_queue → Normal → Low 顺序调度
+//
 // 用法:
 //   ThreadPool::instance().init();
 //   ThreadPool::instance().start(task, Priority::High);
 //   ThreadPool::instance().start(task, Priority::Normal);
 //   ThreadPool::instance().start(task, Priority::Low);
+//   ThreadPool::instance().submitPriority(task, 100);  // [v1.9.4] 细粒度优先级
 
 enum class Priority {
     High = 3,
     Normal = 2,
     Low = 1
+};
+
+// ============================================================================
+// PriorityTask — 细粒度优先级任务 [v1.9.4]
+// ============================================================================
+//
+// 携带任意整数优先级的任务包装类型,供 std::priority_queue 使用。
+// 数值越大越优先;Comparator 构成 max-heap,堆顶为最高优先级任务。
+//
+// @thread_safety 非线程安全 — 仅作为值类型在 m_queueMutex 保护下入队/出队
+struct PriorityTask {
+    int priority = 0;                    ///< 优先级(数值越大越优先)
+    std::function<void()> task;          ///< 任务函数
+
+    /// @brief 优先级比较器(构成 max-heap,大值在堆顶)
+    struct Comparator {
+        bool operator()(const PriorityTask& a, const PriorityTask& b) const noexcept {
+            return a.priority < b.priority;
+        }
+    };
 };
 
 class ThreadPool : public QObject {
@@ -63,6 +90,16 @@ public:
     /// @brief 提交任务(使用 Priority 枚举) [v1.9.2 新增]
     void start(std::function<void()> task, Priority priority);
 
+    /// @brief 提交细粒度优先级任务(任意整数优先级) [v1.9.4 新增]
+    /// @param task 任务函数
+    /// @param priority 优先级(数值越大越优先,默认 0)
+    /// @note 与三级 Priority 枚举互补,适合需要超过 3 档优先级的场景。
+    ///       调度规则:
+    ///         - priority >= High(3) 时,与 High 队列同档,堆顶最高者优先
+    ///         - priority >= Normal(2) 时,在 High 队列清空后调度
+    ///         - 其他情况在 Normal 队列清空后调度
+    void submitPriority(std::function<void()> task, int priority = 0);
+
     int activeThreadCount() const;
     int maxThreadCount() const;
     void setMaxThreadCount(int maxThreads);
@@ -82,6 +119,9 @@ public:
     int highQueueSize() const;
     int normalQueueSize() const;
     int lowQueueSize() const;
+
+    /// @brief 获取细粒度优先级队列大小 [v1.9.4 新增]
+    int priorityQueueSize() const;
 
 private:
     ThreadPool();
@@ -112,8 +152,14 @@ private:
     std::deque<std::function<void()>> m_normalQueue;  ///< 普通优先级队列
     std::deque<StarvationTask> m_lowQueue;            ///< 低优先级队列(含饥饿计数)
 
+    // [v1.9.4] 细粒度优先级队列(max-heap,堆顶为最高优先级任务)
+    std::priority_queue<PriorityTask,
+                        std::vector<PriorityTask>,
+                        PriorityTask::Comparator> m_priorityQueue;
+
     mutable std::mutex m_queueMutex;
     std::condition_variable m_queueCv;                ///< 队列非空通知
+    std::condition_variable m_doneCv;                 ///< [v1.9.4] 任务完成通知(替代 waitForDone 忙等)
     std::vector<std::thread> m_workers;               ///< 工作线程池
     std::atomic<bool> m_running{false};               ///< 线程池运行标志
     std::atomic<int> m_activeCount{0};                ///< 活跃线程计数

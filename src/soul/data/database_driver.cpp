@@ -1,4 +1,7 @@
 #include "soul/data/database_driver.h"
+#include "soul/data/database_driver_base.h"
+#include "soul/data/mysql_driver.h"
+#include "soul/data/postgres_driver.h"
 #include <QSqlDatabase>
 #include <QSqlQuery>
 #include <QSqlError>
@@ -75,6 +78,7 @@ public:
             return Error(ErrorCode::QueryFailed, query.lastError().text());
         }
 
+        m_lastInsertId = query.lastInsertId();
         return query.numRowsAffected();
     }
 
@@ -115,6 +119,8 @@ public:
     QString getLastError() const override { return m_db.lastError().text(); }
     QString getConnectionId() const override { return QString::fromStdString(m_connectionId); }
 
+    Result<QVariant> lastInsertId() override { return m_lastInsertId; }
+
 protected:
     void generateConnectionId() {
         m_connectionId = QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
@@ -123,6 +129,7 @@ protected:
     QSqlDatabase m_db;
     std::string m_connectionId;
     bool m_inTransaction = false;
+    QVariant m_lastInsertId;  ///< 最后一次 INSERT 的自增主键值 [v2.0.0]
 };
 
 class SqliteDriver : public BaseSqlDriver {
@@ -148,69 +155,14 @@ public:
     DatabaseType getType() const override { return DatabaseType::SQLite; }
 };
 
-class MySqlDriver : public BaseSqlDriver {
-public:
-    Result<void> open(const ConnectionConfig& config) override {
-        if (isConnected()) {
-            (void)close();
-        }
-
-        generateConnectionId();
-        QString dbName = QString::fromStdString(m_connectionId);
-
-        m_db = QSqlDatabase::addDatabase("QMYSQL", dbName);
-        m_db.setHostName(config.host);
-        m_db.setPort(config.port);
-        m_db.setDatabaseName(config.database);
-        m_db.setUserName(config.username);
-        m_db.setPassword(config.password);
-        m_db.setConnectOptions(QString("connect_timeout=%1").arg(config.connectionTimeoutMs / 1000));
-
-        if (!m_db.open()) {
-            return Error(ErrorCode::DatabaseError, m_db.lastError().text());
-        }
-
-        return {};
-    }
-
-    DatabaseType getType() const override { return DatabaseType::MySQL; }
-};
-
-class PostgreSqlDriver : public BaseSqlDriver {
-public:
-    Result<void> open(const ConnectionConfig& config) override {
-        if (isConnected()) {
-            (void)close();
-        }
-
-        generateConnectionId();
-        QString dbName = QString::fromStdString(m_connectionId);
-
-        m_db = QSqlDatabase::addDatabase("QPSQL", dbName);
-        m_db.setHostName(config.host);
-        m_db.setPort(config.port);
-        m_db.setDatabaseName(config.database);
-        m_db.setUserName(config.username);
-        m_db.setPassword(config.password);
-
-        if (!m_db.open()) {
-            return Error(ErrorCode::DatabaseError, m_db.lastError().text());
-        }
-
-        return {};
-    }
-
-    DatabaseType getType() const override { return DatabaseType::PostgreSQL; }
-};
-
 std::unique_ptr<IDatabaseDriver> DatabaseDriverFactory::create(DatabaseType type) {
     switch (type) {
     case DatabaseType::SQLite:
         return std::make_unique<SqliteDriver>();
     case DatabaseType::MySQL:
-        return std::make_unique<MySqlDriver>();
+        return std::make_unique<MysqlDriver>();
     case DatabaseType::PostgreSQL:
-        return std::make_unique<PostgreSqlDriver>();
+        return std::make_unique<PostgresDriver>();
     case DatabaseType::MSSQL:
         return nullptr;
     case DatabaseType::Oracle:

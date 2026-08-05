@@ -38,6 +38,7 @@
 
 #include "soul/core/result.h"
 #include "soul/core/error.h"
+#include "soul/logging/log_macros.h"
 #include <atomic>
 #include <chrono>
 #include <deque>
@@ -126,7 +127,15 @@ public:
         auto result = [&]() -> ResultType {
             try {
                 return std::forward<F>(func)();
+            } catch (const std::exception& e) {
+                SC_LOGC_WARN(network, QString("CircuitBreaker '%1': call() exception: %2")
+                    .arg(QString::fromStdString(m_name))
+                    .arg(QString::fromUtf8(e.what())));
+                onFailure();
+                throw;
             } catch (...) {
+                SC_LOGC_WARN(network, QString("CircuitBreaker '%1': call() unknown exception")
+                    .arg(QString::fromStdString(m_name)));
                 onFailure();
                 throw;
             }

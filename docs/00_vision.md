@@ -2,7 +2,9 @@
 
 ## Project Overview
 
-SoulCoreKit is a lightweight, modular, and evolution-driven C++/Qt infrastructure library designed for **Client-Server (CS) architecture** application development. It serves as the foundation for CS-style projects (IDE, Music Player, Radio, Notebook, IM, EatDecider, etc.) by providing consistent, production-grade components and utilities. The scaffold design borrows from SpringBoot's IoC/DI/AOP/lifecycle concepts, but the architecture is CS (Qt desktop client + Linux server), not BS (Browser-Server).
+SoulCoreKit 是一个面向 Qt/C++ 的模块化应用开发框架，借鉴 Spring Boot 的分层架构、模块化、约定优于配置和生命周期管理理念，为 C/S 应用提供统一的 Module、Controller、Service、ViewModel、Router 与基础设施能力，并通过 Web Adapter 为未来 B/S UI 扩展提供基础。
+
+**简称**: Qt Application Framework（而非 "Qt Utility Library"）
 
 ## Mission
 
@@ -45,12 +47,34 @@ To provide a **stable, maintainable, and battle-tested** infrastructure layer th
 
 ## Architecture
 
-SoulCoreKit is a **CS (Client-Server) architecture** scaffold, not a BS (Browser-Server) framework:
+SoulCoreKit 采用三层架构模型：
 
-- **Client**: Qt desktop application on Windows/macOS/Linux, using SoulCoreKit + SoulCoreKitUi
-- **Server**: Linux (Ubuntu 20.04+) or cloud server backend process, using SoulCoreKit (without UI)
-- **Communication**: HTTP/TCP/WebSocket/RPC between Client and Server
-- **Scaffold style**: Borrows SpringBoot's IoC/DI/AOP/module lifecycle concepts, but does NOT replicate Servlet/Tomcat/Filter/MVC etc.
+```
+                     SoulCoreKit
+                          │
+           ┌──────────────┴──────────────┐
+           │                             │
+      Foundation                    Application
+           │                             │
+           │                        ┌────┴────┐
+           │                        │         │
+       基础设施层                    CS        Web
+           │                        │         │
+           │                        │    QtWebEngine
+           │                        │    (预留)
+           │                 Module/Router
+           │                 Controller
+           │                 Service
+           │                 ViewModel
+           │                 ErrorHandler
+```
+
+- **Foundation 层**: 基础设施能力（core, base, logging, configuration, network, storage, async, event, utils）— 与 UI 无关，与业务无关
+- **Application 层**: 业务架构能力（CsModule, CsRouter, CsController, CsService, CsViewModel, CsErrorHandler）
+- **CS 模块**: Qt Widgets 桌面客户端，使用 Signal/Slot 驱动
+- **Web 模块**: 预留，未来通过 Web Adapter 复用 CS 业务层
+
+详细架构见 [v2.5.0-cs-architecture.md](./v2.5.0-cs-architecture.md)。
 
 ## Target Use Cases
 

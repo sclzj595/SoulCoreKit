@@ -9,7 +9,7 @@ namespace orm {
 
 class User : public Entity<User> {
 public:
-    SC_TABLE(User, "user")
+    SC_ENTITY_TABLE(User, "user")
 
     SC_FIELD(QString, username)
     SC_FIELD(QString, email)

@@ -1,5 +1,5 @@
 // ============================================================================
-// full_stack_example.cpp — SoulCoreKit v1.9.3 全栈集成示例
+// full_stack_example.cpp — SoulCoreKit v1.9.4 全栈集成示例
 // ============================================================================
 //
 // 演示如何将一个 CS 架构 Server 端从零搭建为生产可用的 SpringBoot 式脚手架:
@@ -9,6 +9,13 @@
 //   - PrometheusExporter 指标导出
 //   - InfoEndpoint 应用信息
 //   - LoggersEndpoint 动态日志级别
+//   - EnvironmentEndpoint 环境配置 [v1.9.4]
+//   - MappingsEndpoint 路由映射 [v1.9.4]
+//   - MetricsEndpoint 指标查询 [v1.9.4]
+//   - ThreadDumpEndpoint 线程转储 [v1.9.4]
+//   - BeansEndpoint DI 容器内省 [v1.9.4]
+//   - CachesEndpoint 缓存内省 [v1.9.4]
+//   - ShutdownEndpoint 优雅停机 [v1.9.4]
 //   - CircuitBreaker 熔断器
 //   - Validator 输入校验
 //   - ORM 数据库 + MQ 消息队列
@@ -19,10 +26,18 @@
 //   GET http://localhost:8080/metrics            → Prometheus 指标
 //   GET http://localhost:8080/actuator/info      → 应用信息
 //   GET http://localhost:8080/actuator/loggers   → 日志级别
+//   GET http://localhost:8080/actuator/env       → 环境配置 [v1.9.4]
+//   GET http://localhost:8080/actuator/mappings  → 路由映射 [v1.9.4]
+//   GET http://localhost:8080/actuator/metrics   → 指标列表 [v1.9.4]
+//   GET http://localhost:8080/actuator/threaddump → 线程转储 [v1.9.4]
+//   GET http://localhost:8080/actuator/beans     → DI 容器 Bean 列表 [v1.9.4]
+//   GET http://localhost:8080/actuator/caches    → 缓存列表 [v1.9.4]
+//   POST http://localhost:8080/actuator/shutdown → 优雅停机 [v1.9.4]
 //   POST http://localhost:8080/api/users         → 创建用户(JSON body)
 //   GET http://localhost:8080/api/users          → 用户列表
 
 #include <QCoreApplication>
+#include <QPointer>
 #include <QTimer>
 #include <iostream>
 
@@ -34,6 +49,13 @@
 #include "soul/server/health.h"
 #include "soul/server/info_endpoint.h"
 #include "soul/server/loggers_endpoint.h"
+#include "soul/server/env_endpoint.h"
+#include "soul/server/mappings_endpoint.h"
+#include "soul/server/metrics_endpoint.h"
+#include "soul/server/threaddump_endpoint.h"
+#include "soul/server/beans_endpoint.h"
+#include "soul/server/caches_endpoint.h"
+#include "soul/server/shutdown_endpoint.h"
 #include "soul/observability/prometheus_exporter.h"
 #include "soul/observability/tracing.h"
 #include "soul/network/policy/circuit_breaker.h"
@@ -97,6 +119,12 @@ public:
         rl->addExcludePath("/api/health/liveness");
         rl->addExcludePath("/metrics");
         rl->addExcludePath("/actuator/info");
+        // [v1.9.4] 诊断端点免限流,避免运维查询被误判为攻击
+        rl->addExcludePath("/actuator/metrics");
+        rl->addExcludePath("/actuator/threaddump");
+        rl->addExcludePath("/actuator/beans");
+        rl->addExcludePath("/actuator/caches");
+        rl->addExcludePath("/actuator/shutdown");
         m_server->use(rl);
 
         // 1.3 CORS(开发环境允许所有来源)
@@ -112,7 +140,7 @@ public:
 
         // /actuator/info — 应用信息
         InfoEndpoint::setAppName("SoulCoreKit Demo");
-        InfoEndpoint::setAppVersion("1.9.3");
+        InfoEndpoint::setAppVersion("1.9.4");
         m_server->get("/actuator/info", [](const HttpRequest&, HttpResponse& resp) {
             resp.setHeader("Content-Type", "application/json");
             resp.setBody(InfoEndpoint::toJson());
@@ -123,6 +151,66 @@ public:
             resp.setHeader("Content-Type", "application/json");
             resp.setBody(LoggersEndpoint::getAllLevels());
         });
+
+        // /actuator/env — 环境配置 [v1.9.4]
+        m_server->get("/actuator/env", [](const HttpRequest&, HttpResponse& resp) {
+            resp.setHeader("Content-Type", "application/json");
+            resp.setBody(EnvironmentEndpoint::toJson());
+        });
+
+        // /actuator/mappings — 路由映射 [v1.9.4]
+        // QPointer 生命周期安全: server 销毁时自动置 null,防止 UAF [v1.9.4]
+        QPointer<HttpServer> serverPtr(m_server.get());
+        m_server->get("/actuator/mappings", [serverPtr](const HttpRequest&, HttpResponse& resp) {
+            resp.setHeader("Content-Type", "application/json");
+            resp.setBody(MappingsEndpoint::toJson(*serverPtr));
+        });
+
+        // /actuator/metrics — 指标列表 + 单指标查询 [v1.9.4]
+        m_server->get("/actuator/metrics", [](const HttpRequest&, HttpResponse& resp) {
+            resp.setHeader("Content-Type", "application/json");
+            resp.setBody(MetricsEndpoint::listMetricNames());
+        });
+
+        // /actuator/threaddump — 线程转储 [v1.9.4]
+        m_server->get("/actuator/threaddump", [](const HttpRequest&, HttpResponse& resp) {
+            resp.setHeader("Content-Type", "application/json");
+            resp.setBody(ThreadDumpEndpoint::toJson());
+        });
+
+        // /actuator/beans — DI 容器 Bean 内省 [v1.9.4]
+        m_server->get("/actuator/beans", [](const HttpRequest&, HttpResponse& resp) {
+            resp.setHeader("Content-Type", "application/json");
+            resp.setBody(BeansEndpoint::toJson());
+        });
+
+        // /actuator/caches — 缓存内省 [v1.9.4]
+        m_server->get("/actuator/caches", [](const HttpRequest&, HttpResponse& resp) {
+            resp.setHeader("Content-Type", "application/json");
+            resp.setBody(CachesEndpoint::toJson());
+        });
+
+        // /actuator/shutdown — 优雅停机 (POST) [v1.9.4]
+        // 先返回响应,再异步触发 shutdown,避免响应被连接关闭截断
+        m_server->post("/actuator/shutdown", [serverPtr](const HttpRequest&, HttpResponse& resp) {
+            resp.setHeader("Content-Type", "application/json");
+            resp.setBody(ShutdownEndpoint::toJson());
+            // 延迟 100ms 触发 shutdown,确保响应已发回客户端
+            // QPointer 自动检测 server 是否存活,防止 UAF [v1.9.4]
+            QTimer::singleShot(100, [serverPtr]() {
+                if (serverPtr) {
+                    serverPtr->shutdown(5000);
+                }
+            });
+        });
+
+        // 注: /actuator/scheduledtasks 端点 [v1.9.4] 需传入 Scheduler 实例,
+        //     本示例未启用 Scheduler 模块。启用方式:
+        //     m_server->get("/actuator/scheduledtasks",
+        //         [&scheduler](const HttpRequest&, HttpResponse& resp) {
+        //             resp.setHeader("Content-Type", "application/json");
+        //             resp.setBody(ScheduledTasksEndpoint::toJson(scheduler));
+        //         });
 
         // /metrics — Prometheus 指标
         m_server->get("/metrics", [](const HttpRequest&, HttpResponse& resp) {
@@ -281,7 +369,7 @@ int main(int argc, char* argv[]) {
         std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now().time_since_epoch()).count());
 
-    SC_INFO("SoulCoreKit v1.9.3 Full Stack Demo starting...");
+    SC_INFO("SoulCoreKit v1.9.4 Full Stack Demo starting...");
 
     // 4. 启动(自动拓扑排序 → init → onStart → 事件循环)
     return scaffold.run();

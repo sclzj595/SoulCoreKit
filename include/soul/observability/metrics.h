@@ -346,13 +346,12 @@ public:
                           const std::string& help,
                           const HistogramBuckets& buckets);
 
-    /// @brief 获取所有已注册指标
-    [[nodiscard]] std::vector<IMetric*> allMetrics() const;
+    /// @brief 获取所有已注册指标(shared_ptr 快照,线程安全) [v1.9.4]
+    /// @return shared_ptr 副本,调用方持有期间指标不会被注销销毁
+    [[nodiscard]] std::vector<std::shared_ptr<IMetric>> allMetrics() const;
 
     /// @brief 清空所有指标（仅用于测试）
     void clear();
-    /// @note Not safe to call concurrently with allMetrics()/exportMetrics()
-    /// (raw pointer snapshots). Test-only.
 
 private:
     MetricsRegistry() = default;
@@ -360,9 +359,9 @@ private:
     MetricsRegistry& operator=(const MetricsRegistry&) = delete;
 
     mutable std::mutex m_mutex;
-    std::map<std::string, std::unique_ptr<Counter>>   m_counters;
-    std::map<std::string, std::unique_ptr<Gauge>>     m_gauges;
-    std::map<std::string, std::unique_ptr<Histogram>> m_histograms;
+    std::map<std::string, std::shared_ptr<Counter>>   m_counters;
+    std::map<std::string, std::shared_ptr<Gauge>>     m_gauges;
+    std::map<std::string, std::shared_ptr<Histogram>> m_histograms;
 };
 
 } // namespace observability

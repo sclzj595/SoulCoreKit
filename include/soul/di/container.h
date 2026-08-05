@@ -8,6 +8,7 @@
 #include <string>
 #include <typeindex>
 #include <unordered_map>
+#include <vector>
 
 #include "di_global.h"
 #include "soul/core/result.h"
@@ -25,7 +26,10 @@ struct SC_DI_EXPORT RegistrationInfo {
     Lifetime lifetime = Lifetime::Transient;
     std::function<void*(const std::unordered_map<std::type_index, void*>&)> creator;
     std::type_index interfaceType = std::type_index(typeid(void));
-    void* singletonInstance = nullptr;
+    // [v2.5.1] 使用 shared_ptr<void> 存储单例实例，共享控制块。
+    // resolve() 返回 aliasing shared_ptr<T>，即使 clear() 重置了此成员，
+    // 已分发的 shared_ptr 仍持有引用计数，实例不会被提前释放，消除 use-after-free。
+    std::shared_ptr<void> singletonInstance;
     bool initialized = false;
     bool owned = true;
     std::shared_ptr<std::atomic<bool>> initFlag;
@@ -70,9 +74,8 @@ public:
         std::lock_guard<std::recursive_mutex> lock(m_mutex);
         auto it = m_scopes.find(scopeId);
         if (it != m_scopes.end()) {
-            for (auto& pair : it->second) {
-                tryDeleteScopeInstance(pair.first, pair.second);
-            }
+            // [v2.5.1] shared_ptr<void> 自动管理生命周期，无需手动调用 deleter
+            it->second.clear();
             m_scopes.erase(it);
             if (m_currentScopeId == scopeId) {
                 m_currentScopeId = 0;
@@ -100,7 +103,7 @@ public:
             return creator();
         };
         info.interfaceType = typeIdx;
-        info.singletonInstance = nullptr;
+        info.singletonInstance.reset();
         info.initialized = false;
         info.initFlag = std::make_shared<std::atomic<bool>>(false);
         info.deleter = [](void* ptr) { delete static_cast<T*>(ptr); };
@@ -120,7 +123,8 @@ public:
         info.lifetime = Lifetime::Singleton;
         info.creator = nullptr;
         info.interfaceType = typeIdx;
-        info.singletonInstance = instance;
+        // [v2.5.1] 包装为 shared_ptr<void>，no-op deleter（外部管理生命周期）
+        info.singletonInstance = std::shared_ptr<T>(instance, [](T*) {});
         info.initialized = true;
         info.owned = false;
         info.initFlag = std::make_shared<std::atomic<bool>>(true);
@@ -143,7 +147,7 @@ public:
             return creator();
         };
         info.interfaceType = typeIdx;
-        info.singletonInstance = nullptr;
+        info.singletonInstance.reset();
         info.initialized = false;
         info.initFlag = std::make_shared<std::atomic<bool>>(false);
         info.deleter = [](void* ptr) { delete static_cast<T*>(ptr); };
@@ -239,50 +243,53 @@ public:
                 QStringLiteral("Named type not registered: %1").arg(QString::fromStdString(name))));
         }
         auto& info = it->second;
-        // Named 注册支持 Transient/Singleton/Scoped 三种生命周期
+        // [v2.5.1] 使用 aliasing shared_ptr 共享控制块，消除 use-after-free
         if (info.lifetime == Lifetime::Singleton) {
             if (info.initialized && info.singletonInstance) {
-                return std::shared_ptr<T>(static_cast<T*>(info.singletonInstance), [](T*) {});
+                return std::shared_ptr<T>(info.singletonInstance,
+                    static_cast<T*>(info.singletonInstance.get()));
             }
             if (!info.creator) {
                 return Error(ErrorCode::InvalidArgument, "Creator not set for named singleton");
             }
-            void* instance = info.creator(m_resolvedInstances);
+            void* instance = info.creator(emptyMap());
             if (!instance) return Error(ErrorCode::InternalError, "Creator returned null");
-            info.singletonInstance = instance;
+            info.singletonInstance = std::shared_ptr<void>(instance, info.deleter);
             info.initialized = true;
-            return std::shared_ptr<T>(static_cast<T*>(instance), [](T*) {});
+            return std::shared_ptr<T>(info.singletonInstance,
+                static_cast<T*>(info.singletonInstance.get()));
         }
         if (info.lifetime == Lifetime::Scoped) {
-            // 与 resolve() 的 Scoped 逻辑对称:查 scope 缓存 → 缓存实例 → no-op deleter
             if (m_currentScopeId != 0) {
                 auto scopeIt = m_scopes.find(m_currentScopeId);
                 if (scopeIt != m_scopes.end()) {
                     auto instIt = scopeIt->second.find(typeIdx);
                     if (instIt != scopeIt->second.end()) {
-                        return std::shared_ptr<T>(static_cast<T*>(instIt->second), [](T*) {});
+                        return std::shared_ptr<T>(instIt->second,
+                            static_cast<T*>(instIt->second.get()));
                     }
                 }
             }
             if (!info.creator) {
                 return Error(ErrorCode::InvalidArgument, "Creator not set for named scoped");
             }
-            void* instance = info.creator(m_resolvedInstances);
+            void* instance = info.creator(emptyMap());
             if (!instance) return Error(ErrorCode::InternalError, "Creator returned null");
+            auto sp = std::shared_ptr<void>(instance, info.deleter);
             if (m_currentScopeId != 0) {
-                m_scopes[m_currentScopeId][typeIdx] = instance;
-                return std::shared_ptr<T>(static_cast<T*>(instance), [](T*) {});
+                m_scopes[m_currentScopeId][typeIdx] = sp;
+                return std::shared_ptr<T>(sp, static_cast<T*>(sp.get()));
             }
-            // 无活跃 scope 时退化为 Transient(不缓存,由 shared_ptr 默认删除器管理)
-            return std::shared_ptr<T>(static_cast<T*>(instance));
+            return std::shared_ptr<T>(sp, static_cast<T*>(sp.get()));
         }
         // Transient
         if (!info.creator) {
             return Error(ErrorCode::InvalidArgument, "Creator not set for named transient");
         }
-        void* instance = info.creator(m_resolvedInstances);
+        void* instance = info.creator(emptyMap());
         if (!instance) return Error(ErrorCode::InternalError, "Creator returned null");
-        return std::shared_ptr<T>(static_cast<T*>(instance));
+        auto sp = std::shared_ptr<void>(instance, info.deleter);
+        return std::shared_ptr<T>(sp, static_cast<T*>(sp.get()));
     }
 
     // --- Primary:默认实现(对标 @Primary) ---
@@ -324,7 +331,6 @@ public:
             // 回退:如果有 Primary 命名实现,返回 Primary
             auto primIt = m_primaryImpls.find(typeIdx);
             if (primIt != m_primaryImpls.end()) {
-                // 释放锁后调用 resolveNamed(避免递归锁开销,但 recursive_mutex 可重入)
                 return resolveNamed<T>(primIt->second);
             }
             return Result<std::shared_ptr<T>>(Error(ErrorCode::NotFound,
@@ -333,29 +339,34 @@ public:
 
         auto& info = it->second;
 
+        // [v2.5.1] 使用 aliasing shared_ptr 共享控制块
+        // Singleton/Scoped: 返回的 shared_ptr 与内部存储的 shared_ptr<void> 共享控制块，
+        // 即使 clear() 重置了内部存储，已分发的 shared_ptr 仍持有引用，实例不会被提前释放。
+
         if (info.lifetime == Lifetime::Singleton) {
             if (info.initialized && info.singletonInstance) {
-                return std::shared_ptr<T>(static_cast<T*>(info.singletonInstance), [](T*) {});
+                return std::shared_ptr<T>(info.singletonInstance,
+                    static_cast<T*>(info.singletonInstance.get()));
             }
 
             if (!info.creator) {
                 return Error(ErrorCode::InvalidArgument, "Creator not set for singleton");
             }
 
-            void* instance = info.creator(m_resolvedInstances);
+            void* instance = info.creator(emptyMap());
             if (!instance) {
                 return Error(ErrorCode::InternalError, "Creator returned null");
             }
 
-            info.singletonInstance = instance;
+            info.singletonInstance = std::shared_ptr<void>(instance, info.deleter);
             info.initialized = true;
-            m_resolvedInstances[typeIdx] = instance;
 
             if (info.initFlag) {
                 info.initFlag->store(true, std::memory_order_release);
             }
 
-            return std::shared_ptr<T>(static_cast<T*>(instance), [](T*) {});
+            return std::shared_ptr<T>(info.singletonInstance,
+                static_cast<T*>(info.singletonInstance.get()));
         }
 
         if (info.lifetime == Lifetime::Scoped) {
@@ -364,7 +375,8 @@ public:
                 if (scopeIt != m_scopes.end()) {
                     auto instIt = scopeIt->second.find(typeIdx);
                     if (instIt != scopeIt->second.end()) {
-                        return std::shared_ptr<T>(static_cast<T*>(instIt->second), [](T*) {});
+                        return std::shared_ptr<T>(instIt->second,
+                            static_cast<T*>(instIt->second.get()));
                     }
                 }
             }
@@ -373,28 +385,31 @@ public:
                 return Error(ErrorCode::InvalidArgument, "Creator not set for scoped");
             }
 
-            void* instance = info.creator(m_resolvedInstances);
+            void* instance = info.creator(emptyMap());
             if (!instance) {
                 return Error(ErrorCode::InternalError, "Creator returned null");
             }
 
+            auto sp = std::shared_ptr<void>(instance, info.deleter);
+
             if (m_currentScopeId != 0) {
-                m_scopes[m_currentScopeId][typeIdx] = instance;
-                return std::shared_ptr<T>(static_cast<T*>(instance), [](T*) {});
+                m_scopes[m_currentScopeId][typeIdx] = sp;
+                return std::shared_ptr<T>(sp, static_cast<T*>(sp.get()));
             }
 
-            return std::shared_ptr<T>(static_cast<T*>(instance));
+            return std::shared_ptr<T>(sp, static_cast<T*>(sp.get()));
         }
 
         if (info.lifetime == Lifetime::Transient) {
             if (!info.creator) {
                 return Error(ErrorCode::InvalidArgument, "Creator not set for transient");
             }
-            void* instance = info.creator(m_resolvedInstances);
+            void* instance = info.creator(emptyMap());
             if (!instance) {
                 return Error(ErrorCode::InternalError, "Creator returned null");
             }
-            return std::shared_ptr<T>(static_cast<T*>(instance));
+            auto sp = std::shared_ptr<void>(instance, info.deleter);
+            return std::shared_ptr<T>(sp, static_cast<T*>(sp.get()));
         }
 
         return Error(ErrorCode::InternalError, "Unknown lifetime type");
@@ -414,53 +429,32 @@ public:
         auto typeIdx = std::type_index(typeid(T));
         auto it = m_registrations.find(typeIdx);
         if (it != m_registrations.end()) {
-            if (it->second.lifetime == Lifetime::Singleton &&
-                it->second.initialized &&
-                it->second.singletonInstance &&
-                it->second.owned) {
-                if (it->second.deleter) {
-                    it->second.deleter(it->second.singletonInstance);
-                }
-            }
+            // [v2.5.1] shared_ptr 自动管理生命周期，重置即可
+            it->second.singletonInstance.reset();
+            it->second.initialized = false;
             m_registrations.erase(typeIdx);
-            m_resolvedInstances.erase(typeIdx);
         }
     }
 
     void clear()
     {
         std::lock_guard<std::recursive_mutex> lock(m_mutex);
-        for (auto& pair : m_scopes) {
-            for (auto& instPair : pair.second) {
-                tryDeleteScopeInstance(instPair.first, instPair.second);
-            }
-        }
+        // [v2.5.1] shared_ptr<void> 自动管理生命周期。
+        // 清除 scope 缓存和 registration 表时，只需重置 shared_ptr。
+        // 已通过 resolve() 分发的 aliasing shared_ptr 仍持有控制块引用，
+        // 实例不会被提前释放，彻底消除 use-after-free 隐患。
         m_scopes.clear();
         m_currentScopeId = 0;
 
         for (auto& pair : m_registrations) {
-            if (pair.second.lifetime == Lifetime::Singleton &&
-                pair.second.initialized &&
-                pair.second.singletonInstance &&
-                pair.second.owned) {
-                if (pair.second.deleter) {
-                    pair.second.deleter(pair.second.singletonInstance);
-                }
-            }
+            pair.second.singletonInstance.reset();
+            pair.second.initialized = false;
         }
         m_registrations.clear();
-        m_resolvedInstances.clear();
 
-        // 清理 named 注册的单例
         for (auto& pair : m_namedRegistrations) {
-            if (pair.second.lifetime == Lifetime::Singleton &&
-                pair.second.initialized &&
-                pair.second.singletonInstance &&
-                pair.second.owned) {
-                if (pair.second.deleter) {
-                    pair.second.deleter(pair.second.singletonInstance);
-                }
-            }
+            pair.second.singletonInstance.reset();
+            pair.second.initialized = false;
         }
         m_namedRegistrations.clear();
         m_primaryImpls.clear();
@@ -472,36 +466,51 @@ public:
         return m_registrations.size();
     }
 
-private:
-    // 查找 scope 实例的 deleter:先查 m_registrations,再回退到 m_namedRegistrations。
-    // 原因: named Scoped 实例通过 resolveNamed 写入 m_scopes,但其 deleter 存储在
-    // m_namedRegistrations 而非 m_registrations 中。
-    bool tryDeleteScopeInstance(std::type_index typeIdx, void* instance) {
-        auto regIt = m_registrations.find(typeIdx);
-        if (regIt != m_registrations.end() && regIt->second.deleter && regIt->second.owned) {
-            regIt->second.deleter(instance);
-            return true;
-        }
-        // 回退到 named 注册表:遍历所有 NamedKey,匹配 typeIdx
-        for (auto& np : m_namedRegistrations) {
-            if (np.first.typeIdx == typeIdx && np.second.deleter && np.second.owned) {
-                np.second.deleter(instance);
-                return true;
+    // [v1.9.4] DI 内省 — 返回已注册类型信息
+    struct BeanInfo {
+        std::string typeName;
+        std::string lifetime;    // "transient" / "singleton" / "scoped"
+        bool initialized = false;
+    };
+
+    // 获取所有已注册 Bean 的内省信息(对标 SpringBoot /actuator/beans)
+    std::vector<BeanInfo> getRegisteredBeans() const {
+        std::lock_guard<std::recursive_mutex> lock(m_mutex);
+        std::vector<BeanInfo> result;
+        for (const auto& pair : m_registrations) {
+            BeanInfo info;
+            info.typeName = pair.first.name();
+            switch (pair.second.lifetime) {
+                case Lifetime::Transient: info.lifetime = "transient"; break;
+                case Lifetime::Singleton: info.lifetime = "singleton"; break;
+                case Lifetime::Scoped:    info.lifetime = "scoped";    break;
             }
+            info.initialized = pair.second.initialized;
+            result.push_back(info);
         }
-        return false;
+        return result;
     }
 
+private:
     Container() = default;
     ~Container() = default;
 
     Container(const Container&) = delete;
     Container& operator=(const Container&) = delete;
 
+    // [v2.5.2] 所有 creator lambda 均忽略依赖映射参数，使用静态空 map 替代裸指针 m_resolvedInstances
+    static const std::unordered_map<std::type_index, void*>& emptyMap() {
+        static const std::unordered_map<std::type_index, void*> empty;
+        return empty;
+    }
+
     mutable std::recursive_mutex m_mutex;
     std::unordered_map<std::type_index, RegistrationInfo> m_registrations;
-    std::unordered_map<std::type_index, void*> m_resolvedInstances;
-    std::unordered_map<ScopeId, std::unordered_map<std::type_index, void*>> m_scopes;
+    // [v2.5.2] 已移除 m_resolvedInstances(void* map)。
+    // singletonInstance(shared_ptr<void>) 已承担实例存储职责，m_resolvedInstances 是冗余的裸指针副本。
+    // 所有 creator lambda 均忽略依赖映射参数，传递空 map 即可。
+    // [v2.5.1] 使用 shared_ptr<void> 存储 scope 实例，共享控制块消除 use-after-free
+    std::unordered_map<ScopeId, std::unordered_map<std::type_index, std::shared_ptr<void>>> m_scopes;
     std::unordered_map<NamedKey, RegistrationInfo, NamedKeyHash> m_namedRegistrations;
     std::unordered_map<std::type_index, std::string> m_primaryImpls;
     ScopeId m_currentScopeId = 0;

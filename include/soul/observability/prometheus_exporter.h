@@ -43,27 +43,22 @@ namespace observability {
 class PrometheusExporter {
 public:
     /// @brief 导出所有已注册指标为 Prometheus 文本格式
-    /// @concurrency 不应与 MetricsRegistry 的注册/注销操作并发调用。
-    ///               allMetrics() 返回裸指针快照,注册/注销操作可能使指针失效。
-    ///               clear() 为 test-only,生产环境不会触发。
-    ///               TODO(v1.9.4): 改为返回 shared_ptr 快照或加读写锁保护
+    /// @concurrency 线程安全 — allMetrics() 返回 shared_ptr 快照,
+    ///               clear() 注销时调用方持有的 shared_ptr 仍保持指标存活。
     static QByteArray exportMetrics() {
-        // Concurrency: must not be called concurrently with clear() (test-only)
-        // or metric registration/unregistration that invalidates pointers.
-        // allMetrics() returns raw pointers that clear()/unregistration would invalidate.
         auto metrics = MetricsRegistry::instance().allMetrics();
         std::ostringstream oss;
 
-        for (const auto* metric : metrics) {
+        for (const auto& metric : metrics) {
             switch (metric->type()) {
             case MetricType::Counter:
-                exportCounter(oss, static_cast<const Counter*>(metric));
+                exportCounter(oss, static_cast<const Counter*>(metric.get()));
                 break;
             case MetricType::Gauge:
-                exportGauge(oss, static_cast<const Gauge*>(metric));
+                exportGauge(oss, static_cast<const Gauge*>(metric.get()));
                 break;
             case MetricType::Histogram:
-                exportHistogram(oss, static_cast<const Histogram*>(metric));
+                exportHistogram(oss, static_cast<const Histogram*>(metric.get()));
                 break;
             }
         }

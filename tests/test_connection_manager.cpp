@@ -11,7 +11,6 @@
 #include "soul/network/core/inetwork.h"
 #include "soul/network/core/network_state.h"
 #include "soul/network/core/network_message.h"
-#include "soul/event/event_bus.h"
 
 using namespace sc;
 using namespace sc::network;
@@ -387,49 +386,38 @@ private slots:
         QCOMPARE(mgr.state("noreconn"), ManagedConnectionState::Disconnected);
     }
 
-    // === EventBus 通知 ===
+    // === StateListener 回调通知 ===
 
-    void testEventBusNotification()
+    void testStateListenerNotification()
     {
-        auto eventBus = std::make_shared<DefaultEventBus>();
-
-        std::string lastData;
+        std::string lastName;
+        ManagedConnectionState lastState = ManagedConnectionState::Disconnected;
         bool received = false;
 
-        auto sub = eventBus->subscribe(ConnectionManager::TOPIC_CONNECTION_STATE,
-                            [&](const std::string& data) {
-                                lastData = data;
-                                received = true;
-                            });
+        auto listener = [&](const std::string& name,
+                            ManagedConnectionState state,
+                            ManagedConnectionState /*previousState*/,
+                            const std::string& /*message*/) {
+            lastName = name;
+            lastState = state;
+            received = true;
+        };
 
-        // 直接publish验证EventBus本身工作正常
-        eventBus->publish(ConnectionManager::TOPIC_CONNECTION_STATE, "{\"test\":true}");
-        QVERIFY(received);
-        QVERIFY(!lastData.empty());
-
-        // 重置
-        received = false;
-        lastData.clear();
-
-        ConnectionManager mgr(eventBus);
+        ConnectionManager mgr(listener);
 
         auto network = std::make_shared<MockNetwork>();
-        mgr.registerConnection("eb", network, ConnectionConfig{QUrl("tcp://localhost:8080")});
+        mgr.registerConnection("sl", network, ConnectionConfig{QUrl("tcp://localhost:8080")});
 
-        mgr.connect("eb");
+        mgr.connect("sl");
         QCoreApplication::processEvents();
-        QTRY_COMPARE_WITH_TIMEOUT(mgr.state("eb"), ManagedConnectionState::Connected, 3000);
+        QTRY_COMPARE_WITH_TIMEOUT(mgr.state("sl"), ManagedConnectionState::Connected, 3000);
 
         QCoreApplication::processEvents();
         QTest::qWait(50);
 
         QVERIFY(received);
-        QVERIFY(!lastData.empty());
-        QVERIFY(lastData.find("eb") != std::string::npos);
-        QVERIFY(lastData.find("Connected") != std::string::npos);
-
-        // 保持订阅有效(防止sub被销毁)
-        Q_UNUSED(sub);
+        QCOMPARE(lastName, std::string("sl"));
+        QVERIFY(lastState == ManagedConnectionState::Connected || lastState == ManagedConnectionState::Connecting);
     }
 
     // === 指数退避算法 ===

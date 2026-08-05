@@ -52,6 +52,9 @@
 #include <unordered_map>
 #include <vector>
 
+// RouteMapping 定义在此头文件中(getRoutes() 返回值需要完整类型)
+#include "soul/server/mappings_endpoint.h"
+
 namespace sc {
 namespace server {
 
@@ -274,6 +277,10 @@ public:
 
     /// @brief 获取中间件链引用(用于高级场景,如动态添加/移除中间件)
     MiddlewareChain& middlewareChain() noexcept;
+
+    /// @brief 获取所有已注册路由的映射列表 [v1.9.4]
+    /// @return 路由映射列表(方法+路径),线程安全(返回快照)
+    std::vector<RouteMapping> getRoutes() const;
 
 signals:
     /// @brief 新连接到达

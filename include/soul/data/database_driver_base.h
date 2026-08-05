@@ -133,6 +133,7 @@ public:
             return Error(ErrorCode::QueryFailed, query.lastError().text());
         }
 
+        m_lastInsertId = query.lastInsertId();
         return query.numRowsAffected();
     }
 
@@ -174,6 +175,12 @@ public:
 
     bool isInTransaction() const override { return m_inTransaction; }
 
+    /// @brief 获取最后一次 INSERT 操作的自增主键值 [v2.0.0]
+    /// @details 使用 QSqlQuery::lastInsertId() 实现数据库无关的自增主键获取
+    Result<QVariant> lastInsertId() override {
+        return m_lastInsertId;
+    }
+
 protected:
     /// @brief 生成唯一连接 ID
     void generateConnectionId() {
@@ -183,6 +190,7 @@ protected:
     QSqlDatabase m_db;
     std::string m_connectionId;
     bool m_inTransaction = false;
+    QVariant m_lastInsertId;  ///< 最后一次 INSERT 的自增主键值 [v2.0.0]
 
 private:
     /// @brief 绑定参数到查询

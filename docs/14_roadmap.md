@@ -415,28 +415,58 @@ v1.9.0 发布后,经审查发现项目定位存在偏差:
 
 ---
 
-## 5. 长期愿景 — v2.0 (Long-term)
+## 5. 长期愿景 — v2.5.0+ (Current)
 
-**主题**: 架构演进 + 平台扩展
+**主题**: 架构定稿 — ApplicationContext + ServiceRegistry + 三层分层
 
-### 4.1 候选项
+### 5.1 v2.5.0 — 架构定稿 (In Progress)
 
-| 特性 | 说明 | 风险 |
-|------|------|------|
-| Qt 7 支持 | 升级到 Qt 7 LTS,迁移 RHI/QtQml 新特性 | 高(API 变更) |
-| 移动端支持 | iOS/Android via Qt for Mobile | 中(平台差异) |
-| WebAssembly | WASM 支持,浏览器内运行 | 中(沙箱限制) |
-| Vulkan 渲染 | GPU 加速渲染,替代 OpenGL | 高(硬件依赖) |
-| 模块化(JPMS-like) | C++ Modules 替代头文件,提升编译速度 | 高(工具链成熟度) |
-| 协程(C++20 Coroutines) | `co_await`/`co_yield` 替代 Future 链 | 中(编译器支持) |
+**详细设计**: [v2.5.0-cs-architecture.md](./v2.5.0-cs-architecture.md)
 
-### 4.2 决策原则
+| 变更项 | 内容 | 优先级 |
+|--------|------|:---:|
+| CODE-01 | 引入 `ApplicationContext` | P0 |
+| CODE-02 | 引入 `ServiceRegistry` | P0 |
+| CODE-03 | 引入 `ControllerRegistry` | P0 |
+| CODE-04 | 重构 `CsModule` — 不持有 Service/Controller 所有权 | P0 |
+| CODE-05 | Controller 分发优先使用强类型 | P0 |
+| CODE-06 | 精简 `web/` — 删除提前实现的 .h 文件 | P0 |
+| CODE-07 | 添加 `application/` 目录结构 | P0 |
 
-v2.0 引入破坏性变更前必须满足:
-1. C++20 Coroutines 在 GCC/Clang/MSVC 三大编译器稳定支持 ≥ 2 年
-2. Qt 7 发布 LTS 版本且社区采纳率 ≥ 60%
-3. C++ Modules 在 CMake/Ninja 工具链中实现生产可用
-4. 现有 v1.x 用户有清晰的迁移路径与工具支持
+### 5.2 v2.6.0 — CS Security (Spring Security 对标)
+
+| 变更项 | 内容 | 优先级 |
+|--------|------|:---:|
+| CS-01 | CsSecurity — CS 场景安全适配 | P0 |
+| CS-02 | OAuth2/OIDC 认证 — Authorization Code + PKCE | P0 |
+| CS-03 | JWT Token 管理 — 签发/验证/刷新/吊销 | P0 |
+| CS-04 | RBAC 权限模型 — 角色-权限-资源三级 | P0 |
+| CS-05 | SecurityInterceptor — 请求级安全拦截 | P1 |
+| CS-06 | 审计日志 — 结构化输出 | P2 |
+| CS-07 | 密码加密 — bcrypt/argon2 | P2 |
+
+### 5.3 v2.7.0 — CS Advanced (Spring Cloud 对标)
+
+| 变更项 | 内容 | 优先级 |
+|--------|------|:---:|
+| CA-01 | CsAdminPanel — 内置管理面板 | P1 |
+| CA-02 | CsIpcRouter — 本地 IPC 路由 | P1 |
+| CA-03 | 配置中心客户端 — Nacos/Apollo/Consul | P1 |
+| CA-04 | 分布式追踪 — OTLP HTTP + Span 传播 | P2 |
+| CA-05 | 灰度发布 — Header/Cookie/IP 路由 | P2 |
+| CA-06 | gRPC 集成 — Server/Client | P2 |
+| CA-07 | 服务注册发现 — Consul/Eureka/Nacos | P2 |
+| CA-08 | MQ 完整集成 — RabbitMQ + Kafka | P2 |
+
+### 5.4 v3.0.0 — 正式发布
+
+| 交付物 | 内容 |
+|--------|------|
+| 全量文档 | API 参考 + 架构指南 + 快速开始 |
+| 部署指南 | Windows/macOS/Linux 部署 |
+| 性能基准 | UI 渲染 + 数据库查询 + 网络操作 |
+| 安全审计 | 依赖扫描 + 漏洞报告 |
+| 发布包 | 多平台预编译二进制 + SDK |
 
 ---
 

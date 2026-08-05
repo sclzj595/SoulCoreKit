@@ -18,7 +18,7 @@ public:
     struct BlurContext {
         ::QGraphicsScene scene;
         ::QGraphicsBlurEffect blurEffect;
-        ::QGraphicsPixmapItem* pixmapItem = nullptr;
+        std::unique_ptr<::QGraphicsPixmapItem> pixmapItem;
         ::QPixmap cachedResult;
         ::QSize lastSize;
         int lastBlurRadius = -1;
@@ -28,12 +28,11 @@ public:
         }
 
         ~BlurContext() {
-            // 必须先从 scene 摘除再 delete,否则 scene 析构时会再次 delete
+            // 必须先从 scene 摘除再 reset,否则 scene 析构时会再次 delete
             // 已释放的 pixmapItem,导致 double-free / UB(与 apply() 中处理保持一致)。
             if (pixmapItem) {
-                scene.removeItem(pixmapItem);
-                delete pixmapItem;
-                pixmapItem = nullptr;
+                scene.removeItem(pixmapItem.get());
+                pixmapItem.reset();
             }
         }
 
@@ -49,12 +48,12 @@ public:
             }
 
             if (pixmapItem) {
-                scene.removeItem(pixmapItem);
-                delete pixmapItem;
+                scene.removeItem(pixmapItem.get());
+                pixmapItem.reset();
             }
 
             blurEffect.setBlurRadius(blurRadius);
-            pixmapItem = scene.addPixmap(source);
+            pixmapItem.reset(scene.addPixmap(source));
             pixmapItem->setGraphicsEffect(&blurEffect);
 
             cachedResult = ::QPixmap(source.size());

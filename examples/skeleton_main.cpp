@@ -50,9 +50,8 @@ public:
         SC_INFO("Timer module initialized, will quit after 3 seconds");
         QTimer::singleShot(3000, []() {
             SC_INFO("Timer expired, quitting application");
-            if (sc::Application::hasInstance()) {
-                auto* qapp = sc::Application::instance()->qApplication();
-                if (qapp) qapp->quit();
+            if (auto* app = QCoreApplication::instance()) {
+                app->quit();
             }
         });
         return {};

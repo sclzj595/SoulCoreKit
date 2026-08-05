@@ -14,6 +14,7 @@
 //   });
 
 #include "soul/utils/json/json_helper.h"
+#include "soul/core/version_config.h"
 
 #include <QByteArray>
 #include <QString>
@@ -73,7 +74,7 @@ private:
     inline static std::string s_appName = "SoulCoreKit App";
     inline static std::string s_appVersion = "1.0.0";
     inline static std::string s_description;
-    inline static std::string s_frameworkVersion = "1.9.3";
+    inline static std::string s_frameworkVersion = SOUL_COREKIT_VERSION;
     inline static int64_t s_startupTimeMs = 0;
 };
 

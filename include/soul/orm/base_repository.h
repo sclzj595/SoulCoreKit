@@ -13,9 +13,34 @@
 namespace sc {
 namespace orm {
 
+/// @brief ORM 基础仓储模板类 — 对标 MyBatis-Plus BaseMapper
+///
+/// 提供 CRUD 操作的默认实现，子类只需实现 find()、remove()、save() 三个核心方法。
+/// 使用 CRTP 模式绑定实体类型 T，支持 QueryWrapper 条件查询。
+///
+/// @tparam T 实体类型（必须继承自 Entity 并实现属性反射）
+///
+/// @par 设计模式
+/// - **模板方法模式**: findById/removeById/existsById 提供默认实现，子类覆盖核心操作
+/// - **仓储模式**: 统一数据访问接口，隔离底层存储实现
+///
+/// @par 使用示例
+/// @code
+/// class UserRepository : public BaseRepository<User> {
+/// public:
+///     Result<User> save(const User& entity) override { ... }
+///     Result<std::vector<User>> find(const QueryWrapper& q) override { ... }
+///     Result<void> remove(const QueryWrapper& q) override { ... }
+///     Result<int> count(const QueryWrapper& q) override { ... }
+///     bool executeSql(const QString& sql, ...) override { ... }
+/// };
+/// @endcode
 template<typename T>
 class BaseRepository : public data::IRepository<T, QString> {
 public:
+    /// @brief 按主键 ID 查找实体
+    /// @param id 主键值
+    /// @return 实体或 NotFound 错误
     virtual Result<T> findById(const QString& id) override {
         QueryWrapper query;
         query.eq("id", id);

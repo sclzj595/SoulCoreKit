@@ -17,6 +17,25 @@
 
 namespace sc {
 
+/// @brief 异步任务结果包装器 — 对标 std::future + JavaScript Promise
+///
+/// 封装 QFuture<T>，提供 then() 链式调用、onSuccess()/onFailure() 回调注册。
+/// 使用独立线程池避免 then() 回调阻塞 async() 任务执行。
+///
+/// @tparam T 异步结果类型
+///
+/// @par 设计要点
+/// - **线程安全**: 回调列表通过 mutex 保护，支持多线程并发注册
+/// - **死锁预防**: then() 使用独立 QThreadPool，不与 async() 共享线程池
+/// - **生命周期安全**: QPromise 通过 shared_ptr 管理，确保跨线程析构安全
+///
+/// @par 使用示例
+/// @code
+/// async([]() { return fetchData(); })
+///     .then([](auto data) { return process(data); })
+///     .onSuccess([](auto result) { updateUI(result); })
+///     .onFailure([](auto& e) { showError(e.what()); });
+/// @endcode
 template<typename T>
 class Future {
     template<typename> friend class Future;  ///< [v1.9.2] 允许跨类型 then() 访问私有成员
@@ -80,7 +99,7 @@ public:
         // 避免 then 任务阻塞等待 async 任务时线程池满死锁。
         QFuture<T> originalFuture = m_future;
         static auto s_thenPool = []() {
-            auto pool = new QThreadPool();
+            auto pool = std::make_unique<QThreadPool>();
             pool->setMaxThreadCount(QThread::idealThreadCount() * 2);
             return pool;
         }();

@@ -124,7 +124,7 @@ Counter& MetricsRegistry::counter(const std::string& name, const std::string& he
     if (it != m_counters.end()) {
         return *it->second;
     }
-    auto ptr = std::make_unique<Counter>(name, help);
+    auto ptr = std::make_shared<Counter>(name, help);
     auto& ref = *ptr;
     m_counters[name] = std::move(ptr);
     return ref;
@@ -136,7 +136,7 @@ Gauge& MetricsRegistry::gauge(const std::string& name, const std::string& help) 
     if (it != m_gauges.end()) {
         return *it->second;
     }
-    auto ptr = std::make_unique<Gauge>(name, help);
+    auto ptr = std::make_shared<Gauge>(name, help);
     auto& ref = *ptr;
     m_gauges[name] = std::move(ptr);
     return ref;
@@ -150,24 +150,24 @@ Histogram& MetricsRegistry::histogram(const std::string& name,
     if (it != m_histograms.end()) {
         return *it->second;
     }
-    auto ptr = std::make_unique<Histogram>(name, help, buckets);
+    auto ptr = std::make_shared<Histogram>(name, help, buckets);
     auto& ref = *ptr;
     m_histograms[name] = std::move(ptr);
     return ref;
 }
 
-std::vector<IMetric*> MetricsRegistry::allMetrics() const {
+std::vector<std::shared_ptr<IMetric>> MetricsRegistry::allMetrics() const {
     std::lock_guard<std::mutex> lock(m_mutex);
-    std::vector<IMetric*> result;
+    std::vector<std::shared_ptr<IMetric>> result;
     result.reserve(m_counters.size() + m_gauges.size() + m_histograms.size());
     for (const auto& [_, p] : m_counters) {
-        result.push_back(p.get());
+        result.push_back(p);
     }
     for (const auto& [_, p] : m_gauges) {
-        result.push_back(p.get());
+        result.push_back(p);
     }
     for (const auto& [_, p] : m_histograms) {
-        result.push_back(p.get());
+        result.push_back(p);
     }
     return result;
 }

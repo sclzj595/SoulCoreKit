@@ -1,4 +1,4 @@
-﻿#ifndef SOUL_DATA_REPOSITORY_H
+#ifndef SOUL_DATA_REPOSITORY_H
 #define SOUL_DATA_REPOSITORY_H
 
 #include <vector>
@@ -44,6 +44,8 @@ public:
     virtual Result<T> save(const T& entity) = 0;
     virtual Result<void> removeById(const Id& id) = 0;
 
+    // [v2.5.1] 默认实现通过 findById 判断，数据库实现应重写为 SELECT COUNT(*)
+    // 避免加载完整实体数据，提升查询效率
     virtual Result<bool> existsById(const Id& id) {
         auto result = findById(id);
         if (result.isOk()) return true;
@@ -74,6 +76,8 @@ public:
         return {};
     }
 
+    // [v2.5.1] 默认实现通过 findAll 统计，数据库实现应重写为 SELECT COUNT(*)
+    // 避免加载全量实体数据到内存，提升查询效率
     virtual Result<int> count() {
         auto result = findAll();
         if (!result.isOk()) {

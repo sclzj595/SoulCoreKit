@@ -10,6 +10,8 @@
 #include "soul/server/middleware.h"
 #include "soul/server/info_endpoint.h"
 #include "soul/server/loggers_endpoint.h"
+#include "soul/server/env_endpoint.h"
+#include "soul/server/mappings_endpoint.h"
 #include "soul/observability/tracing.h"
 
 using namespace sc::network;
@@ -113,6 +115,58 @@ private slots:
         });
 
         QVERIFY(callbackCount > 0);
+    }
+
+    // [v1.9.4] Half-Open → Closed: 试探全部成功后恢复
+    void testHalfOpenToClosed() {
+        CircuitBreaker cb("test");
+        cb.setFailureThreshold(1).setResetTimeout(0);  // 立即进入半开
+        cb.setHalfOpenMaxCalls(2);
+
+        // 触发熔断
+        cb.call([]() -> Result<int> {
+            return Result<int>::err(Error(ErrorCode::InternalError, "fail"));
+        });
+        QCOMPARE(cb.state(), CircuitBreakerState::Open);
+
+        // 第一次试探成功 → 仍为 HalfOpen
+        auto r1 = cb.call([]() -> Result<int> {
+            return Result<int>::ok(1);
+        });
+        QVERIFY(r1.isOk());
+        QCOMPARE(cb.state(), CircuitBreakerState::HalfOpen);
+
+        // 第二次试探成功 → 恢复到 Closed
+        auto r2 = cb.call([]() -> Result<int> {
+            return Result<int>::ok(2);
+        });
+        QVERIFY(r2.isOk());
+        QCOMPARE(cb.state(), CircuitBreakerState::Closed);
+    }
+
+    // [v1.9.4] Half-Open → Open: 试探失败后回熔断
+    void testHalfOpenToOpen() {
+        CircuitBreaker cb("test");
+        cb.setFailureThreshold(1).setResetTimeout(0);
+        cb.setHalfOpenMaxCalls(3);
+
+        // 触发熔断
+        cb.call([]() -> Result<int> {
+            return Result<int>::err(Error(ErrorCode::InternalError, "fail"));
+        });
+        QCOMPARE(cb.state(), CircuitBreakerState::Open);
+
+        // 第一次试探成功
+        cb.call([]() -> Result<int> {
+            return Result<int>::ok(1);
+        });
+        QCOMPARE(cb.state(), CircuitBreakerState::HalfOpen);
+
+        // 第二次试探失败 → 回到 Open
+        cb.call([]() -> Result<int> {
+            return Result<int>::err(Error(ErrorCode::InternalError, "fail"));
+        });
+        QCOMPARE(cb.state(), CircuitBreakerState::Open);
     }
 };
 
@@ -522,6 +576,74 @@ private slots:
 };
 
 // ============================================================================
+// EnvironmentEndpoint 测试 [v1.9.4]
+// ============================================================================
+class TestEnvironmentEndpoint : public QObject {
+    Q_OBJECT
+private slots:
+    void testDefaultProfiles() {
+        QByteArray json = EnvironmentEndpoint::toJson();
+        QVERIFY(json.contains("activeProfiles"));
+        QVERIFY(json.contains("default"));
+        QVERIFY(json.contains("propertySources"));
+        QVERIFY(json.contains("systemEnvironment"));
+    }
+
+    void testCustomProfiles() {
+        EnvironmentEndpoint::setActiveProfiles({"dev", "test"});
+        QByteArray json = EnvironmentEndpoint::toJson();
+        QVERIFY(json.contains("dev"));
+        QVERIFY(json.contains("test"));
+        EnvironmentEndpoint::setActiveProfiles({"default"});  // restore
+    }
+
+    void testCustomProperties() {
+        EnvironmentEndpoint::setProperty("server.port", "8080");
+        EnvironmentEndpoint::setProperty("app.name", "SoulCoreKit");
+        QByteArray json = EnvironmentEndpoint::toJson();
+        QVERIFY(json.contains("server.port"));
+        QVERIFY(json.contains("8080"));
+        QVERIFY(json.contains("app.name"));
+        QVERIFY(json.contains("SoulCoreKit"));
+        EnvironmentEndpoint::clearProperties();  // cleanup
+    }
+};
+
+// ============================================================================
+// MappingsEndpoint 测试 [v1.9.4]
+// ============================================================================
+class TestMappingsEndpoint : public QObject {
+    Q_OBJECT
+private slots:
+    void testCustomMappings() {
+        MappingsEndpoint::setMappings({
+            {"GET", "/api/health"},
+            {"POST", "/api/users"},
+            {"GET", "/api/users"}
+        });
+        sc::server::HttpServer dummyServer;
+        QByteArray json = MappingsEndpoint::toJson(dummyServer);
+        QVERIFY(json.contains("GET"));
+        QVERIFY(json.contains("/api/health"));
+        QVERIFY(json.contains("POST"));
+        QVERIFY(json.contains("/api/users"));
+        MappingsEndpoint::resetToServerSource();
+    }
+
+    void testResetToServerSource() {
+        MappingsEndpoint::setMappings({{"GET", "/test"}});
+        MappingsEndpoint::resetToServerSource();
+        sc::server::HttpServer server;
+        server.get("/api/health", [](const HttpRequest&, HttpResponse& resp) {
+            resp.setBody("OK");
+        });
+        QByteArray json = MappingsEndpoint::toJson(server);
+        QVERIFY(json.contains("/api/health"));
+        QVERIFY(json.contains("GET"));
+    }
+};
+
+// ============================================================================
 // main
 // ============================================================================
 int main(int argc, char* argv[]) {
@@ -550,6 +672,14 @@ int main(int argc, char* argv[]) {
     }
     {
         TestSpanGuard tc;
+        status |= QTest::qExec(&tc, argc, argv);
+    }
+    {
+        TestEnvironmentEndpoint tc;
+        status |= QTest::qExec(&tc, argc, argv);
+    }
+    {
+        TestMappingsEndpoint tc;
         status |= QTest::qExec(&tc, argc, argv);
     }
     return status;

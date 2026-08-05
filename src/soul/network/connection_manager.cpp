@@ -4,8 +4,6 @@
 
 #include "soul/network/connection_manager.h"
 #include "soul/network/policy/heartbeat_policy.h"
-#include "soul/event/event_bus.h"
-#include "soul/utils/json/json_helper.h"
 
 #include <QTimer>
 #include <algorithm>
@@ -18,10 +16,10 @@ namespace network {
 // ConnectionManager 构造/析构
 // ============================================================================
 
-ConnectionManager::ConnectionManager(std::shared_ptr<IEventBus> eventBus,
+ConnectionManager::ConnectionManager(StateListener listener,
                                      QObject* parent)
     : QObject(parent)
-    , m_eventBus(std::move(eventBus))
+    , m_stateListener(std::move(listener))
 {
 }
 
@@ -430,18 +428,9 @@ void ConnectionManager::setState(const std::string& name,
     // 发出 Qt 信号
     emit connectionStateChanged(name, newState, oldState);
 
-    // 发布到 EventBus
-    if (m_eventBus) {
-        sc::json::Json json;
-        json["name"] = name;
-        json["state"] = toString(newState);
-        json["previousState"] = toString(oldState);
-        if (!message.empty()) {
-            json["message"] = message;
-        }
-
-        m_eventBus->publish(TOPIC_CONNECTION_STATE,
-                            sc::json::serialize(json).toStdString());
+    // [v2.5.1] 通过 StateListener 回调通知（替代 IEventBus，消除 soul_event 依赖）
+    if (m_stateListener) {
+        m_stateListener(name, newState, oldState, message);
     }
 }
 

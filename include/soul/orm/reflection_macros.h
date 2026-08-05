@@ -17,7 +17,7 @@
  * @code
  * class User : public Entity<User> {
  * public:
- *     SC_TABLE(User, "user")
+ *     SC_ENTITY_TABLE(User, "user")
  *
  *     QString username;
  *     QString email;
