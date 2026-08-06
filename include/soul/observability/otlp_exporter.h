@@ -139,8 +139,8 @@ private:
 
     OtlpConfig m_config;
     ResourceAttributes m_resourceAttrs;
-    QNetworkAccessManager* m_networkManager = nullptr;
-    QTimer* m_flushTimer = nullptr;
+    QNetworkAccessManager* m_networkManager = nullptr;  // parent=this (QObject 生命周期管理)
+    QTimer* m_flushTimer = nullptr;                      // parent=this (QObject 生命周期管理)
     bool m_initialized = false;
 
     // 缓冲
