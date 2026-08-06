@@ -186,6 +186,53 @@ private:
 };
 
 // ============================================================================
+// NacosServiceDiscovery — Nacos 实现
+// ============================================================================
+class NacosServiceDiscovery : public QObject, public IServiceDiscovery {
+    Q_OBJECT
+public:
+    explicit NacosServiceDiscovery(QObject* parent = nullptr);
+    ~NacosServiceDiscovery() override;
+
+    Result<void> connect(const DiscoveryConfig& config) override;
+    void disconnect() override;
+    bool isConnected() const override;
+
+    Result<void> registerInstance(const ServiceInstance& instance) override;
+    Result<void> unregisterInstance(const QString& serviceName, const QString& host, int port) override;
+    Result<QList<ServiceInstance>> getInstances(const QString& serviceName) override;
+
+    Result<void> reportHealthy() override;
+    Result<void> reportUnhealthy(const QString& reason = "") override;
+
+    Result<void> watch(const QString& serviceName, ServiceChangeCallback callback) override;
+    Result<void> unwatch(const QString& serviceName) override;
+
+    bool isHealthy() const override;
+    QList<QString> getServiceNames() override;
+
+private slots:
+    void onHeartbeat();
+    void onRefreshCache();
+
+private:
+    Result<void> sendHeartbeat();
+    QByteArray syncHttpRequest(const QString& method, const QString& path,
+                                const QByteArray& body = QByteArray(), int timeoutMs = 5000);
+
+    DiscoveryConfig m_config;
+    QTimer* m_heartbeatTimer = nullptr;
+    QTimer* m_refreshTimer = nullptr;
+    QHash<QString, QList<ServiceInstance>> m_cache;
+    QHash<QString, QList<ServiceChangeCallback>> m_watchers;
+    mutable std::mutex m_mutex;
+    bool m_connected = false;
+    bool m_healthy = false;
+    QString m_namespaceId;  // Nacos 命名空间 ID
+    QString m_groupName;    // Nacos 分组名
+};
+
+// ============================================================================
 // ServiceDiscoveryFactory — 工厂
 // ============================================================================
 class ServiceDiscoveryFactory {

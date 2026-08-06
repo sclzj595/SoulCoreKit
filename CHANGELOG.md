@@ -165,6 +165,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `IServiceDiscovery` 抽象接口: 继承 IServiceRegistry
   - `ConsulServiceDiscovery`: Consul HTTP API + 心跳保活 + 服务缓存
   - `EurekaServiceDiscovery`: Eureka REST API + 心跳保活 + 服务缓存
+  - `NacosServiceDiscovery`: Nacos 2.x HTTP API + 心跳保活 + 命名空间/分组
   - `WeightedLoadBalancer`: RoundRobin / WeightedRoundRobin / LeastConnections / Random
   - `ServiceDiscoveryFactory`: 工厂方法创建不同后端
 

@@ -32,7 +32,7 @@
 | 9 | Async | `soul_async` | 异步任务 | `ThreadPool`, `TaskRunner`, `Future<T>`, `Promise<T>`, `Dispatcher`, `CancelableTask`, `Coroutine` (C++20) |
 | 10 | Event | `soul_event` | 事件总线 | `EventBus`, `TypedEventBus<T>`, `MessageBus`, `Subscription`, `QtSignalAdapter` |
 | 11 | Network | `soul_network` | 网络通信 (4 子模块) | 见下方 Network 子模块拆分 |
-| 12 | RPC | `soul_rpc` | RPC 框架 | `ClientProxy`, `ServiceDispatcher`, `ServiceRegistry`, `HttpTransport`, `ISerializer`, `JsonSerializer`, `GrpcServer`, `GrpcClient` (Unary/Streaming RPC), `ConsulServiceDiscovery`, `EurekaServiceDiscovery`, `WeightedLoadBalancer` |
+| 12 | RPC | `soul_rpc` | RPC 框架 | `ClientProxy`, `ServiceDispatcher`, `ServiceRegistry`, `HttpTransport`, `ISerializer`, `JsonSerializer`, `GrpcServer`, `GrpcClient` (Unary/Streaming RPC), `ConsulServiceDiscovery`, `EurekaServiceDiscovery`, `NacosServiceDiscovery`, `WeightedLoadBalancer` |
 
 #### Network 子模块 (4 层)
 

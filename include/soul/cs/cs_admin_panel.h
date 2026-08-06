@@ -22,8 +22,10 @@
 #include <functional>
 
 #include "soul/cs/cs_global.h"
-#include "soul/observability/metrics.h"
-#include "soul/server/health.h"
+
+// 前向声明: 以下头文件仅在 .cpp 实现中需要
+//   - soul/observability/metrics.h  (Metrics 数据提供者)
+//   - soul/server/health.h          (Health 数据提供者)
 
 namespace sc::cs {
 
