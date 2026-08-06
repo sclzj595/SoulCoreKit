@@ -158,7 +158,7 @@ struct RocketMQConfig {
     int maxMessageSize = 4 * 1024 * 1024;           // 最大消息大小
     int retryTimesWhenSendFailed = 2;               // 发送失败重试次数
     int retryTimesWhenSendAsyncFailed = 2;          // 异步发送失败重试次数
-    bool compressMsgBodyOverHowmuch = 4096;         // 压缩阈值
+    int compressMsgBodyOverHowmuch = 4096;         // 压缩阈值 (字节)
     int retryAnotherBrokerWhenNotStoreOK = 0;       // 是否重试其他 Broker
     int maxReconsumeTimes = 16;                     // 最大重消费次数
     int consumeMessageBatchMaxSize = 1;             // 批量消费最大消息数

@@ -132,11 +132,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 配置变更事件 `ConfigChangeEvent` + Watch 机制
   - 属性优先级合并: 远程覆盖本地
 
-#### OtlpExporter — OpenTelemetry 导出器 (P1)
+#### OtlpHttpExporter — OpenTelemetry 导出器 (P1)
 
 - `include/soul/observability/otlp_exporter.h`:
   - 完整 OTLP/HTTP 协议实现: Traces + Metrics + Logs
-  - `OtlpExporter` 单例: 批量导出 + 定时刷新 + 重试策略
+  - `OtlpHttpExporter` 单例: 批量导出 + 定时刷新 + 重试策略
   - `ResourceAttributes`: 服务名/版本/命名空间/主机名/环境
   - OTLP JSON 构建: ResourceSpans/ScopeMetrics/ScopeLogs
   - 指数退避重试 + 认证 Token 支持

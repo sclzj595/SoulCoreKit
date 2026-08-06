@@ -50,7 +50,7 @@
 | 13 | Auth | `soul_auth` | 认证授权 | `AuthManager`, `TokenManager`, `OAuth2`, `OIDC`, `Permission`, `SecureStorage`, `User` |
 | 14 | MQ | `soul_mq` | 消息队列 | `IAmqpBackend`, `InMemoryAmqpBackend`, `AmqpCppBackend` (RabbitMQ), `MQFactory`, `RabbitMQConnection/Producer/Consumer`, `KafkaConnection/Producer/Consumer`, `RocketMQConnection/Producer/Consumer` |
 | 15 | ORM | `soul_orm` | 对象关系映射 | `Entity<T>`, `BaseRepository<T>`, `QueryWrapper`, `SqlDialect`, `MigrationManager`, `CachedRepository`, `Reflection`, `CodeGenerator`, `TypedQueryWrapper` |
-| 16 | Observability | `soul_observability` | 可观测性 | `Metrics` (Counter/Gauge/Histogram), `PrometheusExporter`, `OtlpExporter` (OpenTelemetry Protocol), `Tracing` (W3C TraceContext), `JsonSink`, `ResourcePoolMonitor` |
+| 16 | Observability | `soul_observability` | 可观测性 | `Metrics` (Counter/Gauge/Histogram), `PrometheusExporter`, `OtlpHttpExporter` (OpenTelemetry Protocol), `Tracing` (W3C TraceContext), `JsonSink`, `ResourcePoolMonitor` |
 | 17 | Base | `soul_base` | 基础类 | `BaseObject`, `BaseManager`, `BaseService` |
 | 18 | Utils | `soul_utils` | 工具函数集 | `JsonUtils`, `FileUtils`, `StringUtils`, `CryptoUtils`, `ImageUtils`, `CompressUtils`, `DateTimeUtils`, `ClipboardUtils`, `ProcessUtils`, `XmlUtils` |
 

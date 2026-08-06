@@ -27,7 +27,7 @@
 | v1.9.4 | 2026-08-02 | Patch | Actuator 端点 100% 补全 + 运维增强 + 技术债清理 |
 | v2.0.0 | 2026-08-03 | **Major** | Application 启动器 + YAML 配置 + Profile + 自动装配 + Scaffold 重构 + ORM 增强 (MyBatis-Plus 风格) |
 | v2.1.0 | 2026-08-03 | Minor | CS 架构核心框架 (Controller/Router/Service/ViewModel) |
-| **v2.5.0** | **2026-08-05** | **Major** | **三层架构定稿 + ApplicationContext + 27 模块完整体系 + cmake/modules 子模块化 + 8 个 P1-P2 核心模块 (CsAdminPanel/CsIpcRouter/ConfigCenterClient/OtlpExporter/FeatureFlags/GrpcServer/ServiceDiscovery/KafkaAdapter)** |
+| **v2.5.0** | **2026-08-05** | **Major** | **三层架构定稿 + ApplicationContext + 27 模块完整体系 + cmake/modules 子模块化 + 8 个 P1-P2 核心模块 (CsAdminPanel/CsIpcRouter/ConfigCenterClient/OtlpHttpExporter/FeatureFlags/GrpcServer/ServiceDiscovery/KafkaAdapter)** |
 
 ---
 
@@ -65,7 +65,7 @@ v2.5.0 (当前)                         v2.6.0 (CS Security)     v3.0.0 (Release
     ├─ CsAdminPanel (管理后台面板)          ├─ 密码加密              └─ 正式版
     ├─ CsIpcRouter (进程间通信路由)        └─ SecurityMiddleware
     ├─ ConfigCenterClient (Etcd/Nacos)
-    ├─ OtlpExporter (OpenTelemetry)
+    ├─ OtlpHttpExporter (OpenTelemetry)
     ├─ FeatureFlags (灰度发布/功能开关)
     ├─ GrpcServer/GrpcClient (gRPC)
     ├─ ServiceDiscovery (Consul/Eureka)
