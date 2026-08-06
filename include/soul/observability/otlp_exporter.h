@@ -2,7 +2,7 @@
 #define SOUL_OBSERVABILITY_OTLP_EXPORTER_H
 
 // ============================================================================
-// otlp_exporter.h — OpenTelemetry Protocol (OTLP) 导出器 [v2.5.0]
+// otlp_exporter.h — OpenTelemetry Protocol (OTLP) HTTP 导出器 [v2.5.0]
 // ============================================================================
 // 完整实现 OTLP/HTTP 协议，支持:
 //   - Traces 导出 (OTLP JSON + Protobuf)
@@ -69,12 +69,12 @@ struct ResourceAttributes {
 };
 
 // ============================================================================
-// OtlpExporter — OTLP 导出器
+// OtlpHttpExporter — OTLP HTTP 导出器
 // ============================================================================
-class OtlpExporter : public QObject {
+class OtlpHttpExporter : public QObject {
     Q_OBJECT
 public:
-    static OtlpExporter& instance();
+    static OtlpHttpExporter& instance();
 
     // === 初始化 ===
     Result<void> initialize(const OtlpConfig& config);
@@ -119,8 +119,8 @@ private slots:
     void onExportFinished(QNetworkReply* reply);
 
 private:
-    OtlpExporter() = default;
-    ~OtlpExporter() override;
+    OtlpHttpExporter() = default;
+    ~OtlpHttpExporter() override;
 
     // === OTLP JSON 构建 ===
     QJsonObject buildResourceJson() const;

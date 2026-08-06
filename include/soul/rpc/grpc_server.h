@@ -103,7 +103,8 @@ public:
 // ============================================================================
 // GrpcServer — gRPC 服务端
 // ============================================================================
-class GrpcServer {
+class GrpcServer : public QObject {
+    Q_OBJECT
 public:
     static GrpcServer& instance();
 
@@ -128,7 +129,7 @@ public:
 signals:
     void started(int port);
     void stopped();
-    void requestReceived(const std::string& service, const std::string& method);
+    void requestReceived(const QString& service, const QString& method);
 
 private:
     GrpcServer() = default;
