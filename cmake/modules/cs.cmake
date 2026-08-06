@@ -2,11 +2,13 @@
 # 依赖: core + di + ui + data + application
 
 add_library(soul_cs STATIC
+    src/soul/cs/cs_admin_panel.cpp
     src/soul/cs/cs_controller.cpp
     src/soul/cs/cs_data_binding.cpp
     src/soul/cs/cs_dialog_manager.cpp
     src/soul/cs/cs_error_handler.cpp
     src/soul/cs/cs_form_validator.cpp
+    src/soul/cs/cs_ipc_router.cpp
     src/soul/cs/cs_module.cpp
     src/soul/cs/cs_navigation.cpp
     src/soul/cs/cs_router.cpp

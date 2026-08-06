@@ -3,9 +3,12 @@
 
 add_library(soul_rpc STATIC
     src/soul/rpc/client_proxy.cpp
+    src/soul/rpc/grpc_server.cpp
     src/soul/rpc/http_transport.cpp
     src/soul/rpc/irpc_transport.cpp
     src/soul/rpc/iserializer.cpp
+    src/soul/rpc/module.cpp
+    src/soul/rpc/service_discovery.cpp
     src/soul/rpc/service_dispatcher.cpp
     src/soul/rpc/service_registry.cpp
 )

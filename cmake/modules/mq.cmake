@@ -4,6 +4,7 @@
 add_library(soul_mq STATIC
     src/soul/mq/amqpcpp_backend.cpp
     src/soul/mq/inmemory_amqp_backend.cpp
+    src/soul/mq/kafka_adapter.cpp
     src/soul/mq/module.cpp
     src/soul/mq/mq_factory.cpp
     src/soul/mq/rabbitmq/rabbitmq_connection.cpp

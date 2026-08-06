@@ -6,6 +6,7 @@ add_library(soul_core STATIC
     src/soul/core/banner.cpp
     src/soul/core/configuration.cpp
     src/soul/core/environment.cpp
+    src/soul/core/feature_flags.cpp
     src/soul/core/module_registry.cpp
     src/soul/core/platform.cpp
     src/soul/core/scaffold.cpp

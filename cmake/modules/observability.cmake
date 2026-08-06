@@ -4,6 +4,8 @@
 add_library(soul_observability STATIC
     src/soul/observability/json_sink.cpp
     src/soul/observability/metrics.cpp
+    src/soul/observability/module.cpp
+    src/soul/observability/otlp_exporter.cpp
     src/soul/observability/resource_pool_monitor.cpp
     src/soul/observability/tracing.cpp
 )

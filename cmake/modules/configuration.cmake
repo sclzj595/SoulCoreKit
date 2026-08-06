@@ -3,10 +3,12 @@
 
 add_library(soul_configuration STATIC
     src/soul/configuration/config.cpp
+    src/soul/configuration/config_center_client.cpp
     src/soul/configuration/config_schema.cpp
     src/soul/configuration/etcd_source.cpp
     src/soul/configuration/ini_configuration.cpp
     src/soul/configuration/json_configuration.cpp
+    src/soul/configuration/module.cpp
     src/soul/configuration/nacos_source.cpp
     src/soul/configuration/remote_config.cpp
 )

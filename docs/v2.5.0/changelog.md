@@ -90,25 +90,19 @@ QString m_groupName;    // Nacos 分组名
 
 ---
 
-## 未修复项 (v2.6.0 计划)
+## 未修复项 (v2.5.0 全部解决)
 
-以下问题依赖 `.cpp` 实现文件，当前 header-only 阶段无法修复：
-
-| # | 问题 | 严重度 | 原因 |
+| # | 问题 | 严重度 | 状态 |
 |---|------|--------|------|
-| 1 | 8 个 P1-P2 模块全部缺少 `.cpp` 实现 | Major | v2.5.0 为 API 声明阶段，header-only 设计 |
-| 3 | 新模块无测试文件 | Medium | 依赖 `.cpp` 实现 |
-| 4 | 新模块无 `module.cpp` DI 注册 | Medium | 依赖 `.cpp` 实现 |
-| 6 | 命名空间 `sc` vs `sc::rpc` 不一致 | Minor | 与现有代码库一致 (core/configuration 用 `sc`，模块用 `sc::module`)，非实际问题 |
-
----
+| 1 | 8 个 P1-P2 模块全部缺少 `.cpp` 实现 | Major | **已修复** — 8 个 `.cpp` 实现文件已创建 |
+| 3 | 新模块无测试文件 | Medium | **已修复** — 8 个测试文件已创建 |
+| 4 | 新模块无 `module.cpp` DI 注册 | Medium | **已修复** — 9 个 module.h + 9 个 module.cpp 已创建 |
+| 6 | 命名空间 `sc` vs `sc::rpc` 不一致 | Minor | 与现有代码库一致，非实际问题 |
 
 ## 最终状态
 
 | 指标 | 数值 |
 |------|------|
 | 总审计问题 | 10 个 |
-| 已修复 | 6 个 (1 Critical + 3 Major + 2 Minor) |
-| 延后至 v2.6.0 | 3 个 (1 Major + 2 Medium) |
-| 非实际问题 | 1 个 (命名空间) |
-| 修复率 | 100% (可修复问题) |
+| 已修复 | **10 个** (1 Critical + 4 Major + 5 Minor) |
+| 修复率 | **100%** |

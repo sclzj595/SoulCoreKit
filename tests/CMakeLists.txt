@@ -87,6 +87,7 @@ endfunction()
 # --- Core ---
 soul_add_test(test_result           SOUL_LIBS soul_core)
 soul_add_test(test_core             SOUL_LIBS soul_core)
+soul_add_test(test_feature_flags    SOUL_LIBS soul_core)
 soul_add_test(test_module_registry  SOUL_LIBS soul_core soul_logging)
 
 # --- DI ---
@@ -111,6 +112,7 @@ soul_add_test(test_utils            SOUL_LIBS soul_utils soul_core      QT_LIBS 
 # --- Configuration ---
 soul_add_test(test_configuration    SOUL_LIBS soul_configuration soul_core)
 soul_add_test(test_config_bind      SOUL_LIBS soul_configuration soul_core)
+soul_add_test(test_config_center_client SOUL_LIBS soul_configuration soul_core)
 soul_add_test(test_remote_config    SOUL_LIBS soul_configuration soul_core  QT_LIBS Qt6::Network)
 
 # --- Storage ---
@@ -140,12 +142,14 @@ soul_add_test(test_oauth2           SOUL_LIBS soul_auth soul_base soul_core  QT_
 
 # --- MQ ---
 soul_add_test(test_mq               SOUL_LIBS soul_mq soul_core soul_logging soul_async  QT_LIBS Qt6::Network)
+soul_add_test(test_kafka_adapter    SOUL_LIBS soul_mq soul_core soul_logging soul_async)
 
 # --- ORM ---
 soul_add_test(test_orm              SOUL_LIBS soul_orm soul_database soul_data soul_core soul_logging  QT_LIBS Qt6::Sql)
 
 # --- Observability ---
 soul_add_test(test_observability    SOUL_LIBS soul_observability soul_logging soul_core)
+soul_add_test(test_otlp_exporter    SOUL_LIBS soul_observability soul_core soul_logging soul_async soul_network  QT_LIBS Qt6::Network)
 soul_add_test(test_resource_pool_monitor SOUL_LIBS soul_observability soul_async soul_network
                                                    soul_database soul_data soul_core soul_logging
                                                    QT_LIBS Qt6::Network Qt6::Sql)
@@ -166,6 +170,8 @@ soul_add_test(test_websocket_server SOUL_LIBS soul_server soul_core soul_logging
 
 # --- RPC ---
 soul_add_test(test_rpc              SOUL_LIBS soul_rpc soul_core        QT_LIBS Qt6::Network)
+soul_add_test(test_grpc_server      SOUL_LIBS soul_rpc soul_core        QT_LIBS Qt6::Network)
+soul_add_test(test_service_discovery SOUL_LIBS soul_rpc soul_core        QT_LIBS Qt6::Network)
 
 # --- Plugin ---
 soul_add_test(test_plugin           SOUL_LIBS soul_plugin soul_di soul_core)
@@ -173,6 +179,11 @@ soul_add_test(test_plugin           SOUL_LIBS soul_plugin soul_di soul_core)
 # ============================================================================
 # Application 层测试
 # ============================================================================
+
+# --- CS 架构 ---
+soul_add_test(test_cs               SOUL_LIBS soul_cs soul_core soul_di soul_ui soul_data soul_application)
+soul_add_test(test_cs_admin_panel   SOUL_LIBS soul_cs soul_core soul_di soul_ui soul_data soul_application  QT_LIBS Qt6::Widgets)
+soul_add_test(test_cs_ipc_router    SOUL_LIBS soul_cs soul_core soul_di)
 
 # --- UI 组件(条件链接 Widgets) ---
 soul_add_test_ui(test_ui            SOUL_LIBS soul_ui soul_core soul_base soul_configuration)
