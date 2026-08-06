@@ -31,13 +31,11 @@ bool KafkaConnection::isConnected() const {
 }
 
 std::shared_ptr<IMQProducer> KafkaConnection::createProducer() {
-    return std::make_shared<KafkaProducer>(std::shared_ptr<KafkaConnection>(
-        this, [](KafkaConnection*) {}));
+    return std::make_shared<KafkaProducer>(std::shared_ptr<KafkaConnection>());
 }
 
 std::shared_ptr<IMQConsumer> KafkaConnection::createConsumer() {
-    return std::make_shared<KafkaConsumer>(std::shared_ptr<KafkaConnection>(
-        this, [](KafkaConnection*) {}));
+    return std::make_shared<KafkaConsumer>(std::shared_ptr<KafkaConnection>());
 }
 
 void KafkaConnection::setKafkaConfig(const KafkaConfig& config) {
@@ -192,13 +190,11 @@ bool RocketMQConnection::isConnected() const {
 }
 
 std::shared_ptr<IMQProducer> RocketMQConnection::createProducer() {
-    return std::make_shared<RocketMQProducer>(std::shared_ptr<RocketMQConnection>(
-        this, [](RocketMQConnection*) {}));
+    return std::make_shared<RocketMQProducer>(std::shared_ptr<RocketMQConnection>());
 }
 
 std::shared_ptr<IMQConsumer> RocketMQConnection::createConsumer() {
-    return std::make_shared<RocketMQConsumer>(std::shared_ptr<RocketMQConnection>(
-        this, [](RocketMQConnection*) {}));
+    return std::make_shared<RocketMQConsumer>(std::shared_ptr<RocketMQConnection>());
 }
 
 void RocketMQConnection::setRocketMQConfig(const RocketMQConfig& config) {

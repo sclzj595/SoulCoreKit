@@ -21,6 +21,7 @@
 #include <QList>
 #include <QHash>
 #include <QDateTime>
+#include <QRandomGenerator>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -230,6 +231,40 @@ private:
     bool m_healthy = false;
     QString m_namespaceId;  // Nacos 命名空间 ID
     QString m_groupName;    // Nacos 分组名
+};
+
+// ============================================================================
+// InMemoryServiceDiscovery — 内存实现 (测试/开发用)
+// ============================================================================
+class InMemoryServiceDiscovery : public IServiceDiscovery {
+public:
+    InMemoryServiceDiscovery() = default;
+    ~InMemoryServiceDiscovery() override = default;
+
+    Result<void> connect(const DiscoveryConfig& config) override;
+    void disconnect() override;
+    bool isConnected() const override;
+
+    Result<void> registerInstance(const ServiceInstance& instance) override;
+    Result<void> unregisterInstance(const QString& serviceName, const QString& host, int port) override;
+    Result<QList<ServiceInstance>> getInstances(const QString& serviceName) override;
+
+    Result<void> reportHealthy() override;
+    Result<void> reportUnhealthy(const QString& reason = "") override;
+
+    Result<void> watch(const QString& serviceName, ServiceChangeCallback callback) override;
+    Result<void> unwatch(const QString& serviceName) override;
+
+    bool isHealthy() const override;
+    QList<QString> getServiceNames() override;
+
+private:
+    DiscoveryConfig m_config;
+    QHash<QString, QList<ServiceInstance>> m_cache;
+    QHash<QString, QList<ServiceChangeCallback>> m_watchers;
+    mutable std::mutex m_mutex;
+    bool m_connected = false;
+    bool m_healthy = false;
 };
 
 // ============================================================================

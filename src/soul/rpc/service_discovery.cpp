@@ -373,6 +373,108 @@ QByteArray NacosServiceDiscovery::syncHttpRequest(const QString& method, const Q
 }
 
 // ============================================================================
+// InMemoryServiceDiscovery — 内存实现 (测试/开发用)
+// ============================================================================
+Result<void> InMemoryServiceDiscovery::connect(const DiscoveryConfig& config) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_config = config;
+    m_connected = true;
+    m_healthy = true;
+    return Result<void>::ok();
+}
+
+void InMemoryServiceDiscovery::disconnect() {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_connected = false;
+    m_healthy = false;
+    m_cache.clear();
+    m_watchers.clear();
+}
+
+bool InMemoryServiceDiscovery::isConnected() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_connected;
+}
+
+Result<void> InMemoryServiceDiscovery::registerInstance(const ServiceInstance& instance) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_cache[instance.serviceName].append(instance);
+    // 通知 watchers
+    if (auto wit = m_watchers.find(instance.serviceName); wit != m_watchers.end()) {
+        for (const auto& cb : wit.value()) {
+            if (cb) cb(m_cache[instance.serviceName]);
+        }
+    }
+    return Result<void>::ok();
+}
+
+Result<void> InMemoryServiceDiscovery::unregisterInstance(const QString& serviceName, const QString& host, int port) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    auto it = m_cache.find(serviceName);
+    if (it == m_cache.end()) {
+        return Result<void>::err(Error(ErrorCode::NotFound,
+            QString("Service not found: %1").arg(serviceName)));
+    }
+    QList<ServiceInstance>& instances = it.value();
+    for (int i = 0; i < instances.size(); ++i) {
+        if (instances[i].host == host && instances[i].port == port) {
+            instances.removeAt(i);
+            if (instances.isEmpty()) {
+                m_cache.erase(it);
+            }
+            return Result<void>::ok();
+        }
+    }
+    return Result<void>::err(Error(ErrorCode::NotFound, "Instance not found"));
+}
+
+Result<QList<ServiceInstance>> InMemoryServiceDiscovery::getInstances(const QString& serviceName) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return Result<QList<ServiceInstance>>(m_cache.value(serviceName));
+}
+
+Result<void> InMemoryServiceDiscovery::reportHealthy() {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_healthy = true;
+    return Result<void>::ok();
+}
+
+Result<void> InMemoryServiceDiscovery::reportUnhealthy(const QString& reason) {
+    Q_UNUSED(reason);
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_healthy = false;
+    return Result<void>::ok();
+}
+
+Result<void> InMemoryServiceDiscovery::watch(const QString& serviceName, ServiceChangeCallback callback) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_watchers[serviceName].append(std::move(callback));
+    // 立即通知当前状态
+    if (auto it = m_cache.find(serviceName); it != m_cache.end()) {
+        if (auto& back = m_watchers[serviceName].back(); back) {
+            back(it.value());
+        }
+    }
+    return Result<void>::ok();
+}
+
+Result<void> InMemoryServiceDiscovery::unwatch(const QString& serviceName) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_watchers.remove(serviceName);
+    return Result<void>::ok();
+}
+
+bool InMemoryServiceDiscovery::isHealthy() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_healthy;
+}
+
+QList<QString> InMemoryServiceDiscovery::getServiceNames() {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_cache.keys();
+}
+
+// ============================================================================
 // WeightedLoadBalancer
 // ============================================================================
 void WeightedLoadBalancer::setWeights(const QHash<QString, int>& weights) {
@@ -385,8 +487,35 @@ ServiceInstance WeightedLoadBalancer::select(const QList<ServiceInstance>& insta
         return ServiceInstance();
     }
     std::lock_guard<std::mutex> lock(m_mutex);
-    int idx = m_counter % static_cast<int>(instances.size());
-    m_counter++;
+    int idx = 0;
+    switch (m_strategy) {
+    case Strategy::Random:
+        idx = QRandomGenerator::global()->bounded(static_cast<int>(instances.size()));
+        break;
+    case Strategy::WeightedRoundRobin:
+        // 加权轮询: 按权重展开实例列表后轮询
+        if (!m_weights.isEmpty()) {
+            QList<ServiceInstance> expanded;
+            for (const auto& inst : instances) {
+                QString key = QString("%1:%2").arg(inst.host).arg(inst.port);
+                int weight = m_weights.value(key, 1);
+                for (int w = 0; w < weight; ++w) {
+                    expanded.append(inst);
+                }
+            }
+            idx = m_counter % static_cast<int>(expanded.size());
+            m_counter++;
+            return expanded.at(idx);
+        }
+        // fallthrough to RoundRobin if no weights
+        [[fallthrough]];
+    case Strategy::RoundRobin:
+    case Strategy::LeastConnections:  // stub: 当前无连接计数, 退化到 RoundRobin
+    default:
+        idx = m_counter % static_cast<int>(instances.size());
+        m_counter++;
+        return instances.at(idx);
+    }
     return instances.at(idx);
 }
 
@@ -423,7 +552,7 @@ std::unique_ptr<IServiceDiscovery> ServiceDiscoveryFactory::create(DiscoveryBack
         return std::make_unique<NacosServiceDiscovery>();
     case DiscoveryBackend::InMemory:
     default:
-        return nullptr;
+        return std::make_unique<InMemoryServiceDiscovery>();
     }
 }
 
