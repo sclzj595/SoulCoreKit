@@ -125,10 +125,12 @@ public:
         }
 
         auto queryResult = result.unwrap();
-        if (queryResult.rows.empty()) {
+        if (queryResult.rows.empty() || queryResult.rows[0].empty()) {
             return 0;
         }
-        return queryResult.rows[0].at("count").toInt();
+        // SELECT COUNT(*) 生成的列名是 "count(*)" 而非 "count", 用 .at("count") 会抛
+        // std::out_of_range。稳妥做法: 取第一行第一列的值。
+        return queryResult.rows[0].begin()->second.toInt();
     }
 
     Result<bool> existsById(const QString& id) override {

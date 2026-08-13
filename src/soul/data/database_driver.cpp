@@ -20,6 +20,9 @@ public:
         if (m_db.isOpen()) {
             QString dbName = m_db.connectionName();
             m_db.close();
+            // v3.0.0: 释放 m_db 对连接的引用后再 removeDatabase,
+            // 否则 Qt 会警告 "connection is still in use" (导致 QTest 退出码非 0)。
+            m_db = QSqlDatabase();
             QSqlDatabase::removeDatabase(dbName);
         }
         return {};

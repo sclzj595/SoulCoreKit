@@ -16,6 +16,7 @@
 #include <QByteArray>
 #include <QJsonObject>
 #include <QHash>
+#include <QLocalSocket>
 #include <functional>
 #include <memory>
 #include <mutex>

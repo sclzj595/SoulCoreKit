@@ -18,7 +18,9 @@ CircuitBreaker& CircuitBreaker::setFailureThreshold(int threshold) {
 
 CircuitBreaker& CircuitBreaker::setResetTimeout(int ms) {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
-    m_config.resetTimeoutMs = (ms > 0) ? ms : m_config.resetTimeoutMs;
+    // v3.0.0: 允许 0 值 (0 表示熔断后立即进入 Half-Open 试探)。
+    // 原实现 (ms > 0) 会忽略 0, 导致测试 setResetTimeout(0) 无法立即半开。
+    m_config.resetTimeoutMs = (ms >= 0) ? ms : m_config.resetTimeoutMs;
     return *this;
 }
 
@@ -57,9 +59,9 @@ bool CircuitBreaker::allowRequest() {
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
             now - m_openedAt).count();
         if (elapsed >= m_config.resetTimeoutMs) {
+            // v3.0.0: 进入 HalfOpen 时重置成功试探计数 (m_halfOpenCalls 语义改为成功数)
             m_halfOpenCalls.store(0, std::memory_order_release);
             transitionTo(CircuitBreakerState::HalfOpen);
-            m_halfOpenCalls.fetch_add(1, std::memory_order_acq_rel);
             return true;
         }
         return false;
@@ -72,14 +74,9 @@ bool CircuitBreaker::allowRequest() {
         if (m_state.load(std::memory_order_acquire) != CircuitBreakerState::HalfOpen) {
             return (m_state.load(std::memory_order_acquire) == CircuitBreakerState::Closed);
         }
-        int expected = m_halfOpenCalls.load(std::memory_order_acquire);
-        while (expected < m_config.halfOpenMaxCalls) {
-            if (m_halfOpenCalls.compare_exchange_weak(expected, expected + 1,
-                    std::memory_order_acq_rel, std::memory_order_acquire)) {
-                return true;
-            }
-        }
-        return false;
+        // v3.0.0: m_halfOpenCalls 语义改为"已成功试探数"(见 onSuccess),
+        // 此处 HalfOpen 状态直接放行 (成功/失败在 onSuccess/onFailure 中累计)。
+        return true;
     }
     }
 
@@ -90,9 +87,10 @@ void CircuitBreaker::onSuccess() {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
     CircuitBreakerState current = m_state.load(std::memory_order_acquire);
     if (current == CircuitBreakerState::HalfOpen) {
-        // 半开状态下的成功: 递减试探计数
-        int remaining = m_halfOpenCalls.fetch_sub(1, std::memory_order_acq_rel) - 1;
-        if (remaining <= 0) {
+        // v3.0.0: 半开状态下的成功: 累计成功试探数。
+        // 连续 halfOpenMaxCalls 次成功才恢复到 Closed (符合 Resilience4j 语义)。
+        int successes = m_halfOpenCalls.fetch_add(1, std::memory_order_acq_rel) + 1;
+        if (successes >= m_config.halfOpenMaxCalls) {
             // 所有试探都成功了,恢复到 Closed
             m_failureTimestamps.clear();
             m_failureCount.store(0, std::memory_order_release);

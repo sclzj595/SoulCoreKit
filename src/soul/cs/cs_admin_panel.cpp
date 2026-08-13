@@ -7,6 +7,7 @@
 #include <QGroupBox>
 #include <QScrollArea>
 #include <QHeaderView>
+#include <QJsonArray>
 #include <QDebug>
 
 namespace sc::cs {
@@ -172,35 +173,35 @@ QWidget* CsAdminPanel::createThreadDumpPanel() {
 // 数据更新
 // ============================================================================
 
-void CsAdminPanel::updateHealthPanel(const QJsonObject& data) {
+void CsAdminPanel::updateHealthPanel(const QJsonObject& jsonData) {
     if (m_healthStatus) {
-        QString status = data.value("status").toString("UNKNOWN");
+        QString status = jsonData.value("status").toString("UNKNOWN");
         m_healthStatus->setText(status);
     }
     if (m_healthUptime) {
-        QString uptime = data.value("uptime").toString("N/A");
+        QString uptime = jsonData.value("uptime").toString("N/A");
         m_healthUptime->setText(QStringLiteral("Uptime: %1").arg(uptime));
     }
-    setTableFromJson(m_healthComponents, data.value("components").toObject());
+    setTableFromJson(m_healthComponents, jsonData.value("components").toObject());
 }
 
-void CsAdminPanel::updateMetricsPanel(const QJsonObject& data) {
-    setTableFromJson(m_metricsTable, data);
+void CsAdminPanel::updateMetricsPanel(const QJsonObject& jsonData) {
+    setTableFromJson(m_metricsTable, jsonData);
 }
 
-void CsAdminPanel::updateInfoPanel(const QJsonObject& data) {
+void CsAdminPanel::updateInfoPanel(const QJsonObject& jsonData) {
     if (m_infoText) {
-        m_infoText->setPlainText(formatJson(data));
+        m_infoText->setPlainText(formatJson(jsonData));
     }
 }
 
-void CsAdminPanel::updateEnvPanel(const QJsonObject& data) {
-    setTableFromJson(m_envTable, data);
+void CsAdminPanel::updateEnvPanel(const QJsonObject& jsonData) {
+    setTableFromJson(m_envTable, jsonData);
 }
 
-void CsAdminPanel::updateThreadDumpPanel(const QJsonObject& data) {
+void CsAdminPanel::updateThreadDumpPanel(const QJsonObject& jsonData) {
     if (m_threadDumpText) {
-        m_threadDumpText->setPlainText(formatJson(data));
+        m_threadDumpText->setPlainText(formatJson(jsonData));
     }
 }
 

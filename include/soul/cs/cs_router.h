@@ -135,16 +135,16 @@ public:
     /// @return 解析出的查询参数
     static QVariantMap parseQueryParams(const QString& path);
 
-private:
-    CsRouter(const CsRouter&) = delete;
-    CsRouter& operator=(const CsRouter&) = delete;
-
-    /// @brief 注册 Controller 的所有路由（内部 API，由 ControllerRegistry 调用）
+    /// @brief 注册 Controller 的所有路由
     /// @param controller Controller 实例
     ///
     /// 对标 Spring 的 AbstractHandlerMethodMapping.registerHandler()。
-    /// 外部代码应通过 ControllerRegistry::registerAllRoutes() 间接调用，不应直接调用。
+    /// 外部代码应通过 ControllerRegistry::registerAllRoutes() 间接调用。
     void registerController(CsController* controller);
+
+private:
+    CsRouter(const CsRouter&) = delete;
+    CsRouter& operator=(const CsRouter&) = delete;
 
     /// @brief 连接 Controller 信号到 CsRouter（对标 Spring 的 HandlerAdapter）
     ///

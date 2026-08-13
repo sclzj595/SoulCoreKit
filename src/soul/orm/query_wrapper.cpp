@@ -119,8 +119,9 @@ QueryWrapper& QueryWrapper::or_(const std::function<void(QueryWrapper&)>& func) 
             sub.m_conditions.front().openParens += 1;
             sub.m_conditions.back().closeParens += 1;
         }
-        sub.m_conditions.front().logic = SqlKeyword::OR;
+        // 组内所有条件均为 OR (与 and_ 对称: and_ 组内 AND, or_ 组内 OR)
         for (auto& cond : sub.m_conditions) {
+            cond.logic = SqlKeyword::OR;
             m_conditions.push_back(std::move(cond));
         }
     }

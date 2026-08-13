@@ -5,6 +5,650 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2026-08-09
+
+**版本类型**: MAJOR (API / Architecture Freeze; ABI Baseline Prepared)
+
+> **版本说明**: v3.0.0 是 SoulCoreKit 的首个 MAJOR 稳定版本。
+> 核心目标: 移除所有 deprecated API，冻结公共接口、CMake Target、
+> 四层依赖关系、生命周期契约和线程安全保证。
+> 后续 3.x 版本将保持向后兼容。
+> 
+> **ABI 说明**: 当前项目以 static library 为主 (BUILD_SHARED_LIBS=OFF)。
+> v3.0.0 建立了 ABI Baseline (编译环境 + 符号快照)，但鉴于多编译器 (MinGW/MSVC) +
+> Qt ABI 依赖的复杂性，ABI 兼容性限定于同 toolchain 内。
+> 跨 toolchain 场景保证 Source Compatibility。
+
+---
+
+### P0: Deprecated API Removal
+
+- **移除 `sc::Configuration`** (`soul/core/configuration.h`)
+  - `src/soul/core/configuration.cpp` 从 CMake 移除
+  - `Application::loadConfiguration()` 迁移到 `PriorityConfigChain + ConfigSnapshot`
+  - `auto_configuration.h` 条件装配函数迁移到 `ConfigSnapshot*` 参数
+- **移除 `soul/storage/cache.h`** (旧版 Cache)
+  - `src/soul/storage/cache.cpp` 从 CMake 移除
+  - 测试和基准迁移到 `soul/cache/`
+- **移除 `sc::rpc::LoadBalancer`** (旧版)
+  - Canonical: `sc::rpc::WeightedLoadBalancer`
+- **移除 `ILifecycleManaged`** deprecated 别名
+- **移除 `getServiceNamesCompat()`** deprecated 方法
+- **移除 `testDeprecatedAliasExists()`** 契约测试
+
+### P0: Configuration 统一
+
+- `Application::loadConfiguration()` 使用 canonical Configuration
+  - PriorityConfigChain: Default → JsonFile → Environment → CommandLine
+  - 结果存储为 `ConfigSnapshot` (成员 `m_configSnapshot`)
+- `Application::startServices()` 从 `ConfigSnapshot` 读取配置
+- `auto_configuration.h` 全部函数接收 `ConfigSnapshot*` 参数
+- `soul_application` 新增 `soul_configuration` 依赖
+
+### P0: Architecture Freeze
+
+- **四层架构**: Core → Infrastructure → Extensions → Application (不变)
+- **CMake Targets**: 30 模块 + SoulCoreKit/SoulCoreKitUi/SoulCoreKitFull (冻结)
+- **Lifecycle Contract**: ILifecycle 四阶段 + shutdown 幂等 (冻结)
+- **Thread Safety**: A/B/C/D 四级分类 (冻结)
+- **Extension Contract**: 9 项强制契约 (冻结)
+- **v3.0 Removal List**: 全部 6 项已处理
+
+### 文档
+
+- 更新 `docs/architecture/architecture-consolidation.md` (v3.0.0 状态)
+- 更新 `README.md` 版本号
+
+---
+
+## [2.9.4] - 2026-08-08
+
+**版本类型**: Minor (Architecture Consolidation — 双轨收敛 + 治理体系建立)
+
+> **版本说明**: v2.9.4 不新增任何功能模块。核心目标: 收敛 v2.5.x–v2.9.3
+> 期间产生的双轨抽象、生命周期差异、线程模型差异和依赖债务。
+> 为 v3.0.0 API/ABI/Architecture Freeze 做准备。
+
+---
+
+### P0: Configuration 双轨 → 单轨
+
+- `sc::Configuration` (`soul/core/configuration.h`) 标记 **deprecated**
+  - 迁移指南: `Configuration::instance().get<T>()` → `ConfigSnapshot::getXxxOr()`
+  - `Application::loadConfiguration()` 仍使用旧体系（v3.0 迁移）
+- Canonical: `soul/configuration/config.h` + `IConfigProvider` + `ConfigSnapshot`
+
+### P0: Cache 双轨 → 单轨
+
+- `soul/storage/cache.h` 标记 **deprecated** + 迁移指南注释
+- `soul/soul_storage.h` 聚合头新增 Track B (`soul/cache/`) includes
+- Canonical: `soul/cache/icache.h` + `MemoryCache` + `DiskCache` + `MultiLevelCache` + `RedisCache`
+- v3.0: 移除 Track A，保留 Track B
+
+### P1: LoadBalancer 统一
+
+- `sc::rpc::LoadBalancer` (2 策略) 标记 **deprecated**（已在 v2.9.3 标注）
+- Canonical: `sc::rpc::WeightedLoadBalancer` (4 策略: RoundRobin/Weighted/LeastConnections/Random)
+- v3.0: 移除 `LoadBalancer`，保留 `WeightedLoadBalancer`
+
+### P1: 生命周期契约全局审查
+
+- 验收矩阵: 7 个模块 (Configuration/MessageBus/Cache/Discovery/HttpServer/RPC/Health)
+- 发现: `ApplicationState` (5 状态) 与 `LifecycleState` (10 状态) 语义重叠但不互通
+- v3.0 处理: 统一或明确继承语义
+
+### P1: 线程安全分类全局标注
+
+- 四级分类: A(Immutable) / B(Internal sync) / C(Thread-confined) / D(External sync)
+- 8 个模块核心类型完成标注
+- 文档: `docs/architecture/architecture-consolidation.md`
+
+### P1: 所有权矩阵
+
+- 7 种对象类型完成 Owner/Lifetime/Pointer 标注
+- 发现: `Application::use(Module*)` 使用裸指针与 `unique_ptr` 混合管理
+- 注释已明确标注，v3.0 考虑编译期强制
+
+### P1: 依赖图审查
+
+- `sc_check_architecture()` 通过 — 无层间违规
+- Infrastructure 内部功能重复: `soul/storage/cache` vs `soul/cache/` (已处理)
+- `soul/soul_storage.h` 聚合头过期问题修复
+
+### P1: Legacy API 收口 + v3.0 Removal List
+
+- 6 项 API 列入 v3.0 移除清单
+- 优先级: P0(3): Configuration/Cache/Application::loadConfiguration, P1(1): LoadBalancer, P2(2): ILifecycleManaged/getServiceNamesCompat
+
+### 文档
+
+- 新增 `docs/architecture/architecture-consolidation.md`:
+  - 双轨收敛状态
+  - 生命周期契约验收矩阵
+  - 线程安全分类
+  - 所有权矩阵
+  - 依赖图验证
+  - v3.0 Removal List
+
+---
+
+## [2.9.3] - 2026-08-08
+
+**版本类型**: Minor (Service Discovery + Extension Contract)
+
+> **版本说明**: v2.9.3 增强现有 RPC 模块的 ServiceDiscovery 体系，
+> 明确生命周期和线程安全契约，并正式建立 Extension Contract 验收标准。
+> 不新增 Adapter，不引入新的外部依赖。
+
+---
+
+### P0: ServiceInstance 增强 (RPC)
+
+- 新增 `ServiceInstanceStatus` 枚举 (Up/Down/Starting/Stopping/Unknown)
+- `ServiceInstance` 新增字段:
+  - `instanceId` — 实例唯一 ID
+  - `status` — 实例状态
+  - `version` — 服务版本
+  - `metadata` — 扩展元数据 (zone/region/weight)
+- `ServiceInstance::uniqueKey()` — 生成唯一标识
+
+### P0: IServiceRegistry 接口增强 (RPC)
+
+- 新增 `getInstance(serviceName, instanceId)` → `Result<optional<ServiceInstance>>`
+- 新增 `getAllServices()` → `Result<QStringList>`
+- `InMemoryServiceRegistry` 完整实现新方法
+- 新增 `unregisterById()` — 按 instanceId 注销
+
+### P0: IServiceDiscovery 生命周期明确 (RPC)
+
+- 接口注释新增完整生命周期文档:
+  - `Created → connect() → registerInstance() → Running → unregisterInstance() → disconnect()`
+- 异常路径: `backend lost → reportUnhealthy() → reconnect → reportHealthy()`
+- `disconnect()` 明确为幂等操作
+- 线程安全契约明确: register/unregister/discover 线程安全，callback 禁止重入
+
+### P0: ServiceDiscovery 实现增强 (RPC)
+
+- `ServiceDiscoveryBase` 实现 `getInstance()` / `getAllServices()`
+- `InMemoryServiceDiscovery` 实现 `getInstance()` / `getAllServices()`
+
+### P0: Extension Contract 正式建立 (Docs)
+
+- 新增 `docs/architecture/extension-contract.md`
+- 9 项强制契约: API 最小化 / Result\<T\> 统一 / 生命周期四阶段 / shutdown 幂等 / 线程安全 / callback 非重入 / Health 反向注册 / Config 注入非依赖 / 外部依赖 Adapter 隔离 / 四层依赖不违规
+- 模块验收矩阵: Configuration ✅ / MessageBus ✅ / Cache ✅ / Discovery ✅
+
+### P1: LoadBalancer 重叠标注 (RPC)
+
+- `LoadBalancer` (service_registry.h) 标注 deprecated
+- 与 `WeightedLoadBalancer` (service_discovery.h) 功能重叠，v3.0 统一
+
+### P1: Tests
+
+- **`test_discovery_lifecycle.cpp`** — 9 个生命周期测试:
+  - 完整生命周期 / disconnect 幂等 / reconnect / unregister 不存在
+  - getInstances 空 / health reporting / getInstance by id / getAllServices / uniqueKey
+- **`test_discovery_concurrency.cpp`** — 4 个并发测试:
+  - 并发 register / register+query / register+unregister / getAllServices
+
+---
+
+## [2.9.2] - 2026-08-08
+
+**版本类型**: Minor (Cache / Redis + Subscription RAII)
+
+> **版本说明**: v2.9.2 完成两件事 — (1) 修复 MessageBus Subscription RAII 生命周期，
+> (2) 建立 Redis Cache Adapter 边界，明确缓存失败模型。
+
+---
+
+### P1: Subscription 析构自动取消订阅 (Event, v2.9.1 遗留)
+
+- `InMemoryMessageBus` 内部改用 `std::weak_ptr<MessageSubscription>` 存储
+- `snapshotAndClean()` — 每次 publish 时自动清理已过期 (析构) 的 Subscription
+- `MessageSubscription` 析构 → `weak_ptr` 自动过期 → 下次 publish 自动清理
+- 防止 Bus ↔ Subscription 循环引用
+- 不再需要调用者手动 `unsubscribe()` 后 `reset()`
+- 向后兼容: 手动 `unsubscribe()` 仍然可用
+
+### P0: ICache 接口增强 (Cache)
+
+- `CacheStats` 新增字段:
+  - `putCount` / `removeCount` / `errorCount` — 诊断指标
+  - `lastError` — 最近错误消息
+  - `name` — 缓存实例名称
+- 文档明确失败模型:
+  - `get()` → Ok+has_value (命中) / Ok+nullopt (未命中) / Err (后端不可用)
+  - 后端不可用返回 `Err(BackendUnavailable)`，而非 `nullopt`
+  - 调用方可根据 Result 决定降级策略
+
+### P0: RedisCache Adapter (Cache)
+
+- 新增 `RedisCache` 类 — 实现 `ICache<string,string>` 接口
+  - 连接字符串: `tcp://host:port` 或 `unix://path`
+  - 键前缀: `setKeyPrefix("myapp:")`
+  - 默认 TTL: `setDefaultTtl(chrono::minutes(10))`
+  - `createHealthIndicator()` — 生成 Redis 健康检查
+- CMake 选项: `SOULCOREKIT_ENABLE_REDIS=ON` (需 hiredis)
+- 未启用时: 所有方法返回 `Err(NotConnected)` (明确的错误语义)
+- 设计原则: 接口不可见 Redis 实现，调用方只依赖 `ICache`
+
+### P1: Tests
+
+- **`test_redis_cache.cpp`** — 10 个接口测试:
+  - 构造 / get/put/remove/contains 错误语义
+  - getMany/putMany 错误传播
+  - stats 错误计数 / key prefix / default TTL
+
+---
+
+## [2.9.1] - 2026-08-08
+
+**版本类型**: Minor (MessageBus / Event Messaging Foundation)
+
+> **版本说明**: v2.9.1 建立统一的 MessageBus 抽象层，实现 InMemoryMessageBus。
+> 核心目标: 让 CS/BS/CLI 三种场景共享统一的消息发布-订阅模型，
+> 为后续 Redis/Kafka/RocketMQ Adapter 提供稳定的扩展边界。
+
+---
+
+### P0: Message 模型 (Event)
+
+- 新增 `Message` 结构体:
+  - 核心字段: `id`(UUID) / `topic` / `payload`(QByteArray)
+  - 元数据: `contentType` / `headers`
+  - 追踪: `traceId` / `correlationId` / `sourceComponent`
+  - 时间: `timestamp`
+- 工厂方法: `Message::create()` / `Message::fromJson()`
+- `Message::inheritContext()` — 从 RequestContext 继承追踪信息
+- Payload 与 Transport 解耦 (字节流 + contentType)
+
+### P0: IMessageBus 接口增强 (Event)
+
+- 增强现有 `IMessageBus` 接口 (原为空接口，无实现):
+  - 新增 `publish(channel, Message&)` (类型安全)
+  - 保留 `publish(channel, shared_ptr<void>)` (兼容旧 API)
+  - 新增 `totalSubscriberCount()`
+- 明确与 `IEventBus`/`TypedEventBus` 的边界:
+  - `IEventBus` → 进程内事件分发 (Event = in-process signal)
+  - `IMessageBus` → 消息生产/消费抽象 (Message = payload delivery)
+
+### P0: InMemoryMessageBus 完整实现 (Event)
+
+- 新增 `InMemoryMessageBus` 类:
+  - 纯进程内实现，不依赖任何外部 Broker
+  - 线程安全: `std::shared_mutex` 读写锁
+  - 同步 publish: Consumer 在 publish() 线程执行
+  - 快照模式: 复制订阅者列表后释放锁回调
+  - 优先级排序: Critical > High > Normal > Low
+  - Consumer 异常隔离: 异常 Consumer 标记无效，不影响其他
+- 生命周期: `shutdown()` 后不再投递新消息
+- Delivery Semantics: At-most-once (进程内 best-effort)
+- Ordering: 同一频道+同一线程 publish 保证有序
+- Backpressure: 同步模式，Consumer 慢会阻塞 Producer
+
+### P0: Subscription 所有权 + 生命周期安全
+
+- `subscribe()` 返回 `MessageSubscriptionPtr`
+- 通过 `enable_shared_from_this` 管理 bus 引用
+- `unsubscribe()` / `unsubscribeAll()` 线程安全
+- 已实现但自动析构取消暂未绑定 (后续版本通过 Subscription deleter 增强)
+
+### P0: RequestContext/Trace 集成
+
+- `Message::inheritContext()` 从 `RequestContextGuard::current()` 读取
+- 自动传播 `traceId` / `correlationId` / `sourceComponent`
+- 无 Context 时安全 (CLI/CS 兼容)
+- 不依赖 HTTP/Server 模块
+
+### P1: Redis/Kafka/RocketMQ Adapter 边界
+
+- 未新增 Adapter 实现
+- 现有 `IMQProducer`/`IMQConsumer` (MQ 模块) 继续作为 AMQP 体系
+- 现有 Kafka/RocketMQ Stub 保持不变
+- `IMessageBus` 与 `IMQProducer`/`IMQConsumer` 保持独立
+- 桥接层 (MessageBus → MQ) 留待后续需求驱动
+
+### P1: Tests + Concurrency + Stress + Benchmark
+
+- **`test_message_bus.cpp`** — 10 个单元测试:
+  - Message 构造 / fromJson / inheritContext
+  - 基本 pub/sub / 多订阅者 / 取消订阅 / 自动析构
+  - unsubscribeAll / shutdown / 查询方法 / Payload / 多频道隔离
+- **`test_message_bus_concurrency.cpp`** — 6 个并发测试:
+  - 并发 publish + subscribe
+  - subscribe 与 publish 同时进行
+  - unsubscribe 与 publish 竞态
+  - unsubscribeAll 与 publish 竞态
+  - shutdown 期间 publish
+  - Consumer 异常隔离
+- **`test_message_bus_stress.cpp`** — 4 个压力测试:
+  - 100 publishers + 10 subscribers + 10000 messages
+  - 长时间运行 (1s)
+  - 20 频道并发
+  - 快速 subscribe/unsubscribe 周期
+- **`benchmark_messaging.cpp`** — Subscribe / Publish(1) / Publish(10) / Unsubscribe / Message::create()
+
+---
+
+## [2.9.0] - 2026-08-08
+
+**版本类型**: Minor (Configuration Foundation + Enterprise Extension Architecture)
+
+> **版本说明**: v2.9.0 聚焦配置系统统一抽象，建立 Enterprise Extension Adapter 边界。
+> 核心目标: 让 CS/BS/CLI 三种场景共享统一的配置模型，为后续 MQ/Redis/Discovery/OAuth2
+> 等企业能力奠定 Extension 架构基础。
+
+---
+
+### P0: Configuration 统一抽象 (Configuration)
+
+- **新增 `IConfigProvider`** — 配置 Provider 抽象接口
+  - `load()` → `Result<ConfigSnapshot>` — 每次调用产生不可变快照
+  - `name()` / `priority()` — 标识和优先级
+- **新增 `ConfigSnapshot`** — 不可变配置快照
+  - `getString/int/int64/double/bool(key)` → `std::optional<T>`
+  - `getXxxOr(key, default)` — 带默认值读取
+  - `contains()` / `size()` / `all()`
+  - `merge(higher)` — 合并另一个 Snapshot (高优先级覆盖低优先级)
+  - 线程安全: 构造后不可变，多线程读零开销
+- **新增 `PriorityConfigChain`** — 优先级配置链
+  - `addProvider()` — 自动按 priority 降序排列
+  - `load()` — 按优先级加载并合并所有 Provider
+  - `tryReload()` — 仅重载 Remote Provider，失败保持旧配置
+  - `currentSnapshot()` — 获取当前活跃 Snapshot
+  - Remote Provider 失败 → 自动降级 (非关键)
+  - 其他 Provider 失败 → 返回 Error
+
+### P0: 内置 Provider 实现 (Configuration)
+
+- **`JsonFileConfigProvider`** — JSON 文件 Provider
+- **`IniFileConfigProvider`** — INI 文件 Provider
+- **`EnvironmentConfigProvider`** — 环境变量 Provider (前缀过滤 + key 转换)
+- **`CommandLineConfigProvider`** — 命令行参数 Provider (`--key=value` 格式)
+- **`DefaultConfigProvider`** — 硬编码默认值 Provider
+- **`RemoteConfigProvider`** — 远程配置 Provider (Adapter 边界)
+  - 封装现有 `IRemoteConfigSource` (Nacos/Etcd)
+  - 连接 → 拉取 → 断开，完整生命周期
+- 预定义优先级常量: `ConfigPriority::Default(0)` → `LocalFile(50)` → `Remote(100)` → `Environment(200)` → `CommandLine(300)`
+
+### P0: Config::validate() 存根修复 (Configuration)
+
+- `Config::validate()` 从空壳修复为调用 `ConfigSchema::validate()`
+- 实际读取所有配置值并传入 Schema 验证
+- 错误消息正确传播
+
+### P1: Logging Context 自动关联 (Logging, v2.8 遗留)
+
+- `SC_INFO/SC_DEBUG/...` 等宏自动读取 `RequestContextGuard::current()`
+- 存在 Context 时自动附加 `[requestId:traceId]` 前缀
+- 无 Context 时正常工作 (CLI/CS 兼容)
+- 不依赖 HTTP/Server 模块
+
+### P1: Stress Test (Tests, v2.8 遗留)
+
+- **`test_stress_task.cpp`** — Task 压力测试
+  - 100 concurrent tasks
+  - Shutdown during task (不泄漏)
+  - Long-running task cancellation
+  - 多线程计数器一致性
+- **`test_stress_connection.cpp`** — ConnectionPool 压力测试
+  - 并发 acquire/release
+  - Pool exhaustion 行为
+  - 连接复用验证
+  - 16 线程 + 4 连接池高压场景
+
+### P1: Configuration Tests + Benchmark
+
+- **`test_config_provider.cpp`** — 10 个测试用例
+  - Snapshot 基本读写 / getOr 默认值 / merge 覆盖
+  - PriorityConfigChain 优先级合并 / 空列表 / Provider 失败传播
+  - Remote 失败降级 / tryReload / Snapshot 不可变性 / currentSnapshot
+- **`benchmark_configuration.cpp`** — QHash read / merge / Snapshot construct
+
+---
+
+## [2.8.0] - 2026-08-08
+
+**版本类型**: Minor (Observability / Health / Benchmark / Performance)
+
+> **版本说明**: v2.8.0 聚焦可观测性与工程化。核心目标: 让 SoulCoreKit 具备
+> 可观测、可诊断、可健康检查、可基准测试、可性能回归验证的能力。
+
+---
+
+### P0-1: RequestContext 统一请求上下文 (Core)
+
+- 新增 `include/soul/core/request_context.h` + `src/soul/core/request_context.cpp`
+- `RequestContext` 值类型: requestId / traceId / spanId / correlationId
+- `RequestContext::create()` — 新建 Context (自动生成 UUID)
+- `RequestContext::fromTrace()` — 从上游 traceId 创建 (跨服务传递)
+- `RequestContextGuard` RAII 守卫 — thread_local 栈管理，支持嵌套
+- `RequestContextGuard::current()` / `hasCurrent()` / `currentRequestId()` / `currentTraceId()`
+- 线程安全: thread_local 隔离，ScopeGuard 析构自动清理，无跨请求污染
+- 不依赖 HTTP 或任何特定协议
+
+### P0-1: TraceMiddleware 集成 RequestContext (Server)
+
+- `TraceMiddleware::before()` 自动创建 `RequestContextGuard`
+- 请求头 trace_id / requestId 自动注入 Context
+- `TraceMiddleware::after()` 自动清理 Context (ScopeGuard 析构)
+- Controller / Service / Repository 可通过 `RequestContextGuard::current()` 获取上下文
+
+### P0-2: Health 统一健康检查模型 (Core)
+
+- 新增 `include/soul/core/health.h` + `src/soul/core/health.cpp`
+- `HealthStatus` — 单个组件健康状态 (Up/Down/Degraded)
+- `IHealthIndicator` — 健康指标接口 (`check()`)
+- `HealthAggregator` 单例 — 聚合所有指标，线程安全
+  - `checkAll()` / `overallStatus()` / `isHealthy()` / `isReady()` / `toJson()`
+- `LambdaHealthIndicator` — Lambda 快捷健康指标
+- `LivenessIndicator` — 基础存活检查 (始终 UP)
+- `MemoryHealthIndicator` — 内存压力检查 (Windows/Linux 跨平台)
+- 设计原则: Health 与 HTTP Endpoint 完全解耦，CLI/CS/BS 均可独立使用
+
+### P0-2: BS Health Endpoint (Examples)
+
+- BS Backend 示例新增标准端点:
+  - `/api/live` — 进程存活 (始终 200)
+  - `/api/ready` — 就绪检查 (调用 HealthAggregator::isReady())
+  - `/api/health` — 完整诊断 JSON (含依赖状态)
+- 输出格式: `{"status":"UP","dependencies":{"database":"UP","cache":"UP"}}`
+- 注册了 LivenessIndicator + MemoryHealthIndicator
+
+### P0: Metrics Timer (Observability)
+
+- 新增 `Timer` 类 — Histogram 的语义化封装，专用于延迟/耗时测量
+- `Timer::record(latencyMs)` — 手动记录
+- `Timer::Scoped` — RAII 自动计时 (构造开始，析构自动 record)
+- 默认使用 `HistogramBuckets::defaultLatency()` 分桶
+
+### P1: Benchmark 体系 (Benchmarks)
+
+- 新增 `benchmarks/CMakeLists.txt` — 统一基准构建
+- 新增 6 个基准测试:
+  - `benchmark_core.cpp` — Result<T>/Error 构造 + 操作
+  - `benchmark_di.cpp` — Singleton/Transient resolve
+  - `benchmark_event.cpp` — EventBus publish (1/10 subscribers)
+  - `benchmark_logging.cpp` — String format + allocation baseline
+  - `benchmark_metrics.cpp` — Atomic increment + Mutex observe
+  - `benchmark_http.cpp` — Route match + Path split
+- 所有基准输出: Throughput (ops/sec) / avg latency (ns/op) / p50 / p95 / p99
+- 新增 `all_benchmarks` 聚合目标
+
+### P1: CI / Sanitizer 支持
+
+- 新增 CMake options:
+  - `SOULCOREKIT_BUILD_BENCHMARKS` (OFF)
+  - `SOULCOREKIT_BUILD_EXAMPLES` (ON)
+  - `SOULCOREKIT_BUILD_TESTS` (ON)
+  - `SOULCOREKIT_ENABLE_ASAN` (OFF)
+  - `SOULCOREKIT_ENABLE_UBSAN` (OFF)
+  - `SOULCOREKIT_ENABLE_TSAN` (OFF)
+- 兼容旧 `BUILD_BENCHMARKS` / `BUILD_EXAMPLES` / `BUILD_TESTS` option 名称
+
+---
+
+## [2.7.0] - 2026-08-08
+
+**版本类型**: Minor (CS/BS 共用能力完善 — 通信核心发力)
+
+> **版本说明**: v2.7.0 在 v2.6.0 Foundation Stabilization 的稳定底座上，
+> 聚焦通信层能力完善。核心主题: Middleware 中间件链体系化、
+> RESTful 路由支持、RPC Transport 抽象统一、Auth 模块拆分、
+> CS/BS 端到端示例。
+
+---
+
+### P0: Middleware 中间件链体系化 (Server)
+
+- **新增 TraceMiddleware** — 分布式追踪中间件
+  - 从请求头提取/生成 trace_id + span_id
+  - 支持 W3C TraceContext 和 B3 格式
+  - 与 Observability 模块 Tracer/Span 集成
+  - 响应注入 X-Trace-Id / X-Span-Id
+- **新增 ValidationMiddleware** — 请求/响应校验中间件
+  - before 阶段: Content-Type 校验、请求体大小限制 (413/415)
+  - 可配置排除路径
+  - 预留 after 阶段 Schema 校验扩展
+- 中间件链正式化为 6 个内置中间件:
+  `LoggingMiddleware → TraceMiddleware → AuthMiddleware → RateLimitMiddleware → ValidationMiddleware → CorsMiddleware`
+- `MiddlewareChain` 线程安全: 注册加锁，执行不加锁
+
+### P0: RESTful 路由支持 (Server)
+
+- HttpRequest 新增 `pathParams()` / `pathParam(name)` / `wildcardPath()`
+- HttpServer 路由支持三种模式:
+  - 精确匹配: `/api/health`
+  - 路径参数: `/api/users/:id` → `req.pathParam("id")`
+  - 通配符: `/api/files/*path` → `req.wildcardPath()`
+- 新增 `patch()` 便捷方法
+- 新增 `splitPath()` / `matchPattern()` 静态方法
+- 模式路由按注册顺序匹配 (先注册优先)
+
+### P0: RPC Transport 抽象统一 (RPC)
+
+- 新增 `IRpcCodec` — RPC 编解码器接口 (encode/decode)
+- 新增 `JsonRpcCodec` — 默认 JSON Codec 实现
+- 新增 `RpcTransportType` 枚举 (Http/WebSocket/Tcp/Grpc)
+- 新增 `RpcTransportFactory` — 统一 Transport 工厂
+  - `createHttp()` / `createWebSocket()` / `createTcp()` / `createGrpc()`
+- `IRpcTransport` 新增 `type()` / `setCodec()` 接口
+- `HttpTransport` 实现新接口，支持运行时切换 Codec
+- gRPC 作为 Adapter 接入，不绑定核心
+
+### P1: Auth 模块拆分 (Auth)
+
+- **拆分为三层**:
+  - `authentication.h` — 认证 (Who are you?)
+    - `Credential` / `Identity` / `IAuthenticator`
+    - `PasswordAuthenticator` (IUserRepository + IPasswordHasher)
+    - `TokenAuthenticator` (ITokenProvider)
+  - `authorization.h` — 授权 (What can you do?)
+    - `Permission` / `IAuthorizer`
+    - `RoleBasedAuthorizer` (角色→权限映射)
+    - `PolicyBasedAuthorizer` (可编程策略评估)
+- 保留原有 `auth_manager.h` / `token_manager.h` / `permission.h` 向前兼容
+
+### P1: CS/BS 端到端集成示例 (Examples)
+
+- **新增 `examples/bs_backend/`** — BS Web Backend 完整示例
+  - HttpServer + 5 中间件链
+  - RESTful API: GET/POST /api/users, GET /api/users/:id
+  - 健康检查 /health, /ready
+  - Scaffold 生命周期管理
+- **新增 `examples/cli/`** — CLI / Headless 最小依赖示例
+  - 仅 Core 层 (无 UI/Network/Server)
+  - Result<T>/Error 错误处理
+  - DI + Logger + Async 异步任务
+- `examples/CMakeLists.txt` 更新: 新增 bs_backend / cli_tool 构建目标
+
+---
+
+## [2.6.0] - 2026-08-08
+
+**版本类型**: Minor (Foundation Stabilization — 架构定位重构 + 基础设施稳定化)
+
+> **版本说明**: v2.6.0 是 CS+BS 双场景定位确立后的首个稳定化版本。
+> 核心目标: 让四层架构规则正式落地、生命周期语义统一、线程模型冻结、
+> Error/Result 模型增强，为后续 HTTP/RPC/Auth/MQ 等上层能力提供稳定底座。
+
+---
+
+### P0-01: CS+BS 双场景定位确立 (架构定位)
+
+- README 重写: 从 "Qt CS 架构工具库" → "面向 CS+BS 场景的 C++/Qt 通用应用基础平台"
+- 新增场景定位章节 (CS/BS 架构图 + scChat/SoulCove/WebBackend 复用场景表)
+- 新增典型应用场景: BS Web Backend / CS Qt Client / CLI 工具 三个示例
+- 核心特性表增加 BS 场景标注 (HttpServer/WebSocketServer 等)
+- 迭代优先级表 (P0~P3)
+
+### P0-02: 四层架构正式落地 (架构)
+
+- 架构从旧 5 层 → 新 4 层: Core → Infrastructure → Extensions → Application
+- CMakeLists.txt 模块加载按四层重组 (C01~C06 / I01~I15 / E01~E07 / A01~A02)
+- 新增 `SoulCoreKitFull` 聚合库 (Core + Infrastructure + Extensions + UI + CS)
+- 聚合库策略: `SoulCoreKit`(BS/CLI) / `SoulCoreKitUi`(CS Client) / `SoulCoreKitFull`(完整 CS)
+- 30 个 cmake 模块注释标准化 (层级 + 场景 + 职责)
+
+### P0-03: 四层依赖规则强制检查 (工程化)
+
+- 新增 `cmake/SoulCoreKitArchitecture.cmake` — 编译期架构违规检测
+- `sc_check_architecture()`: 遍历所有模块的 LINK_LIBRARIES，验证依赖方向
+- 违规项触发 FATAL_ERROR，阻断构建
+- 依赖规则:
+  - Core → 不允许依赖任何 SoulCoreKit 内部模块
+  - Infrastructure → 仅允许依赖 Core
+  - Extensions → 仅允许依赖 Core + Infrastructure
+  - Application → 允许依赖所有下层
+
+### P0-04: 生命周期统一 (Core)
+
+- `ILifecycleManaged` (2 阶段) → `ILifecycle` (4 阶段):
+  - `initialize()` → Result<void> (可失败)
+  - `start()` → Result<void> (可失败)
+  - `stop()` → void noexcept (保证执行)
+  - `shutdown()` → void noexcept (保证执行)
+- 新增 `LifecycleState` 枚举 (Constructed → Initialized → Running → Stopped → Shutdown)
+- `Module` 实现 `ILifecycle` 接口，自动管理状态转换
+- `CsService` 迁移到 `ILifecycle`，新增 `start()`/`stop()` 钩子
+- `ServiceRegistry` 升级为四阶段: `initializeAll()`/`startAll()`/`stopAll()`/`shutdownAll()`
+- `initializeAll()`/`startAll()` 失败自动回滚 (逆序 shutdown 已初始化的服务)
+- 向后兼容: `ILifecycleManaged` 保留为 deprecated 别名
+
+### P0-05: 线程模型正式冻结 (文档)
+
+- 新增 `docs/architecture/threading-model.md` — 7 条强制规则
+- Rule 1: QObject 线程亲和性
+- Rule 2: 禁止跨线程直接调用
+- Rule 3: 锁内禁止执行用户回调
+- Rule 4: 锁内禁止 emit 可能触发外部逻辑的 signal
+- Rule 5: Worker 不直接操作 UI
+- Rule 6: DB Connection 默认线程隔离
+- Rule 7: Task Cancellation 必须明确 happens-before
+- 组件线程安全分类 (安全/亲和/需外部同步)
+- BS 场景特殊考虑 (无 GUI Thread)
+- 生命周期各阶段线程约束
+
+### P0-06: Error/Result 模型增强 (Core)
+
+- 新增 `ErrorCategory` 枚举 (Resource/Network/Parse/Database/FileIO/Internal)
+- `categoryFromCode()` 根据 ErrorCode 自动推断类别
+- `Error` 新增:
+  - `category()` — 获取错误类别
+  - `isCategory()` / `isNetworkError()` / `isDatabaseError()` 等便捷判断
+  - `context()` — 诊断元数据 (request_id, user_id 等)
+  - `withContext(key, value)` — 链式添加上下文
+- Context 元数据不参与相等比较，用于日志/追踪诊断
+
+### 工程化
+
+- examples/CMakeLists.txt 同步更新 (soulcore_demo → SoulCoreKitFull)
+- PROJECT_OVERVIEW.md 重写 (四层架构 + 聚合库策略 + 迭代优先级)
+- 所有 cmake 模块文件补充层级/场景/职责注释
+
+---
+
 ## [2.5.0] - 2026-08-05
 
 **版本类型**: Major (三层架构定稿 + ApplicationContext 引入 + 项目文档体系建立)

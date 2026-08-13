@@ -10,6 +10,7 @@ FileStorage::FileStorage() : m_isOpen(false) {
 }
 
 Result<void> FileStorage::open(const QString& path) {
+    std::lock_guard<std::mutex> lock(m_mutex);
     m_basePath = path;
     QDir dir(path);
     if (!dir.exists()) {
@@ -22,10 +23,12 @@ Result<void> FileStorage::open(const QString& path) {
 }
 
 void FileStorage::close() {
+    std::lock_guard<std::mutex> lock(m_mutex);
     m_isOpen = false;
 }
 
 bool FileStorage::isOpen() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
     return m_isOpen;
 }
 
@@ -35,6 +38,7 @@ QString FileStorage::getFilePath(const QString& key) const {
 }
 
 Result<void> FileStorage::put(const QString& key, const QString& value) {
+    std::lock_guard<std::mutex> lock(m_mutex);
     if (!m_isOpen) {
         return Error(ErrorCode::InternalError, "Storage not open");
     }
@@ -47,6 +51,7 @@ Result<void> FileStorage::put(const QString& key, const QString& value) {
 }
 
 Result<QString> FileStorage::get(const QString& key) const {
+    std::lock_guard<std::mutex> lock(m_mutex);
     if (!m_isOpen) {
         return Error(ErrorCode::InternalError, "Storage not open");
     }
@@ -58,6 +63,7 @@ Result<QString> FileStorage::get(const QString& key) const {
 }
 
 Result<void> FileStorage::remove(const QString& key) {
+    std::lock_guard<std::mutex> lock(m_mutex);
     if (!m_isOpen) {
         return Error(ErrorCode::InternalError, "Storage not open");
     }
@@ -68,10 +74,12 @@ Result<void> FileStorage::remove(const QString& key) {
 }
 
 bool FileStorage::contains(const QString& key) const {
+    std::lock_guard<std::mutex> lock(m_mutex);
     return QFile::exists(getFilePath(key));
 }
 
 Result<void> FileStorage::putBytes(const QString& key, const QByteArray& value) {
+    std::lock_guard<std::mutex> lock(m_mutex);
     if (!m_isOpen) {
         return Error(ErrorCode::InternalError, "Storage not open");
     }
@@ -84,6 +92,7 @@ Result<void> FileStorage::putBytes(const QString& key, const QByteArray& value) 
 }
 
 Result<QByteArray> FileStorage::getBytes(const QString& key) const {
+    std::lock_guard<std::mutex> lock(m_mutex);
     if (!m_isOpen) {
         return Error(ErrorCode::InternalError, "Storage not open");
     }
@@ -95,6 +104,7 @@ Result<QByteArray> FileStorage::getBytes(const QString& key) const {
 }
 
 std::vector<QString> FileStorage::keys() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
     std::vector<QString> result;
     QDir dir(m_basePath);
     QStringList entries = dir.entryList(QDir::Files);
@@ -105,11 +115,13 @@ std::vector<QString> FileStorage::keys() const {
 }
 
 int FileStorage::count() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
     QDir dir(m_basePath);
     return dir.entryList(QDir::Files).size();
 }
 
 Result<void> FileStorage::clear() {
+    std::lock_guard<std::mutex> lock(m_mutex);
     if (!m_isOpen) {
         return Error(ErrorCode::InternalError, "Storage not open");
     }

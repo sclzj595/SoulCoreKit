@@ -149,7 +149,7 @@ QJsonObject OtlpHttpExporter::buildSpanJson(const Span& span) const {
     return QJsonObject();
 }
 
-QJsonObject OtlpHttpExporter::buildScopeMetricsJson(const QJsonObject& metrics) const {
+QJsonObject OtlpHttpExporter::buildScopeMetricsJson(const QJsonArray& metrics) const {
     Q_UNUSED(metrics);
     return QJsonObject();
 }

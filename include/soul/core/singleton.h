@@ -104,10 +104,18 @@ public:
     }
 
     static void init() {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        if (m_instance && !m_initialized) {
+        bool shouldInit = false;
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            if (m_instance && !m_initialized) {
+                m_initialized = true;  // 先标记, 避免用户 init() 重入 re-init
+                shouldInit = true;
+            }
+        }
+        // 用户可重写的 T::init() 在锁外调用, 防止回调内部访问本单例
+        // (如 instance()/isInitialized()) 时对非递归 mutex 重入加锁而死锁。
+        if (shouldInit) {
             m_instance->init();
-            m_initialized = true;
             SingletonRegistry::instance().registerShutdown([]() {
                 destroy();
             });
@@ -115,11 +123,18 @@ public:
     }
 
     static void destroy() {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        if (m_instance) {
-            m_instance->shutdown();
+        std::shared_ptr<T> inst;
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            if (m_instance) {
+                inst = m_instance;
+                m_initialized = false;
+            }
+        }
+        if (inst) {
+            inst->shutdown();  // 用户代码在锁外调用, 避免重入死锁
+            std::lock_guard<std::mutex> lock(m_mutex);
             m_instance.reset();
-            m_initialized = false;
         }
     }
 

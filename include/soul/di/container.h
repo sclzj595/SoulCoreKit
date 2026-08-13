@@ -263,7 +263,7 @@ public:
             if (m_currentScopeId != 0) {
                 auto scopeIt = m_scopes.find(m_currentScopeId);
                 if (scopeIt != m_scopes.end()) {
-                    auto instIt = scopeIt->second.find(typeIdx);
+                    auto instIt = scopeIt->second.find(NamedKey{typeIdx, name});
                     if (instIt != scopeIt->second.end()) {
                         return std::shared_ptr<T>(instIt->second,
                             static_cast<T*>(instIt->second.get()));
@@ -277,7 +277,7 @@ public:
             if (!instance) return Error(ErrorCode::InternalError, "Creator returned null");
             auto sp = std::shared_ptr<void>(instance, info.deleter);
             if (m_currentScopeId != 0) {
-                m_scopes[m_currentScopeId][typeIdx] = sp;
+                m_scopes[m_currentScopeId][NamedKey{typeIdx, name}] = sp;
                 return std::shared_ptr<T>(sp, static_cast<T*>(sp.get()));
             }
             return std::shared_ptr<T>(sp, static_cast<T*>(sp.get()));
@@ -373,7 +373,7 @@ public:
             if (m_currentScopeId != 0) {
                 auto scopeIt = m_scopes.find(m_currentScopeId);
                 if (scopeIt != m_scopes.end()) {
-                    auto instIt = scopeIt->second.find(typeIdx);
+                    auto instIt = scopeIt->second.find(NamedKey{typeIdx, {}});
                     if (instIt != scopeIt->second.end()) {
                         return std::shared_ptr<T>(instIt->second,
                             static_cast<T*>(instIt->second.get()));
@@ -393,7 +393,7 @@ public:
             auto sp = std::shared_ptr<void>(instance, info.deleter);
 
             if (m_currentScopeId != 0) {
-                m_scopes[m_currentScopeId][typeIdx] = sp;
+                m_scopes[m_currentScopeId][NamedKey{typeIdx, {}}] = sp;
                 return std::shared_ptr<T>(sp, static_cast<T*>(sp.get()));
             }
 
@@ -510,7 +510,8 @@ private:
     // singletonInstance(shared_ptr<void>) 已承担实例存储职责，m_resolvedInstances 是冗余的裸指针副本。
     // 所有 creator lambda 均忽略依赖映射参数，传递空 map 即可。
     // [v2.5.1] 使用 shared_ptr<void> 存储 scope 实例，共享控制块消除 use-after-free
-    std::unordered_map<ScopeId, std::unordered_map<std::type_index, std::shared_ptr<void>>> m_scopes;
+    // [审计] scope 缓存键用 NamedKey(含 name), 避免同名类型不同名字的 Scoped Bean 互相覆盖。
+    std::unordered_map<ScopeId, std::unordered_map<NamedKey, std::shared_ptr<void>, NamedKeyHash>> m_scopes;
     std::unordered_map<NamedKey, RegistrationInfo, NamedKeyHash> m_namedRegistrations;
     std::unordered_map<std::type_index, std::string> m_primaryImpls;
     ScopeId m_currentScopeId = 0;

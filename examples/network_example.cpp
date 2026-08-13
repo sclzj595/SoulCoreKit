@@ -13,10 +13,10 @@ int main() {
 
     if (result.isOk()) {
         const sc::network::HttpResponse& response = result.unwrap();
-        SC_INFO("Status: " + QString::number(response.statusCode()).toStdString());
-        SC_INFO("Body: " + response.text().toStdString());
+        SC_INFO_FMT("Status: {}", response.statusCode());
+        SC_INFO_FMT("Body: {}", response.text().toStdString());
     } else {
-        SC_ERROR("Request failed: " + result.unwrapErr().message());
+        SC_ERROR_FMT("Request failed: {}", result.unwrapErr().message().toStdString());
     }
 
     return 0;

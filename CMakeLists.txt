@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.16)
-project(SoulCoreKit VERSION 2.5.0 LANGUAGES CXX)
+project(SoulCoreKit
+    VERSION 3.0.0
+    DESCRIPTION "面向 CS + BS 场景的 C++/Qt 通用应用基础平台"
+    LANGUAGES CXX
+)
 
 include(GenerateExportHeader)
 
@@ -7,7 +11,6 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
-set(CMAKE_AUTOMOC ON)
 
 if(WIN32)
     add_definitions(-DNOMINMAX)
@@ -32,6 +35,10 @@ endif()
 
 find_package(Qt6 REQUIRED COMPONENTS Core Network WebSockets Sql Xml)
 
+# AUTOMOC 必须在 find_package(Qt6) 之后设置以确保 Qt6 的 CMake 模块不会覆盖
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTOMOC_MOC_OPTIONS "-I${CMAKE_SOURCE_DIR}/include")
+
 # ============================================================================
 # nlohmann/json - 全局 JSON 处理(v1.9.2 统一 JSON 方案)
 # ============================================================================
@@ -48,6 +55,12 @@ elseif(EXISTS "G:/MinGW/nlohmann/json.hpp")
     message(STATUS "Using local nlohmann/json from G:/MinGW/nlohmann")
     add_library(nlohmann_json INTERFACE)
     target_include_directories(nlohmann_json INTERFACE "G:/MinGW")
+    add_library(nlohmann_json::nlohmann_json ALIAS nlohmann_json)
+    install(TARGETS nlohmann_json EXPORT SoulCoreKitTargets)
+elseif(EXISTS "${CMAKE_SOURCE_DIR}/build_closure/_deps/nlohmann_json-src/single_include/nlohmann/json.hpp")
+    message(STATUS "Using cached nlohmann/json from build_closure/_deps/nlohmann_json-src")
+    add_library(nlohmann_json INTERFACE)
+    target_include_directories(nlohmann_json INTERFACE "${CMAKE_SOURCE_DIR}/build_closure/_deps/nlohmann_json-src/single_include")
     add_library(nlohmann_json::nlohmann_json ALIAS nlohmann_json)
     install(TARGETS nlohmann_json EXPORT SoulCoreKitTargets)
 else()
@@ -81,6 +94,10 @@ elseif(EXISTS "G:/MinGW/spdlog/include/spdlog/spdlog.h")
     add_library(spdlog INTERFACE)
     target_include_directories(spdlog INTERFACE "G:/MinGW/spdlog/include")
     add_library(spdlog::spdlog ALIAS spdlog)
+    install(TARGETS spdlog EXPORT SoulCoreKitTargets)
+elseif(EXISTS "${CMAKE_SOURCE_DIR}/build_closure/_deps/spdlog-src/include/spdlog/spdlog.h")
+    message(STATUS "Using cached spdlog from build_closure/_deps/spdlog-src")
+    add_subdirectory("${CMAKE_SOURCE_DIR}/build_closure/_deps/spdlog-src" "${CMAKE_SOURCE_DIR}/build_closure/_deps/spdlog-build")
     install(TARGETS spdlog EXPORT SoulCoreKitTargets)
 else()
     message(STATUS "Fetching spdlog v1.14.1 via FetchContent (shallow clone)...")
@@ -290,14 +307,25 @@ function(windeployqt_post_build TARGET_NAME IS_TEST)
         return()
     endif()
 
+    # v3.0.0: 用文件锁串行化 windeployqt 调用。
+    # 根因: -jN 并行构建时, 多个 target 的 windeployqt 同时向同一输出目录
+    #       (tests/ 或 examples/) 复制共享 Qt DLL (Qt6Core/Qt6Network 等),
+    #       产生 "Cannot create ... for output" 写竞争 (Build System Defect)。
+    # 修复: 通过 cmake/deploy_qt_locked.cmd 用原子目录锁串行化, 锁按输出目录
+    #       隔离 (同目录 target 共享一把锁, 不同目录互不阻塞)。
+    set(_LOCK_DIR "$<TARGET_FILE_DIR:${TARGET_NAME}>/.deploy.lock")
+    set(_DEPLOY_SCRIPT "${CMAKE_SOURCE_DIR}/cmake/deploy_qt_locked.cmd")
+
     add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
-        COMMAND "${WINDEPLOYQT_EXECUTABLE}"
+        COMMAND "${_DEPLOY_SCRIPT}"
+            "${_LOCK_DIR}"
+            "${WINDEPLOYQT_EXECUTABLE}"
             "--debug"
             "--no-translations"
             "--no-system-d3d-compiler"
             $<$<BOOL:${IS_TEST}>:--test>
             "$<TARGET_FILE:${TARGET_NAME}>"
-        COMMENT "Deploying Qt dependencies for ${TARGET_NAME}"
+        COMMENT "Deploying Qt dependencies for ${TARGET_NAME} (locked)"
     )
 
     # Copy qoffscreen.dll platform plugin (missing from windeployqt output)
@@ -310,18 +338,34 @@ function(windeployqt_post_build TARGET_NAME IS_TEST)
             "$<TARGET_FILE_DIR:${TARGET_NAME}>/platforms/qoffscreen.dll"
         COMMENT "Copying qoffscreen.dll platform plugin for ${TARGET_NAME}"
     )
+
 endfunction()
 
 # ============================================================================
-# 子模块定义 — 每个模块独立 CMake 文件，统一由 include 装载
+# 子模块定义 — SoulCoreKit 四层架构
 # ============================================================================
-# 模块文件位于 cmake/modules/ 目录下，每个文件只包含对应模块的 library 定义。
-# 顺序注意: 先定义无依赖的底层模块 (core/async)，再定义有依赖的上层模块 (network/ui/cs)。
+# 架构定位: 面向 CS + BS 场景的 C++/Qt 通用应用基础平台
+# 分层原则: Core → Infrastructure → Extensions → Adapters
+#           上层可依赖下层，下层禁止依赖上层，严禁循环依赖
+#
+#   SoulCoreKit
+#        │
+#   ┌────┼──────────────────────┐
+#   │    │                      │
+#  Core  Infrastructure    Extensions (Adapters)
+#   │    │                      │
+# CS/BS  CS/BS                 可选企业能力
+# 共用   共用基础设施           不污染核心架构
+#
 # 模块间依赖关系见 docs/01_architecture.md 的 Module Dependency Graph。
 
-# === Foundation Layer: 基础设施模块 ===
+# ============================================================================
+# Layer 0: Core 层 — CS / BS 共用的极稳定核心
+# ============================================================================
+# 设计原则: 零业务绑定，CS/BS 统一使用，API 极简稳定
+# 模块: core, di, logging, async, event
 
-# 1. Core — 核心类型，无内部依赖 (仅 Qt)
+# C01. Core — 核心类型与基础设施，无内部依赖 (仅 Qt)
 include(cmake/modules/core.cmake)
 
 # v1.9.4: 从 CMake PROJECT_VERSION 自动生成版本号头文件
@@ -331,53 +375,89 @@ configure_file(
     @ONLY
 )
 
-# 2. DI — 依赖注入容器，依赖 core
+# C02. DI — 依赖注入容器 (Singleton/Scoped/Transient)，依赖 core
 include(cmake/modules/di.cmake)
 
-# 3. Logging — 日志系统，依赖 core + spdlog
+# C03. Logging — 日志系统 (spdlog 后端)，依赖 core + spdlog
 include(cmake/modules/logging.cmake)
 
-# 4. Data — 数据访问抽象层，依赖 core (IRepository, MemoryRepository, QueryCache, ORM Reflection)
-include(cmake/modules/data.cmake)
-
-# 4.1 Database — 数据库实现层，依赖 data + Qt::Sql (IDatabaseDriver, BaseRepository, Transaction, Migration)
-include(cmake/modules/database.cmake)
-
-# 5. Base — 基础类，依赖 core + data
-include(cmake/modules/base.cmake)
-
-# 6. Utils — 工具函数，依赖 core + Qt::Xml + nlohmann_json
-include(cmake/modules/utils.cmake)
-
-# 7. Configuration — 配置管理，依赖 core + utils + logging
-include(cmake/modules/configuration.cmake)
-
-# 8. Storage — 存储，依赖 core + Qt::Sql
-include(cmake/modules/storage.cmake)
-
-# 9. Cache — 缓存系统，依赖 core + logging (PRIVATE)
-include(cmake/modules/cache.cmake)
-
-# 10. Async — 异步任务，依赖 core + logging (PRIVATE)
+# C04. Async — 异步任务框架 (ThreadPool/Future/Promise/Coroutine)，依赖 core + logging (PRIVATE)
 include(cmake/modules/async.cmake)
 
-# 11. Event — 事件总线，依赖 core + async (PRIVATE) + logging (PRIVATE)
+# C05. Event — 事件总线 (EventBus/TypedEventBus)，依赖 core + async (PRIVATE) + logging (PRIVATE)
 include(cmake/modules/event.cmake)
 
-# 12. Network — 网络通信，依赖 core + logging
+# ============================================================================
+# Layer 1: Infrastructure 层 — CS / BS 共用基础设施
+# ============================================================================
+# 设计原则: 提供 CS/BS 都需要的通用能力，统一抽象、多后端适配
+# 模块: network, data, database, orm, storage, cache, configuration, observability, validation, base, utils
+
+# === 通信基础设施 ===
+# I01. Network Core — 网络核心抽象层 (Adapter/Codec/Monitor)，依赖 core + logging
 include(cmake/modules/network_core.cmake)
+
+# I02. Network Policy — 网络策略 (熔断/重试/限流/心跳/超时)，依赖 core + network_core
 include(cmake/modules/network_policy.cmake)
+
+# I03. Network HTTP — HTTP 适配器与拦截器链，依赖 core + network_core + network_policy
 include(cmake/modules/network_http.cmake)
+
+# I04. Network Protocol — 多协议适配 (TCP/WebSocket/MQTT/Bluetooth/Serial/NamedPipe)，依赖 core + network_core
 include(cmake/modules/network_protocol.cmake)
+
+# I05. Network — 网络通信聚合 (HttpClient/WebSocket/TcpClient/Downloader/Uploader)
+# 依赖 core + network_core + network_policy + network_http + network_protocol + Qt::Network + Qt::WebSockets
 include(cmake/modules/network.cmake)
 
-# 13. Auth — 认证，依赖 core + network + storage + utils
-include(cmake/modules/auth.cmake)
+# === 数据基础设施 ===
+# I06. Data — 数据访问抽象 (IRepository/MemoryRepository/QueryCache/ORM Reflection/Transaction)，依赖 core + Qt::Sql
+include(cmake/modules/data.cmake)
 
-# 14. MQ — 消息队列，依赖 core + logging + async
+# I07. Database — 数据库实现聚合 (IDatabaseDriver/BaseRepository/Migration)
+# MySQL 作为一等公民 (BS Server)，SQLite 服务 CS Client 本地数据
+include(cmake/modules/database.cmake)
+
+# I08. ORM — 对象关系映射 (QueryWrapper/SqlDialect/MigrationManager/CachedRepository)，依赖 core + logging + data + cache
+include(cmake/modules/orm.cmake)
+
+# I09. Storage — KV 存储与持久化 (Memory/File/SQLite/Settings)，依赖 core + logging + Qt::Sql + nlohmann_json
+include(cmake/modules/storage.cmake)
+
+# I10. Cache — 缓存抽象 (Memory/Disk/MultiLevel/SizeEstimator)，依赖 core + logging (PRIVATE)
+include(cmake/modules/cache.cmake)
+
+# === 通用基础设施 ===
+# I11. Base — 基础类与抽象 (BaseObject/BaseManager/BaseService)，依赖 core + data
+include(cmake/modules/base.cmake)
+
+# I12. Utils — 工具函数集 (Clipboard/Crypto/File/JSON/String/XML/Process/Compress/Datetime/Image)，依赖 core + Qt::Xml + nlohmann_json
+include(cmake/modules/utils.cmake)
+
+# I13. Configuration — 配置管理 (JSON/INI 多源 + 环境变量 + 热加载 + Profile 隔离 + ConfigCenter + Schema)，依赖 core + utils + logging
+include(cmake/modules/configuration.cmake)
+
+# I14. Observability — 可观测性 (Metrics/Tracing/HealthCheck/ResourcePool/OtlpExporter/PrometheusExporter)，依赖 core + logging + async + data + network
+include(cmake/modules/observability.cmake)
+
+# I15. Validation — 数据校验 (Validator/注解式校验)，依赖 core
+include(cmake/modules/validation.cmake)
+
+# ============================================================================
+# Layer 2: Extensions 层 — 企业级扩展能力 (可选)
+# ============================================================================
+# 设计原则: 保留抽象，不过度实现，不污染核心架构
+# 模块: rpc, mq, auth, plugin, scheduler, server, aop
+
+# E01. RPC — RPC 框架 (RpcClient/RpcServer/ServiceDispatcher/ClientProxy/ServiceDiscovery)
+# Transport 抽象: HTTP / WebSocket / TCP 皆可为 Transport，gRPC 作为 Adapter
+include(cmake/modules/rpc.cmake)
+
+# E02. MQ — 消息队列 (MessageBus 抽象)
+# InMemory 核心实现 + RabbitMQ/Kafka/RocketMQ 作为 Adapter
 include(cmake/modules/mq.cmake)
 
-# RabbitMQ 真实后端(amqpcpp): 可选编译
+# RabbitMQ 真实后端(amqpcpp): 可选编译 (Adapter 层)
 option(ENABLE_RABBITMQ "Enable real RabbitMQ backend via amqpcpp (Linux/macOS only, requires network)" OFF)
 if(ENABLE_RABBITMQ)
     if(WIN32)
@@ -402,85 +482,116 @@ if(ENABLE_RABBITMQ)
     target_compile_definitions(soul_mq PUBLIC SOUL_ENABLE_RABBITMQ=1)
 endif()
 
-# 15. ORM — ORM 映射，依赖 core + logging + data + cache
-include(cmake/modules/orm.cmake)
+# E03. Auth — 认证授权 (AuthManager/TokenManager/Permission/OAuth2/OIDC)，依赖 core + network + storage + utils
+include(cmake/modules/auth.cmake)
 
-# 16. Observability — 可观测性，依赖 core + logging + async + data + network
-include(cmake/modules/observability.cmake)
-
-# 17. Validation — 输入验证，依赖 core
-include(cmake/modules/validation.cmake)
-
-# 18. AOP — 切面编程，依赖 core + logging
-include(cmake/modules/aop.cmake)
-
-# 19. Scheduler — 定时任务，依赖 core + di
-include(cmake/modules/scheduler.cmake)
-
-# 20. Server — 嵌入式 HTTP Server，依赖 core + logging + network + observability + scheduler
-include(cmake/modules/server.cmake)
-
-# 21. RPC — RPC 框架，依赖 core + nlohmann_json
-include(cmake/modules/rpc.cmake)
-
-# 22. Plugin — 插件系统，依赖 core + di + logging
+# E04. Plugin — 插件系统 (C-ABI/DLL动态加载/PluginManager)，依赖 core + di + logging
 include(cmake/modules/plugin.cmake)
 
-# === Application Layer: 业务架构模块 ===
+# E05. Scheduler — 定时任务调度 (ScheduledTask/CronTrigger)，依赖 core + di
+include(cmake/modules/scheduler.cmake)
 
-# 23. UI — UI 组件，依赖 core + base + configuration
-include(cmake/modules/ui.cmake)
+# E06. Server — 嵌入式 HTTP/WebSocket Server (BS 场景核心入口)，依赖 core + logging + network + observability + scheduler
+include(cmake/modules/server.cmake)
 
-# 24. Application — 应用上下文，通过 ILifecycleManaged 接口管理服务生命周期 (soul_cs → soul_application → soul_core)
+# E07. AOP — 切面编程 (AspectWeaver/Before/After/Around/Pointcut/JoinPoint)，依赖 core + logging
+include(cmake/modules/aop.cmake)
+
+# ============================================================================
+# Layer 3: Application 层 — 业务场景适配
+# ============================================================================
+# 设计原则: 面向具体应用场景的适配层，CS 和 BS 各自独立
+# 模块: application (应用上下文), ui (CS Client), cs (CS 架构)
+
+# A03. Application — 应用上下文与生命周期管理，依赖 core + di + configuration + cs
 include(cmake/modules/application.cmake)
 
-# 25. CS — CS 架构核心，依赖 core + di + ui + data + application
+# A01. UI — 声明式 UI 组件库 (30+ Widgets/Theme/Style/玻璃效果)，依赖 core + base + configuration + Qt::Widgets + Qt::Gui
+# 仅 CS Client 使用，BS/Headless 项目不链接此模块
+include(cmake/modules/ui.cmake)
+
+# A02. CS — CS 架构核心 (CsController/CsRouter/CsViewModel/CsWindowManager/CsAdminPanel)
+# 依赖 core + di + ui + data + application
 include(cmake/modules/cs.cmake)
+
+# ============================================================================
+# 四层架构依赖规则强制检查 [v2.6.0]
+# ============================================================================
+# 在模块全部定义之后、聚合库创建之前执行架构检查。
+# 违规项将导致 FATAL_ERROR，阻断构建。
+include(cmake/SoulCoreKitArchitecture.cmake)
+sc_check_architecture()
 
 # ============================================================================
 
 # ============================================================================
 # 顶层聚合 INTERFACE 库
 # ============================================================================
-# 设计原则: 严格遵循"轻量骨架"定位,SoulCoreKit 核心库默认不包含 UI 模块,
-# 避免纯后端项目(CLI 工具/服务进程/Headless 服务)被迫引入 Qt Widgets/Gui 依赖。
-# 需要 UI 的项目显式链接 SoulCoreKitUi。
-add_library(SoulCoreKit INTERFACE)
+# SoulCoreKit 定位: 面向 CS + BS 场景的 C++/Qt 通用应用基础平台
+#
+# 聚合策略:
+#   SoulCoreKit        — Core + Infrastructure + Extensions (不含 UI/CS)
+#                         适用: BS Web Backend / CLI 工具 / Headless 服务 / CS Server
+#   SoulCoreKitUi      — SoulCoreKit + UI 组件库
+#                         适用: CS Qt Desktop Client
+#   SoulCoreKitFull    — 全量聚合 (含 CS 架构层)
+#                         适用: 完整 CS 应用开发
+#
+# 使用示例:
+#   # BS Web Backend / CLI 工具
+#   target_link_libraries(MyServer PRIVATE SoulCoreKit)
+#
+#   # CS Qt Desktop Client
+#   target_link_libraries(MyClient PRIVATE SoulCoreKit SoulCoreKitUi)
+#
+#   # 完整 CS 应用
+#   target_link_libraries(MyApp PRIVATE SoulCoreKitFull)
 
+# SoulCoreKit: Core + Infrastructure + Extensions (不含 Application 层)
+add_library(SoulCoreKit INTERFACE)
 target_link_libraries(SoulCoreKit INTERFACE
+    # === Core 层 ===
     soul_core
-    soul_data
-    soul_database
-    soul_base
+    soul_di
     soul_logging
-    soul_network
-    soul_utils
-    soul_configuration
-    soul_storage
-    soul_cache
     soul_async
     soul_event
-    soul_auth
-    soul_mq
+    # === Infrastructure 层 ===
+    soul_network
+    soul_data
+    soul_database
     soul_orm
-    soul_rpc
+    soul_storage
+    soul_cache
+    soul_base
+    soul_utils
+    soul_configuration
     soul_observability
-    soul_aop
     soul_validation
+    # === Extensions 层 ===
+    soul_rpc
+    soul_mq
+    soul_auth
+    soul_plugin
     soul_scheduler
     soul_server
-    soul_di
-    soul_plugin
-    soul_application
-    soul_cs
+    soul_aop
 )
 
-# SoulCoreKitUi: 包含 UI 模块的聚合库(可选)。
-# 用法: target_link_libraries(MyApp PRIVATE SoulCoreKit SoulCoreKitUi)
+# SoulCoreKitUi: 包含 Application 层 + UI 组件库 (CS Client 专用)
 add_library(SoulCoreKitUi INTERFACE)
 target_link_libraries(SoulCoreKitUi INTERFACE
     SoulCoreKit
+    soul_application
     soul_ui
+)
+
+# SoulCoreKitFull: 全量聚合 (含 CS 架构层)
+add_library(SoulCoreKitFull INTERFACE)
+target_link_libraries(SoulCoreKitFull INTERFACE
+    SoulCoreKit
+    SoulCoreKitUi
+    soul_cs
 )
 
 if(BUILD_EXAMPLES)
@@ -492,46 +603,54 @@ if(BUILD_TESTS)
     add_subdirectory(tests)
 endif()
 
-option(BUILD_BENCHMARKS "Build benchmark suite" OFF)
+# ============================================================================
+# Build Options [v2.8.0 统一]
+# ============================================================================
+option(SOULCOREKIT_BUILD_BENCHMARKS "Build benchmark suite" OFF)
+option(SOULCOREKIT_BUILD_EXAMPLES "Build examples" ON)
+option(SOULCOREKIT_BUILD_TESTS "Build tests" ON)
+option(SOULCOREKIT_ENABLE_ASAN "Enable AddressSanitizer" OFF)
+option(SOULCOREKIT_ENABLE_UBSAN "Enable UndefinedBehaviorSanitizer" OFF)
+option(SOULCOREKIT_ENABLE_TSAN "Enable ThreadSanitizer" OFF)
 
+# 兼容旧 option 名称
+set(BUILD_BENCHMARKS ${SOULCOREKIT_BUILD_BENCHMARKS})
+set(BUILD_EXAMPLES ${SOULCOREKIT_BUILD_EXAMPLES})
+set(BUILD_TESTS ${SOULCOREKIT_BUILD_TESTS})
+
+# --- Sanitizer 配置 ---
+if(SOULCOREKIT_ENABLE_ASAN)
+    add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=address)
+    message(STATUS "AddressSanitizer enabled")
+endif()
+
+if(SOULCOREKIT_ENABLE_UBSAN)
+    add_compile_options(-fsanitize=undefined -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=undefined)
+    message(STATUS "UndefinedBehaviorSanitizer enabled")
+endif()
+
+if(SOULCOREKIT_ENABLE_TSAN)
+    add_compile_options(-fsanitize=thread -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=thread)
+    message(STATUS "ThreadSanitizer enabled")
+endif()
+
+# --- Benchmarks [v2.8.0 增强] ---
 if(BUILD_BENCHMARKS)
-    add_executable(benchmark_thread_pool benchmarks/benchmark_thread_pool.cpp)
-    target_link_libraries(benchmark_thread_pool PRIVATE
-        Qt6::Core
-        soul_async
-        soul_core
-    )
-
-    add_executable(benchmark_cache benchmarks/benchmark_cache.cpp)
-    target_link_libraries(benchmark_cache PRIVATE
-        Qt6::Core
-        soul_storage
-        soul_core
-    )
-
-    add_executable(benchmark_connection_pool benchmarks/benchmark_connection_pool.cpp)
-    target_link_libraries(benchmark_connection_pool PRIVATE
-        Qt6::Core
-        Qt6::Network
-        soul_network
-        soul_core
-    )
-
-    if(WIN32)
-        windeployqt_post_build(benchmark_thread_pool FALSE)
-        windeployqt_post_build(benchmark_cache FALSE)
-        windeployqt_post_build(benchmark_connection_pool FALSE)
-    endif()
+    add_subdirectory(benchmarks)
 endif()
 
 include(GNUInstallDirs)
 
-install(TARGETS SoulCoreKit SoulCoreKitUi
-                soul_core soul_data soul_database soul_base soul_logging
+install(TARGETS SoulCoreKit SoulCoreKitUi SoulCoreKitFull
+                soul_core soul_di soul_logging soul_async soul_event soul_application
                 soul_network soul_network_core soul_network_policy soul_network_http soul_network_protocol
-                soul_utils soul_configuration soul_storage soul_cache soul_async
-                soul_event soul_auth soul_mq soul_orm soul_rpc soul_ui soul_di soul_plugin
-                soul_observability soul_aop soul_validation soul_scheduler soul_server soul_application soul_cs
+                soul_data soul_database soul_orm soul_storage soul_cache
+                soul_base soul_utils soul_configuration soul_observability soul_validation
+                soul_rpc soul_mq soul_auth soul_plugin soul_scheduler soul_server soul_aop
+                soul_ui soul_cs
         EXPORT SoulCoreKitTargets
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -573,7 +692,7 @@ include(CPack)
 
 set(CPACK_PACKAGE_NAME "SoulCoreKit")
 set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "A comprehensive C++/Qt core framework for building scalable applications")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "CS+BS C++/Qt universal application foundation platform")
 set(CPACK_PACKAGE_VENDOR "SoulCore")
 set(CPACK_PACKAGE_CONTACT "support@soulcore.io")
 

@@ -175,6 +175,10 @@ private:
     bool evaluateRuleBased(const FeatureFlagConfig& config, const FeatureFlagTarget& target) const;
     bool evaluateRule(const FeatureFlagRule& rule, const FeatureFlagTarget& target) const;
 
+    // 无锁内部评估 — 调用方必须已持有 m_mutex，供批量/快照复用，避免自递归加锁死锁
+    bool evaluateEnabledUnlocked(const QString& key, const FeatureFlagTarget& target,
+                                 bool defaultValue) const;
+
     int hashUser(const QString& userId) const;
 
     std::unique_ptr<IFeatureFlagProvider> m_provider;

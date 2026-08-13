@@ -182,7 +182,10 @@ private:
 
     StateListener m_stateListener;  // [v2.5.1] 替代 IEventBus，消除 soul_event 依赖
     std::unordered_map<std::string, ManagedConnection> m_connections;
-    mutable std::mutex m_mutex;
+    // 递归锁: setState 在持锁期间会 emit 信号并调用 m_stateListener,
+    // 外部回调可能重入加锁成员(如 isConnected/connect/disconnect),
+    // 使用递归锁避免重入死锁。
+    mutable std::recursive_mutex m_mutex;
 
     // === 内部方法 ===
 

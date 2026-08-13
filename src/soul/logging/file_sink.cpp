@@ -34,6 +34,7 @@ FileSink::FileSink(const std::string& filePath, std::unique_ptr<LogFormatter> fo
 }
 
 void FileSink::log(const LogRecord& record) {
+    std::lock_guard<std::mutex> lock(m_mutex);
     if (!m_file) return;
 
     std::string formatted = m_formatter->format(record) + "\n";
@@ -48,6 +49,7 @@ void FileSink::log(const LogRecord& record) {
 }
 
 void FileSink::flush() {
+    std::lock_guard<std::mutex> lock(m_mutex);
     if (m_file) fflush(m_file);
 }
 

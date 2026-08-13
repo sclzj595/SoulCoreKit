@@ -129,16 +129,19 @@ Result<void> InMemoryAmqpBackend::unbindQueue(const QString& queue, const QStrin
     }
 
     std::lock_guard<std::mutex> lock(m_mutex);
+    const auto before = m_bindings.size();
+    // 注意: remove_if 在"无匹配"与"匹配元素位于尾部"时都返回 end(),
+    // 必须通过 size 是否变化来判断是否真正删除, 不能仅凭 it==end() 判定 NotFound。
     auto it = std::remove_if(m_bindings.begin(), m_bindings.end(),
                               [&](const BindingInfo& b) {
                                   return b.queue == queue && b.exchange == exchange &&
                                          b.routingKey == routingKey;
                               });
-    if (it == m_bindings.end()) {
+    m_bindings.erase(it, m_bindings.end());
+    if (m_bindings.size() == before) {
         return Result<void>::err(Error(ErrorCode::NotFound,
                                         "InMemoryAmqpBackend: binding not found"));
     }
-    m_bindings.erase(it, m_bindings.end());
 
     // 检查 exchange 是否还有该队列的其他绑定
     bool hasOtherBinding = std::any_of(m_bindings.begin(), m_bindings.end(),
@@ -320,7 +323,10 @@ void InMemoryAmqpBackend::stopConsuming() {
         std::lock_guard<std::mutex> lock(m_mutex);
         dispatchThread = std::move(m_dispatchThread);
     }
-    if (dispatchThread.joinable()) {
+    // 若当前线程就是 dispatch 线程(例如回调中调用 disconnect()), join 自己会死锁,
+    // 此时仅置标志让 dispatchLoop 自行退出,线程随回调返回后自然结束。
+    if (dispatchThread.joinable() &&
+        dispatchThread.get_id() != std::this_thread::get_id()) {
         dispatchThread.join();
     }
     SC_INFO("InMemoryAmqpBackend: consuming stopped");
@@ -341,21 +347,41 @@ void InMemoryAmqpBackend::dispatchLoop() {
 
         // 遍历所有队列,将消息分发给消费者
         bool dispatched = false;
-        for (auto& [queueName, queue] : m_queues) {
-            // 注意:不持有 ConsumerInfo 引用跨 callback 调用
-            // 回调中可能调用 cancelConsume 导致迭代器/引用失效(UAF)
-            auto cit = m_consumers.find(queueName);
-            if (cit == m_consumers.end()) {
-                continue;  // 无消费者
+        // 注意: 用 key 字符串拷贝驱动循环, 避免跨 callback 持有 m_queues 中的引用/迭代器。
+        // callback 在锁外执行, 期间可能调用 disconnect()/cancelConsume() 导致容器被清空,
+        // 若仍持有旧引用将构成 UAF。
+        QStringList queueNames;
+        queueNames.reserve(static_cast<int>(m_queues.size()));
+        for (const auto& kv : m_queues) {
+            queueNames.append(kv.first);
+        }
+
+        for (const QString& queueName : queueNames) {
+            // 回调可能已 disconnect 清空容器, 每次进入重新查找
+            auto qit = m_queues.find(queueName);
+            if (qit == m_queues.end()) {
+                continue;  // 队列已不存在
             }
 
             // 拷贝回调,避免持有引用(PrefetchCount/unackedCount 实时读取)
-            AmqpConsumeCallback callback = cit->second.callback;
-            int prefetchCount = cit->second.prefetchCount;
+            AmqpConsumeCallback callback;
+            int prefetchCount = 0;
+            {
+                auto cit = m_consumers.find(queueName);
+                if (cit == m_consumers.end()) {
+                    continue;  // 无消费者
+                }
+                callback = cit->second.callback;
+                prefetchCount = cit->second.prefetchCount;
+            }
 
-            while (!queue.empty()) {
-                // 每次循环重新检查 consumer 是否仍存在(回调可能已 cancel)
-                cit = m_consumers.find(queueName);
+            while (!qit->second.empty()) {
+                // 回调后重新查找队列与 consumer, 避免引用失效
+                qit = m_queues.find(queueName);
+                if (qit == m_queues.end()) {
+                    break;  // 队列被清空/移除
+                }
+                auto cit = m_consumers.find(queueName);
                 if (cit == m_consumers.end()) {
                     break;  // consumer 已被 cancel
                 }
@@ -363,8 +389,8 @@ void InMemoryAmqpBackend::dispatchLoop() {
                     break;  // QoS 限制
                 }
 
-                QueuedMessage qmsg = queue.front();
-                queue.pop_front();
+                QueuedMessage qmsg = qit->second.front();
+                qit->second.pop_front();
 
                 qint64 tag = m_nextDeliveryTag.fetch_add(1, std::memory_order_relaxed);
                 qmsg.deliveryTag = tag;
@@ -381,8 +407,8 @@ void InMemoryAmqpBackend::dispatchLoop() {
                 cit->second.unackedCount++;
                 dispatched = true;
 
-                // 回调在锁外执行,避免死锁(回调可能调用 ack/nack/cancelConsume)
-                // 注意:回调返回后必须重新查找 consumer,不能再用旧引用
+                // 回调在锁外执行,避免死锁(回调可能调用 ack/nack/cancelConsume/disconnect)
+                // 注意: 回调返回后必须重新查找容器, 不能沿用 qit/cit
                 lock.unlock();
                 callback(delivery);
                 lock.lock();

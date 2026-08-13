@@ -3,7 +3,8 @@
 #include <iostream>
 #include <string>
 #include <random>
-#include "soul/storage/cache.h"
+// v3.0.0: migrated to canonical cache
+#include "soul/cache/memory_cache.h"
 
 int main(int argc, char* argv[]) {
     QCoreApplication app(argc, argv);
@@ -14,7 +15,9 @@ int main(int argc, char* argv[]) {
     const int iterations = 100000;
     const int maxSize = 10000;
 
-    sc::MemoryCache<std::string, std::string> cache(maxSize);
+    sc::cache::MemoryCache<std::string, std::string>::Config cfg;
+    cfg.maxEntries = static_cast<std::size_t>(maxSize);
+    sc::cache::MemoryCache<std::string, std::string> cache(cfg);
 
     timer.start();
     for (int i = 0; i < iterations; ++i) {
@@ -36,7 +39,7 @@ int main(int argc, char* argv[]) {
 
     timer.start();
     for (int i = 0; i < iterations; ++i) {
-        cache.contains("key_" + std::to_string(i));
+        (void)cache.contains("key_" + std::to_string(i));
     }
     std::cout << "3. Contains " << iterations << " entries: " << timer.elapsed() << " ms" << std::endl;
 
@@ -46,7 +49,9 @@ int main(int argc, char* argv[]) {
     }
     std::cout << "4. Remove " << iterations << " entries: " << timer.elapsed() << " ms" << std::endl;
 
-    sc::MemoryCache<int, int> intCache(1000);
+    sc::cache::MemoryCache<int, int>::Config intCfg;
+    intCfg.maxEntries = 1000;
+    sc::cache::MemoryCache<int, int> intCache(intCfg);
     timer.start();
     for (int i = 0; i < iterations; ++i) {
         intCache.put(i, i * 2);

@@ -57,6 +57,9 @@ void SqliteDatabase::close() {
         SC_INFO("SQLite database closed");
     }
 
+    // v3.0.0: 释放 m_db 对连接的引用后再 removeDatabase,
+    // 否则 Qt 会警告 "connection is still in use"。
+    m_db = QSqlDatabase();
     QSqlDatabase::removeDatabase(m_connectionName);
 }
 

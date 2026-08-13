@@ -4,6 +4,7 @@
 #include "soul/logging/i_sink.h"
 #include "soul/logging/log_formatter.h"
 #include <memory>
+#include <mutex>
 #include <string>
 
 namespace sc {
@@ -60,6 +61,8 @@ private:
     std::unique_ptr<LogFormatter> m_formatter;
     FILE* m_file = nullptr;
     std::string m_currentDate;
+    // [审计] 同 FileSink, 加内部锁使独立组件线程安全。
+    mutable std::mutex m_mutex;
 };
 
 }

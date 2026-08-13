@@ -4,373 +4,205 @@ namespace sc {
 namespace rpc {
 
 // ============================================================================
-// ConsulServiceDiscovery
+// ServiceDiscoveryBase — HTTP 后端公共实现 (Consul/Eureka/Nacos)
+// ============================================================================
+ServiceDiscoveryBase::ServiceDiscoveryBase(QObject* parent)
+    : QObject(parent)
+    , m_heartbeatTimer(new QTimer(this))
+    , m_refreshTimer(new QTimer(this))
+    , m_networkManager(new QNetworkAccessManager(this)) {
+    // 注意: 本类 override 了 IServiceDiscovery::connect(config), 会隐藏 QObject::connect,
+    // 必须使用全限定 QObject::connect 以免名称遮蔽导致解析错误。
+    QObject::connect(m_heartbeatTimer, &QTimer::timeout, this, &ServiceDiscoveryBase::onHeartbeat);
+    QObject::connect(m_refreshTimer, &QTimer::timeout, this, &ServiceDiscoveryBase::onRefreshCache);
+}
+
+ServiceDiscoveryBase::~ServiceDiscoveryBase() {
+    disconnect();
+}
+
+Result<void> ServiceDiscoveryBase::connect(const DiscoveryConfig& config) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_config = config;
+    m_connected = true;
+    // v3.0.0: connect 只建立连接, 不隐式标记健康 (同 InMemoryServiceDiscovery)。
+    m_healthy = false;
+    return Result<void>::ok();
+}
+
+void ServiceDiscoveryBase::disconnect() {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_connected = false;
+    m_healthy = false;
+    if (m_heartbeatTimer) m_heartbeatTimer->stop();
+    if (m_refreshTimer) m_refreshTimer->stop();
+}
+
+bool ServiceDiscoveryBase::isConnected() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_connected;
+}
+
+Result<void> ServiceDiscoveryBase::registerInstance(const ServiceInstance& instance) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_cache[instance.serviceName].append(instance);
+    return Result<void>::ok();
+}
+
+Result<void> ServiceDiscoveryBase::unregisterInstance(const QString& serviceName, const QString& host, int port) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    auto it = m_cache.find(serviceName);
+    if (it == m_cache.end()) {
+        return Result<void>::err(Error(ErrorCode::NotFound,
+            QString("Service not found: %1").arg(serviceName)));
+    }
+    QList<ServiceInstance>& instances = it.value();
+    for (int i = 0; i < instances.size(); ++i) {
+        if (instances[i].host == host && instances[i].port == port) {
+            instances.removeAt(i);
+            if (instances.isEmpty()) {
+                m_cache.erase(it);
+            }
+            return Result<void>::ok();
+        }
+    }
+    return Result<void>::err(Error(ErrorCode::NotFound, "Instance not found"));
+}
+
+Result<QList<ServiceInstance>> ServiceDiscoveryBase::getInstances(const QString& serviceName) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return Result<QList<ServiceInstance>>(m_cache.value(serviceName));
+}
+
+Result<void> ServiceDiscoveryBase::reportHealthy() {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_healthy = true;
+    return Result<void>::ok();
+}
+
+Result<void> ServiceDiscoveryBase::reportUnhealthy(const QString& reason) {
+    Q_UNUSED(reason);
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_healthy = false;
+    return Result<void>::ok();
+}
+
+Result<void> ServiceDiscoveryBase::watch(const QString& serviceName, ServiceChangeCallback callback) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_watchers[serviceName].append(std::move(callback));
+    return Result<void>::ok();
+}
+
+Result<void> ServiceDiscoveryBase::unwatch(const QString& serviceName) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_watchers.remove(serviceName);
+    return Result<void>::ok();
+}
+
+bool ServiceDiscoveryBase::isHealthy() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_healthy;
+}
+
+QList<QString> ServiceDiscoveryBase::getServiceNames() {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_cache.keys();
+}
+
+// v2.9.3: IServiceRegistry 新增方法
+Result<std::optional<ServiceInstance>> ServiceDiscoveryBase::getInstance(
+    const QString& serviceName, const QString& instanceId) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    auto it = m_cache.find(serviceName);
+    if (it == m_cache.end()) {
+        return Result<std::optional<ServiceInstance>>::ok(std::nullopt);
+    }
+    for (const auto& inst : it.value()) {
+        if (inst.instanceId == instanceId) {
+            return Result<std::optional<ServiceInstance>>::ok(inst);
+        }
+    }
+    return Result<std::optional<ServiceInstance>>::ok(std::nullopt);
+}
+
+Result<QStringList> ServiceDiscoveryBase::getAllServices() {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    QStringList names;
+    for (auto it = m_cache.begin(); it != m_cache.end(); ++it) {
+        names.append(it.key());
+    }
+    return Result<QStringList>::ok(names);
+}
+
+void ServiceDiscoveryBase::onHeartbeat() {
+    sendHeartbeat();
+}
+
+void ServiceDiscoveryBase::onRefreshCache() {
+    // stub: no-op
+}
+
+Result<void> ServiceDiscoveryBase::sendHeartbeat() {
+    return Result<void>::ok();
+}
+
+QByteArray ServiceDiscoveryBase::syncHttpRequest(const QString& method, const QString& path,
+                                                 const QByteArray& body, int timeoutMs) {
+    if (!m_networkManager) return {};
+
+    QUrl url(m_config.endpoints + "/" + path);
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    request.setTransferTimeout(timeoutMs);
+
+    QNetworkReply* reply = nullptr;
+    if (method == "GET") {
+        reply = m_networkManager->get(request);
+    } else if (method == "PUT") {
+        reply = m_networkManager->put(request, body);
+    } else if (method == "POST") {
+        reply = m_networkManager->post(request, body);
+    } else if (method == "DELETE") {
+        reply = m_networkManager->deleteResource(request);
+    } else {
+        return {};
+    }
+
+    QEventLoop loop;
+    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    loop.exec();
+
+    QByteArray data = reply->readAll();
+    reply->deleteLater();
+    return data;
+}
+
+// ============================================================================
+// ConsulServiceDiscovery — Consul 心跳
+// ============================================================================
+Result<void> ConsulServiceDiscovery::sendHeartbeat() {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    QString checkId = m_config.serviceId.isEmpty()
+        ? QString("service:%1").arg(m_config.serviceName)
+        : m_config.serviceId;
+    QString path = QString("v1/agent/check/pass/%1").arg(checkId);
+    syncHttpRequest("PUT", path);
+    return Result<void>::ok();
+}
+
+// ============================================================================
+// ConsulServiceDiscovery / EurekaServiceDiscovery / NacosServiceDiscovery
+// 三者无差异化逻辑，仅需继承模板扩展层 ServiceDiscoveryImpl<Traits>，
+// 构造函数转发给该层即可。
 // ============================================================================
 ConsulServiceDiscovery::ConsulServiceDiscovery(QObject* parent)
-    : QObject(parent)
-    , m_heartbeatTimer(new QTimer(this))
-    , m_refreshTimer(new QTimer(this)) {
-    connect(m_heartbeatTimer, &QTimer::timeout, this, &ConsulServiceDiscovery::onHeartbeat);
-    connect(m_refreshTimer, &QTimer::timeout, this, &ConsulServiceDiscovery::onRefreshCache);
-}
+    : ServiceDiscoveryImpl<ConsulTraits>(parent) {}
 
-ConsulServiceDiscovery::~ConsulServiceDiscovery() {
-    disconnect();
-}
-
-Result<void> ConsulServiceDiscovery::connect(const DiscoveryConfig& config) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_config = config;
-    m_connected = true;
-    m_healthy = true;
-    return Result<void>::ok();
-}
-
-void ConsulServiceDiscovery::disconnect() {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_connected = false;
-    m_healthy = false;
-    if (m_heartbeatTimer) m_heartbeatTimer->stop();
-    if (m_refreshTimer) m_refreshTimer->stop();
-}
-
-bool ConsulServiceDiscovery::isConnected() const {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    return m_connected;
-}
-
-Result<void> ConsulServiceDiscovery::registerInstance(const ServiceInstance& instance) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_cache[instance.serviceName].append(instance);
-    return Result<void>::ok();
-}
-
-Result<void> ConsulServiceDiscovery::unregisterInstance(const QString& serviceName, const QString& host, int port) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    auto it = m_cache.find(serviceName);
-    if (it == m_cache.end()) {
-        return Result<void>::err(Error(ErrorCode::NotFound,
-            QString("Service not found: %1").arg(serviceName)));
-    }
-    QList<ServiceInstance>& instances = it.value();
-    for (int i = 0; i < instances.size(); ++i) {
-        if (instances[i].host == host && instances[i].port == port) {
-            instances.removeAt(i);
-            if (instances.isEmpty()) {
-                m_cache.erase(it);
-            }
-            return Result<void>::ok();
-        }
-    }
-    return Result<void>::err(Error(ErrorCode::NotFound, "Instance not found"));
-}
-
-Result<QList<ServiceInstance>> ConsulServiceDiscovery::getInstances(const QString& serviceName) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    return Result<QList<ServiceInstance>>(m_cache.value(serviceName));
-}
-
-Result<void> ConsulServiceDiscovery::reportHealthy() {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_healthy = true;
-    return Result<void>::ok();
-}
-
-Result<void> ConsulServiceDiscovery::reportUnhealthy(const QString& reason) {
-    Q_UNUSED(reason);
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_healthy = false;
-    return Result<void>::ok();
-}
-
-Result<void> ConsulServiceDiscovery::watch(const QString& serviceName, ServiceChangeCallback callback) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_watchers[serviceName].append(std::move(callback));
-    return Result<void>::ok();
-}
-
-Result<void> ConsulServiceDiscovery::unwatch(const QString& serviceName) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_watchers.remove(serviceName);
-    return Result<void>::ok();
-}
-
-bool ConsulServiceDiscovery::isHealthy() const {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    return m_healthy;
-}
-
-QList<QString> ConsulServiceDiscovery::getServiceNames() {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    return m_cache.keys();
-}
-
-void ConsulServiceDiscovery::onHeartbeat() {
-    sendHeartbeat();
-}
-
-void ConsulServiceDiscovery::onRefreshCache() {
-    // stub: no-op
-}
-
-Result<void> ConsulServiceDiscovery::sendHeartbeat() {
-    return Result<void>::ok();
-}
-
-QByteArray ConsulServiceDiscovery::syncHttpRequest(const QString& method, const QString& path,
-                                                    const QByteArray& body, int timeoutMs) {
-    Q_UNUSED(method);
-    Q_UNUSED(path);
-    Q_UNUSED(body);
-    Q_UNUSED(timeoutMs);
-    return QByteArray();
-}
-
-// ============================================================================
-// EurekaServiceDiscovery
-// ============================================================================
 EurekaServiceDiscovery::EurekaServiceDiscovery(QObject* parent)
-    : QObject(parent)
-    , m_heartbeatTimer(new QTimer(this))
-    , m_refreshTimer(new QTimer(this)) {
-    connect(m_heartbeatTimer, &QTimer::timeout, this, &EurekaServiceDiscovery::onHeartbeat);
-    connect(m_refreshTimer, &QTimer::timeout, this, &EurekaServiceDiscovery::onRefreshCache);
-}
+    : ServiceDiscoveryImpl<EurekaTraits>(parent) {}
 
-EurekaServiceDiscovery::~EurekaServiceDiscovery() {
-    disconnect();
-}
-
-Result<void> EurekaServiceDiscovery::connect(const DiscoveryConfig& config) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_config = config;
-    m_connected = true;
-    m_healthy = true;
-    return Result<void>::ok();
-}
-
-void EurekaServiceDiscovery::disconnect() {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_connected = false;
-    m_healthy = false;
-    if (m_heartbeatTimer) m_heartbeatTimer->stop();
-    if (m_refreshTimer) m_refreshTimer->stop();
-}
-
-bool EurekaServiceDiscovery::isConnected() const {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    return m_connected;
-}
-
-Result<void> EurekaServiceDiscovery::registerInstance(const ServiceInstance& instance) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_cache[instance.serviceName].append(instance);
-    return Result<void>::ok();
-}
-
-Result<void> EurekaServiceDiscovery::unregisterInstance(const QString& serviceName, const QString& host, int port) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    auto it = m_cache.find(serviceName);
-    if (it == m_cache.end()) {
-        return Result<void>::err(Error(ErrorCode::NotFound,
-            QString("Service not found: %1").arg(serviceName)));
-    }
-    QList<ServiceInstance>& instances = it.value();
-    for (int i = 0; i < instances.size(); ++i) {
-        if (instances[i].host == host && instances[i].port == port) {
-            instances.removeAt(i);
-            if (instances.isEmpty()) {
-                m_cache.erase(it);
-            }
-            return Result<void>::ok();
-        }
-    }
-    return Result<void>::err(Error(ErrorCode::NotFound, "Instance not found"));
-}
-
-Result<QList<ServiceInstance>> EurekaServiceDiscovery::getInstances(const QString& serviceName) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    return Result<QList<ServiceInstance>>(m_cache.value(serviceName));
-}
-
-Result<void> EurekaServiceDiscovery::reportHealthy() {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_healthy = true;
-    return Result<void>::ok();
-}
-
-Result<void> EurekaServiceDiscovery::reportUnhealthy(const QString& reason) {
-    Q_UNUSED(reason);
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_healthy = false;
-    return Result<void>::ok();
-}
-
-Result<void> EurekaServiceDiscovery::watch(const QString& serviceName, ServiceChangeCallback callback) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_watchers[serviceName].append(std::move(callback));
-    return Result<void>::ok();
-}
-
-Result<void> EurekaServiceDiscovery::unwatch(const QString& serviceName) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_watchers.remove(serviceName);
-    return Result<void>::ok();
-}
-
-bool EurekaServiceDiscovery::isHealthy() const {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    return m_healthy;
-}
-
-QList<QString> EurekaServiceDiscovery::getServiceNames() {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    return m_cache.keys();
-}
-
-void EurekaServiceDiscovery::onHeartbeat() {
-    sendHeartbeat();
-}
-
-void EurekaServiceDiscovery::onRefreshCache() {
-    // stub: no-op
-}
-
-Result<void> EurekaServiceDiscovery::sendHeartbeat() {
-    return Result<void>::ok();
-}
-
-QByteArray EurekaServiceDiscovery::syncHttpRequest(const QString& method, const QString& path,
-                                                    const QByteArray& body, int timeoutMs) {
-    Q_UNUSED(method);
-    Q_UNUSED(path);
-    Q_UNUSED(body);
-    Q_UNUSED(timeoutMs);
-    return QByteArray();
-}
-
-// ============================================================================
-// NacosServiceDiscovery
-// ============================================================================
 NacosServiceDiscovery::NacosServiceDiscovery(QObject* parent)
-    : QObject(parent)
-    , m_heartbeatTimer(new QTimer(this))
-    , m_refreshTimer(new QTimer(this)) {
-    connect(m_heartbeatTimer, &QTimer::timeout, this, &NacosServiceDiscovery::onHeartbeat);
-    connect(m_refreshTimer, &QTimer::timeout, this, &NacosServiceDiscovery::onRefreshCache);
-}
-
-NacosServiceDiscovery::~NacosServiceDiscovery() {
-    disconnect();
-}
-
-Result<void> NacosServiceDiscovery::connect(const DiscoveryConfig& config) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_config = config;
-    m_connected = true;
-    m_healthy = true;
-    return Result<void>::ok();
-}
-
-void NacosServiceDiscovery::disconnect() {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_connected = false;
-    m_healthy = false;
-    if (m_heartbeatTimer) m_heartbeatTimer->stop();
-    if (m_refreshTimer) m_refreshTimer->stop();
-}
-
-bool NacosServiceDiscovery::isConnected() const {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    return m_connected;
-}
-
-Result<void> NacosServiceDiscovery::registerInstance(const ServiceInstance& instance) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_cache[instance.serviceName].append(instance);
-    return Result<void>::ok();
-}
-
-Result<void> NacosServiceDiscovery::unregisterInstance(const QString& serviceName, const QString& host, int port) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    auto it = m_cache.find(serviceName);
-    if (it == m_cache.end()) {
-        return Result<void>::err(Error(ErrorCode::NotFound,
-            QString("Service not found: %1").arg(serviceName)));
-    }
-    QList<ServiceInstance>& instances = it.value();
-    for (int i = 0; i < instances.size(); ++i) {
-        if (instances[i].host == host && instances[i].port == port) {
-            instances.removeAt(i);
-            if (instances.isEmpty()) {
-                m_cache.erase(it);
-            }
-            return Result<void>::ok();
-        }
-    }
-    return Result<void>::err(Error(ErrorCode::NotFound, "Instance not found"));
-}
-
-Result<QList<ServiceInstance>> NacosServiceDiscovery::getInstances(const QString& serviceName) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    return Result<QList<ServiceInstance>>(m_cache.value(serviceName));
-}
-
-Result<void> NacosServiceDiscovery::reportHealthy() {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_healthy = true;
-    return Result<void>::ok();
-}
-
-Result<void> NacosServiceDiscovery::reportUnhealthy(const QString& reason) {
-    Q_UNUSED(reason);
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_healthy = false;
-    return Result<void>::ok();
-}
-
-Result<void> NacosServiceDiscovery::watch(const QString& serviceName, ServiceChangeCallback callback) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_watchers[serviceName].append(std::move(callback));
-    return Result<void>::ok();
-}
-
-Result<void> NacosServiceDiscovery::unwatch(const QString& serviceName) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_watchers.remove(serviceName);
-    return Result<void>::ok();
-}
-
-bool NacosServiceDiscovery::isHealthy() const {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    return m_healthy;
-}
-
-QList<QString> NacosServiceDiscovery::getServiceNames() {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    return m_cache.keys();
-}
-
-void NacosServiceDiscovery::onHeartbeat() {
-    sendHeartbeat();
-}
-
-void NacosServiceDiscovery::onRefreshCache() {
-    // stub: no-op
-}
-
-Result<void> NacosServiceDiscovery::sendHeartbeat() {
-    return Result<void>::ok();
-}
-
-QByteArray NacosServiceDiscovery::syncHttpRequest(const QString& method, const QString& path,
-                                                   const QByteArray& body, int timeoutMs) {
-    Q_UNUSED(method);
-    Q_UNUSED(path);
-    Q_UNUSED(body);
-    Q_UNUSED(timeoutMs);
-    return QByteArray();
-}
+    : ServiceDiscoveryImpl<NacosTraits>(parent) {}
 
 // ============================================================================
 // InMemoryServiceDiscovery — 内存实现 (测试/开发用)
@@ -379,7 +211,10 @@ Result<void> InMemoryServiceDiscovery::connect(const DiscoveryConfig& config) {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_config = config;
     m_connected = true;
-    m_healthy = true;
+    // v3.0.0: connect 只建立连接, 不隐式标记健康。
+    // 健康状态需通过 reportHealthy()/reportUnhealthy() 显式上报,
+    // 避免"连接成功即健康"的误报。
+    m_healthy = false;
     return Result<void>::ok();
 }
 
@@ -472,6 +307,31 @@ bool InMemoryServiceDiscovery::isHealthy() const {
 QList<QString> InMemoryServiceDiscovery::getServiceNames() {
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_cache.keys();
+}
+
+// v2.9.3: IServiceRegistry 新增方法
+Result<std::optional<ServiceInstance>> InMemoryServiceDiscovery::getInstance(
+    const QString& serviceName, const QString& instanceId) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    auto it = m_cache.find(serviceName);
+    if (it == m_cache.end()) {
+        return Result<std::optional<ServiceInstance>>::ok(std::nullopt);
+    }
+    for (const auto& inst : it.value()) {
+        if (inst.instanceId == instanceId) {
+            return Result<std::optional<ServiceInstance>>::ok(inst);
+        }
+    }
+    return Result<std::optional<ServiceInstance>>::ok(std::nullopt);
+}
+
+Result<QStringList> InMemoryServiceDiscovery::getAllServices() {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    QStringList names;
+    for (auto it = m_cache.begin(); it != m_cache.end(); ++it) {
+        names.append(it.key());
+    }
+    return Result<QStringList>::ok(names);
 }
 
 // ============================================================================

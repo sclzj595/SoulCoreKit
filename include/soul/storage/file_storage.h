@@ -2,6 +2,7 @@
 #define SOUL_STORAGE_FILE_STORAGE_H
 
 #include "istorage.h"
+#include <mutex>
 
 namespace sc {
 
@@ -124,6 +125,9 @@ private:
 
     QString m_basePath;
     bool m_isOpen;
+    // [审计] FileStorage 是独立存储组件, 原实现全部方法无锁, 多线程并发
+    // 读写 m_isOpen/m_basePath 及磁盘文件构成数据竞争。加内部锁使其线程安全。
+    mutable std::mutex m_mutex;
 };
 
 }

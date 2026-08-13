@@ -8,19 +8,23 @@ MemoryStorage::MemoryStorage() : m_isOpen(false) {
 
 Result<void> MemoryStorage::open(const QString& path) {
     Q_UNUSED(path);
+    std::lock_guard<std::mutex> lock(m_mutex);
     m_isOpen = true;
     return {};
 }
 
 void MemoryStorage::close() {
+    std::lock_guard<std::mutex> lock(m_mutex);
     m_isOpen = false;
 }
 
 bool MemoryStorage::isOpen() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
     return m_isOpen;
 }
 
 Result<void> MemoryStorage::put(const QString& key, const QString& value) {
+    std::lock_guard<std::mutex> lock(m_mutex);
     if (!m_isOpen) {
         return Error(ErrorCode::InternalError, "Storage not open");
     }
@@ -29,6 +33,7 @@ Result<void> MemoryStorage::put(const QString& key, const QString& value) {
 }
 
 Result<QString> MemoryStorage::get(const QString& key) const {
+    std::lock_guard<std::mutex> lock(m_mutex);
     if (!m_isOpen) {
         return Error(ErrorCode::InternalError, "Storage not open");
     }
@@ -39,6 +44,7 @@ Result<QString> MemoryStorage::get(const QString& key) const {
 }
 
 Result<void> MemoryStorage::remove(const QString& key) {
+    std::lock_guard<std::mutex> lock(m_mutex);
     if (!m_isOpen) {
         return Error(ErrorCode::InternalError, "Storage not open");
     }
@@ -47,10 +53,12 @@ Result<void> MemoryStorage::remove(const QString& key) {
 }
 
 bool MemoryStorage::contains(const QString& key) const {
+    std::lock_guard<std::mutex> lock(m_mutex);
     return m_stringData.contains(key);
 }
 
 Result<void> MemoryStorage::putBytes(const QString& key, const QByteArray& value) {
+    std::lock_guard<std::mutex> lock(m_mutex);
     if (!m_isOpen) {
         return Error(ErrorCode::InternalError, "Storage not open");
     }
@@ -59,6 +67,7 @@ Result<void> MemoryStorage::putBytes(const QString& key, const QByteArray& value
 }
 
 Result<QByteArray> MemoryStorage::getBytes(const QString& key) const {
+    std::lock_guard<std::mutex> lock(m_mutex);
     if (!m_isOpen) {
         return Error(ErrorCode::InternalError, "Storage not open");
     }
@@ -69,6 +78,7 @@ Result<QByteArray> MemoryStorage::getBytes(const QString& key) const {
 }
 
 std::vector<QString> MemoryStorage::keys() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
     std::vector<QString> result;
     for (auto it = m_stringData.begin(); it != m_stringData.end(); ++it) {
         result.push_back(it.key());
@@ -77,10 +87,12 @@ std::vector<QString> MemoryStorage::keys() const {
 }
 
 int MemoryStorage::count() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
     return m_stringData.size();
 }
 
 Result<void> MemoryStorage::clear() {
+    std::lock_guard<std::mutex> lock(m_mutex);
     if (!m_isOpen) {
         return Error(ErrorCode::InternalError, "Storage not open");
     }

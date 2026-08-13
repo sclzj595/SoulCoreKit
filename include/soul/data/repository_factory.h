@@ -133,10 +133,28 @@ public:
             values << T::_sc_reflection().get(entity, name);
         }
 
-        QString sql = QStringLiteral("INSERT OR REPLACE INTO %1 (%2) VALUES (%3)")
-            .arg(m_dialect->escapeIdentifier(QString::fromStdString(m_tableName)),
-                 columns.join(QStringLiteral(", ")),
-                 placeholders.join(QStringLiteral(", ")));
+        const QString table = m_dialect->escapeIdentifier(QString::fromStdString(m_tableName));
+        const QString cols = columns.join(QStringLiteral(", "));
+        const QString vals = placeholders.join(QStringLiteral(", "));
+
+        // [审计] upsert 语法随方言而异: SQLite 用 INSERT OR REPLACE, MySQL 用 REPLACE INTO。
+        // 旧实现一律生成 INSERT OR REPLACE, 在 MySQL 上必报语法错误。其余方言暂无专用
+        // upsert 语法(PostgreSQL 需主键列才可生成 ON CONFLICT), 回退为普通 INSERT。
+        QString sql;
+        switch (m_dialect->getType()) {
+        case orm::SqlDialectType::SQLite:
+            sql = QStringLiteral("INSERT OR REPLACE INTO %1 (%2) VALUES (%3)")
+                      .arg(table, cols, vals);
+            break;
+        case orm::SqlDialectType::MySQL:
+            sql = QStringLiteral("REPLACE INTO %1 (%2) VALUES (%3)")
+                      .arg(table, cols, vals);
+            break;
+        default:
+            sql = QStringLiteral("INSERT INTO %1 (%2) VALUES (%3)")
+                      .arg(table, cols, vals);
+            break;
+        }
 
         QSqlQuery query(m_db);
         query.prepare(sql);

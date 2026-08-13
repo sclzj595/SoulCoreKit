@@ -126,7 +126,7 @@ private:
     QJsonObject buildResourceJson() const;
     QJsonObject buildScopeSpansJson(const std::vector<std::shared_ptr<Span>>& spans) const;
     QJsonObject buildSpanJson(const Span& span) const;
-    QJsonObject buildScopeMetricsJson(const QJsonObject& metrics) const;
+    QJsonObject buildScopeMetricsJson(const QJsonArray& metrics) const;
     QJsonObject buildScopeLogsJson(const QJsonArray& logRecords) const;
 
     // === HTTP 发送 ===

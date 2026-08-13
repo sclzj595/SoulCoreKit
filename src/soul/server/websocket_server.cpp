@@ -180,6 +180,20 @@ bool WebSocketSession::parseFrame() {
         headerSize = 10;
     }
 
+    // [审计] 最大帧长防护: 恶意客户端可声明超大 payloadLen 让服务端无限缓存直至
+    // 内存耗尽(DoS)。若声明长度超过上限则直接终止会话, 而不是等待完整帧。
+    static constexpr uint64_t kMaxFrameSize = 16ULL * 1024ULL * 1024ULL;  // 16 MiB
+    if (payloadLen > kMaxFrameSize) {
+        if (m_onError) {
+            m_onError(this, "Frame payload exceeds maximum allowed size");
+        }
+        m_open = false;
+        if (m_socket) {
+            m_socket->close();
+        }
+        return false;
+    }
+
     // Masking Key(4 bytes,Client → Server 必须)
     size_t maskOffset = headerSize;
     if (masked) {

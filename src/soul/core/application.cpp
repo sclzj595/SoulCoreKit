@@ -1,5 +1,7 @@
 #include "soul/core/application.h"
-#include "soul/core/configuration.h"
+// v3.0.0: migrated to canonical Configuration
+#include "soul/configuration/iconfig_provider.h"
+#include "soul/configuration/config_providers.h"
 #include "soul/core/module.h"
 #include "soul/core/module_registry.h"
 #include "soul/core/environment.h"
@@ -243,32 +245,54 @@ void Application::shutdown(int timeoutMs) {
 }
 
 // ============================================================================
-// 配置加载
+// 配置加载 [v3.0.0: 迁移到 canonical Configuration]
 // ============================================================================
+// 使用 PriorityConfigChain + ConfigSnapshot 替代旧的 Configuration::instance()。
+// 优先级: CommandLine > Environment > JSON File > Default
 
 bool Application::loadConfiguration() {
-    auto& cfg = Configuration::instance();
+    auto chain = std::make_shared<PriorityConfigChain>();
 
-    // 加载 application.yml
-    if (!cfg.loadFromFile(m_configFile)) {
-        std::cout << "[WARN] Could not load " << m_configFile << ", using defaults" << std::endl;
+    // 1. Default (最低优先级)
+    auto defaults = std::make_shared<DefaultConfigProvider>();
+    defaults->setDefault("server.port", "8080");
+    defaults->setDefault("server.host", "0.0.0.0");
+    chain->addProvider(defaults);
+
+    // 2. JSON 配置文件
+    if (!m_configFile.empty()) {
+        auto jsonProvider = std::make_shared<JsonFileConfigProvider>(
+            QString::fromStdString(m_configFile));
+        chain->addProvider(jsonProvider);
+
+        // Profile 文件
+        std::string profile = m_activeProfile;
+        if (profile.empty()) {
+            profile = Environment::get("APP_PROFILE", "");
+        }
+        if (!profile.empty()) {
+            auto profileProvider = std::make_shared<JsonFileConfigProvider>(
+                QString("application-%1.yml").arg(QString::fromStdString(profile)));
+            chain->addProvider(profileProvider);
+        }
     }
 
-    // 激活 Profile
-    std::string profile = m_activeProfile;
-    if (profile.empty()) {
-        profile = Environment::get("APP_PROFILE", "");
-    }
-    if (!profile.empty()) {
-        cfg.setActiveProfile(profile);
-        std::string profileFile = "application-" + profile + ".yml";
-        cfg.loadFromFile(profileFile);
+    // 3. 环境变量
+    chain->addProvider(std::make_shared<EnvironmentConfigProvider>("SOUL_"));
+
+    // 4. 命令行参数 (最高优先级)
+    chain->addProvider(std::make_shared<CommandLineConfigProvider>(m_argc, m_argv));
+
+    // 加载并存储 Snapshot
+    auto result = chain->load();
+    if (result.isOk()) {
+        m_configSnapshot = std::make_shared<ConfigSnapshot>(result.unwrap());
+        return true;
     }
 
-    // 解析命令行参数
-    cfg.parseCommandLine(m_argc, m_argv);
-
-    return true;
+    std::cerr << "[ERROR] Failed to load configuration: "
+              << result.unwrapErr().message().toStdString() << std::endl;
+    return false;
 }
 
 // ============================================================================
@@ -372,24 +396,38 @@ bool Application::initializeModules() {
     // 4. 按排序顺序执行 init()
     for (auto* module : sorted) {
         SC_INFO(std::string("Application: initializing module '") + module->name() + "'");
-        auto result = module->init();
+        // [审计] 子类 init() 可能直接 throw 而非返回 Err, 需捕获以防异常逃逸到 main 触发
+        // std::terminate 且已初始化模块无法回滚。
+        Result<void> result;
+        try {
+            result = module->init();
+        } catch (const std::exception& e) {
+            SC_ERROR(QString("Application: module '%1' init threw: %2")
+                         .arg(QString::fromStdString(module->name()))
+                         .arg(QString::fromUtf8(e.what()))
+                         .toStdString());
+            if (!rollbackInitializedModules()) {
+                return false;
+            }
+            m_initializedModules.clear();
+            return false;
+        } catch (...) {
+            SC_ERROR(QString("Application: module '%1' init threw unknown exception")
+                         .arg(QString::fromStdString(module->name()))
+                         .toStdString());
+            if (!rollbackInitializedModules()) {
+                return false;
+            }
+            m_initializedModules.clear();
+            return false;
+        }
         if (result.isErr()) {
             const QString msg = result.unwrapErr().message();
             SC_ERROR(QString("Application: module '%1' init failed: %2")
                          .arg(QString::fromStdString(module->name()))
                          .arg(msg)
                          .toStdString());
-            // 逆序回滚已成功 init 的模块
-            for (auto it = m_initializedModules.rbegin(); it != m_initializedModules.rend(); ++it) {
-                try {
-                    (*it)->cleanup();
-                    SC_INFO(std::string("Application: rolled back module '") + (*it)->name() + "'");
-                } catch (const std::exception& e) {
-                    SC_ERROR(std::string("Application: rollback of '") + (*it)->name() +
-                             "' failed: " + e.what());
-                }
-            }
-            m_initializedModules.clear();
+            rollbackInitializedModules();
             return false;
         }
         m_initializedModules.push_back(module);
@@ -406,33 +444,31 @@ bool Application::initializeModules() {
 bool Application::startModules() {
     for (auto* module : m_initializedModules) {
         SC_INFO(std::string("Application: starting module '") + module->name() + "'");
-        auto result = module->onStart();
+        // [审计] 子类 onStart() 可能直接 throw, 捕获后走与 Err 相同的回滚路径。
+        Result<void> result;
+        try {
+            result = module->onStart();
+        } catch (const std::exception& e) {
+            SC_ERROR(QString("Application: module '%1' start threw: %2")
+                         .arg(QString::fromStdString(module->name()))
+                         .arg(QString::fromUtf8(e.what()))
+                         .toStdString());
+            rollbackStartedModules();
+            return false;
+        } catch (...) {
+            SC_ERROR(QString("Application: module '%1' start threw unknown exception")
+                         .arg(QString::fromStdString(module->name()))
+                         .toStdString());
+            rollbackStartedModules();
+            return false;
+        }
         if (result.isErr()) {
             const QString msg = result.unwrapErr().message();
             SC_ERROR(QString("Application: module '%1' start failed: %2")
                          .arg(QString::fromStdString(module->name()))
                          .arg(msg)
                          .toStdString());
-            // 逆序 stop 已 start 的模块
-            for (auto it = m_startedModules.rbegin(); it != m_startedModules.rend(); ++it) {
-                try {
-                    (*it)->onStop();
-                } catch (const std::exception& e) {
-                    SC_ERROR(std::string("Application: stop of '") + (*it)->name() +
-                             "' failed: " + e.what());
-                }
-            }
-            // 逆序 cleanup 已 init 的模块
-            for (auto it = m_initializedModules.rbegin(); it != m_initializedModules.rend(); ++it) {
-                try {
-                    (*it)->cleanup();
-                } catch (const std::exception& e) {
-                    SC_ERROR(std::string("Application: cleanup of '") + (*it)->name() +
-                             "' failed: " + e.what());
-                }
-            }
-            m_startedModules.clear();
-            m_initializedModules.clear();
+            rollbackStartedModules();
             return false;
         }
         m_startedModules.push_back(module);
@@ -486,10 +522,22 @@ void Application::startServices() {
     StartupLogger logger;
     logger.start();
 
-    auto& cfg = Configuration::instance();
-    int port = m_serverPort > 0 ? m_serverPort : cfg.serverPort();
-    std::string host = m_serverHost.empty() ? cfg.serverHost() : m_serverHost;
-    std::string profile = cfg.activeProfile();
+    // v3.0.0: 从 ConfigSnapshot 读取 (不再使用 Configuration::instance())
+    int port = m_serverPort;
+    std::string host = m_serverHost;
+    std::string profile = m_activeProfile;
+
+    if (m_configSnapshot) {
+        if (port <= 0) {
+            port = m_configSnapshot->getIntOr("server.port", 8080);
+        }
+        if (host.empty()) {
+            host = m_configSnapshot->getStringOr("server.host", "0.0.0.0").toStdString();
+        }
+        if (profile.empty()) {
+            profile = m_configSnapshot->getStringOr("app.profile", "").toStdString();
+        }
+    }
 
     logger.logPort(port);
     logger.logHost(host);
@@ -511,6 +559,49 @@ void Application::startServices() {
 
 void Application::printBanner() {
     Banner::print("2.0.0");
+}
+
+// ============================================================================
+// 模块生命周期回滚辅助 [审计新增]
+// ============================================================================
+
+bool Application::rollbackInitializedModules() {
+    // 逆序 cleanup 已成功 init 的模块
+    for (auto it = m_initializedModules.rbegin(); it != m_initializedModules.rend(); ++it) {
+        try {
+            (*it)->cleanup();
+            SC_INFO(std::string("Application: rolled back module '") + (*it)->name() + "'");
+        } catch (const std::exception& e) {
+            SC_ERROR(std::string("Application: rollback of '") + (*it)->name() +
+                     "' failed: " + e.what());
+        }
+    }
+    m_initializedModules.clear();
+    return true;
+}
+
+bool Application::rollbackStartedModules() {
+    // 逆序 stop 已 start 的模块
+    for (auto it = m_startedModules.rbegin(); it != m_startedModules.rend(); ++it) {
+        try {
+            (*it)->onStop();
+        } catch (const std::exception& e) {
+            SC_ERROR(std::string("Application: stop of '") + (*it)->name() +
+                     "' failed: " + e.what());
+        }
+    }
+    m_startedModules.clear();
+    // 逆序 cleanup 已 init 的模块
+    for (auto it = m_initializedModules.rbegin(); it != m_initializedModules.rend(); ++it) {
+        try {
+            (*it)->cleanup();
+        } catch (const std::exception& e) {
+            SC_ERROR(std::string("Application: cleanup of '") + (*it)->name() +
+                     "' failed: " + e.what());
+        }
+    }
+    m_initializedModules.clear();
+    return true;
 }
 
 } // namespace sc

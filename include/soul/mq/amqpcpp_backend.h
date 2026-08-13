@@ -210,9 +210,9 @@ private:
     std::string generateConsumerTag(const QString& queue);
 };
 
-#endif // SOUL_ENABLE_RABBITMQ
-
 } // namespace mq
 } // namespace sc
+
+#endif // SOUL_ENABLE_RABBITMQ
 
 #endif // SOUL_MQ_AMQPCPP_BACKEND_H

@@ -1,8 +1,15 @@
+// ============================================================================
+// service_registry.cpp — 服务注册实现 [v2.9.3 增强 / v3.0.0]
+// ============================================================================
+
 #include "soul/rpc/service_registry.h"
-#include <QRandomGenerator>
 
 namespace sc {
 namespace rpc {
+
+// ============================================================================
+// InMemoryServiceRegistry
+// ============================================================================
 
 Result<void> InMemoryServiceRegistry::registerInstance(const ServiceInstance& instance) {
     std::lock_guard<std::mutex> lock(m_mutex);
@@ -10,11 +17,13 @@ Result<void> InMemoryServiceRegistry::registerInstance(const ServiceInstance& in
     return Result<void>::ok();
 }
 
-Result<void> InMemoryServiceRegistry::unregisterInstance(const QString& serviceName, const QString& host, int port) {
+Result<void> InMemoryServiceRegistry::unregisterInstance(
+    const QString& serviceName, const QString& host, int port) {
     std::lock_guard<std::mutex> lock(m_mutex);
     auto it = m_registry.find(serviceName);
     if (it == m_registry.end()) {
-        return Result<void>::err(Error(ErrorCode::NotFound, QString("Service not found: %1").arg(serviceName)));
+        return Result<void>::err(
+            Error(ErrorCode::NotFound, QString("Service not found: %1").arg(serviceName)));
     }
     QList<ServiceInstance>& instances = it.value();
     for (int i = 0, sz = static_cast<int>(instances.size()); i < sz; ++i) {
@@ -31,35 +40,49 @@ Result<void> InMemoryServiceRegistry::unregisterInstance(const QString& serviceN
 
 Result<QList<ServiceInstance>> InMemoryServiceRegistry::getInstances(const QString& serviceName) {
     std::lock_guard<std::mutex> lock(m_mutex);
-    return Result<QList<ServiceInstance>>(m_registry.value(serviceName));
+    return Result<QList<ServiceInstance>>::ok(m_registry.value(serviceName));
 }
 
-ServiceInstance LoadBalancer::select(const QList<ServiceInstance>& instances) {
-    if (instances.isEmpty()) {
-        return ServiceInstance();
+// v2.9.3 新增
+Result<std::optional<ServiceInstance>> InMemoryServiceRegistry::getInstance(
+    const QString& serviceName, const QString& instanceId) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    auto it = m_registry.find(serviceName);
+    if (it == m_registry.end()) {
+        return Result<std::optional<ServiceInstance>>::ok(std::nullopt);
     }
-    std::lock_guard<std::mutex> lock(m_mutex);
-    // instances.size() is qsizetype (64-bit on 64-bit platforms); narrow to int
-    // explicitly to silence MSVC C4242 under /W4 (list size is bounded by registry).
-    const int sz = static_cast<int>(instances.size());
-    if (m_roundRobin) {
-        int idx = m_counter % sz;
-        m_counter++;
-        return instances.at(idx);
-    } else {
-        int idx = QRandomGenerator::global()->bounded(sz);
-        return instances.at(idx);
+    for (const auto& inst : it.value()) {
+        if (inst.instanceId == instanceId) {
+            return Result<std::optional<ServiceInstance>>::ok(inst);
+        }
     }
+    return Result<std::optional<ServiceInstance>>::ok(std::nullopt);
 }
 
-void LoadBalancer::setRoundRobin() {
+Result<QStringList> InMemoryServiceRegistry::getAllServices() {
     std::lock_guard<std::mutex> lock(m_mutex);
-    m_roundRobin = true;
+    return Result<QStringList>::ok(QStringList(m_registry.keys().begin(), m_registry.keys().end()));
 }
 
-void LoadBalancer::setRandom() {
+Result<void> InMemoryServiceRegistry::unregisterById(
+    const QString& serviceName, const QString& instanceId) {
     std::lock_guard<std::mutex> lock(m_mutex);
-    m_roundRobin = false;
+    auto it = m_registry.find(serviceName);
+    if (it == m_registry.end()) {
+        return Result<void>::err(
+            Error(ErrorCode::NotFound, QString("Service not found: %1").arg(serviceName)));
+    }
+    QList<ServiceInstance>& instances = it.value();
+    for (int i = 0, sz = static_cast<int>(instances.size()); i < sz; ++i) {
+        if (instances[i].instanceId == instanceId) {
+            instances.removeAt(i);
+            if (instances.isEmpty()) {
+                m_registry.erase(it);
+            }
+            return Result<void>::ok();
+        }
+    }
+    return Result<void>::err(Error(ErrorCode::NotFound, "Instance not found"));
 }
 
 } // namespace rpc

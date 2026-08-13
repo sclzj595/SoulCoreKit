@@ -3,10 +3,23 @@ build/
 build_*/
 build-*/
 cmake-build-*/
+install_*/
+smoke_test/
 Makefile
 *.make
 *.cmake
 *.ninja
+
+# 但保留源码里的 CMake 文件 (toolchains / modules / 根 CMakeLists)
+!cmake/
+!cmake/toolchains/
+!cmake/toolchains/*.cmake
+!cmake/modules/
+!cmake/modules/*.cmake
+!cmake/*.cmake
+!cmake/*.in
+!CMakeLists.txt
+!CMakePresets.json
 .ninja_deps
 .ninja_log
 CMakeCache.txt
@@ -66,6 +79,9 @@ qrc_*
 /stdout.txt
 /*.log
 *.bak
+
+# Root-level build/test/install log captures (temporary artifacts)
+/*.txt
 
 # Configuration files
 .env
@@ -153,3 +169,6 @@ compile.log
 /*.ps1
 /*.bat
 /*.sh
+
+# Root-level stray test file (moved to tests/unit/)
+/test_singleton.cpp

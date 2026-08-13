@@ -59,6 +59,21 @@
                 "ENABLE_LTO": "ON",
                 "ENABLE_IPO": "ON"
             }
+        },
+        {
+            "name": "mingw",
+            "displayName": "MinGW 11.2.0 (Qt 6.5.3 匹配工具链)",
+            "description": "Windows MinGW build using Qt 6.5.3 配套的 GCC 11.2.0, 保证 ABI 一致",
+            "generator": "MinGW Makefiles",
+            "binaryDir": "${sourceDir}/build-mingw",
+            "toolchainFile": "${sourceDir}/cmake/toolchains/mingw1120_64.cmake",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "BUILD_TESTS": "ON",
+                "BUILD_EXAMPLES": "ON",
+                "SOULCOREKIT_BUILD_BENCHMARKS": "ON",
+                "ENABLE_WARNINGS": "ON"
+            }
         }
     ],
     "buildPresets": [
@@ -80,6 +95,11 @@
         {
             "name": "release",
             "configurePreset": "release",
+            "jobs": "${env:NUMBER_OF_PROCESSORS}"
+        },
+        {
+            "name": "mingw",
+            "configurePreset": "mingw",
             "jobs": "${env:NUMBER_OF_PROCESSORS}"
         }
     ],

@@ -224,9 +224,11 @@ void HttpClient::sendAsync(const HttpRequest& request, ResponseCallback callback
             if (isTimedOut) {
                 reply->deleteLater();
                 if (retryCount < maxRetries && shouldRetry(QNetworkReply::TimeoutError)) {
-                    QTimer::singleShot(retryPolicyCopy.nextDelay(retryCount + 1), [this, mutableRequest, callback, retryCount]() {
-                        this->sendAsync(mutableRequest, callback, retryCount + 1);
-                    });
+                    // 传入 this 作为 context, 使 HttpClient 析构时定时器自动失效, 避免悬垂 this
+                    QTimer::singleShot(retryPolicyCopy.nextDelay(retryCount + 1),
+                        this, [this, mutableRequest, callback, retryCount]() {
+                            this->sendAsync(mutableRequest, callback, retryCount + 1);
+                        });
                     return;
                 }
                 callback(Result<HttpResponse>(Error(ErrorCode::Timeout, "Request timed out")));
@@ -239,9 +241,11 @@ void HttpClient::sendAsync(const HttpRequest& request, ResponseCallback callback
                 reply->deleteLater();
 
                 if (retryCount < maxRetries && shouldRetry(netError)) {
-                    QTimer::singleShot(retryPolicyCopy.nextDelay(retryCount + 1), [this, mutableRequest, callback, retryCount]() {
-                        this->sendAsync(mutableRequest, callback, retryCount + 1);
-                    });
+                    // 传入 this 作为 context, 使 HttpClient 析构时定时器自动失效, 避免悬垂 this
+                    QTimer::singleShot(retryPolicyCopy.nextDelay(retryCount + 1),
+                        this, [this, mutableRequest, callback, retryCount]() {
+                            this->sendAsync(mutableRequest, callback, retryCount + 1);
+                        });
                     return;
                 }
 

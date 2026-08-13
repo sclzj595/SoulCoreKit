@@ -1,5 +1,5 @@
 // ============================================================================
-// service_registry.cpp — ServiceRegistry 实现 [v2.5.0]
+// service_registry.cpp — ServiceRegistry 实现 [v2.6.0]
 // ============================================================================
 
 #include "soul/application/service_registry.h"
@@ -15,16 +15,87 @@ ServiceRegistry::~ServiceRegistry() = default;
 // initializeAll() — 对标 Spring 的 @PostConstruct 批量调用
 // ============================================================================
 
-void ServiceRegistry::initializeAll() {
-    qDebug() << "[ServiceRegistry] Initializing" << m_servicePtrs.size() << "services...";
+Result<void> ServiceRegistry::initializeAll() {
+    qDebug() << "[ServiceRegistry] Initializing" << m_lifecyclePtrs.size() << "services...";
 
-    for (auto* service : m_servicePtrs) {
-        if (service) {
-            service->initialize();
+    for (size_t i = 0; i < m_lifecyclePtrs.size(); ++i) {
+        auto* service = m_lifecyclePtrs[i];
+        if (!service) continue;
+
+        auto result = service->initialize();
+        if (result.isErr()) {
+            qWarning() << "[ServiceRegistry] Service initialize failed at index"
+                       << i << ":" << result.unwrapErr().message()
+                       << "— rolling back previous services";
+
+            // 逆序 shutdown 已初始化的服务
+            for (size_t j = i; j > 0; --j) {
+                auto* prev = m_lifecyclePtrs[j - 1];
+                if (prev) {
+                    prev->shutdown();
+                }
+            }
+            return result;
         }
     }
 
     qDebug() << "[ServiceRegistry] All services initialized.";
+    return {};
+}
+
+// ============================================================================
+// startAll() — 对标 Spring 的 ContextRefreshedEvent 批量调用
+// ============================================================================
+
+Result<void> ServiceRegistry::startAll() {
+    qDebug() << "[ServiceRegistry] Starting" << m_lifecyclePtrs.size() << "services...";
+
+    for (size_t i = 0; i < m_lifecyclePtrs.size(); ++i) {
+        auto* service = m_lifecyclePtrs[i];
+        if (!service) continue;
+
+        auto result = service->start();
+        if (result.isErr()) {
+            qWarning() << "[ServiceRegistry] Service start failed at index"
+                       << i << ":" << result.unwrapErr().message()
+                       << "— stopping and shutting down previous services";
+
+            // 逆序 stop + shutdown 已启动的服务
+            for (size_t j = i; j > 0; --j) {
+                auto* prev = m_lifecyclePtrs[j - 1];
+                if (prev) {
+                    prev->stop();
+                }
+            }
+            for (size_t j = i; j > 0; --j) {
+                auto* prev = m_lifecyclePtrs[j - 1];
+                if (prev) {
+                    prev->shutdown();
+                }
+            }
+            return result;
+        }
+    }
+
+    qDebug() << "[ServiceRegistry] All services started.";
+    return {};
+}
+
+// ============================================================================
+// stopAll() — 对标 Spring 的 ContextClosedEvent 批量调用（逆序）
+// ============================================================================
+
+void ServiceRegistry::stopAll() {
+    qDebug() << "[ServiceRegistry] Stopping" << m_lifecyclePtrs.size() << "services...";
+
+    // 逆序停止，确保依赖后创建的服务先停止
+    for (auto it = m_lifecyclePtrs.rbegin(); it != m_lifecyclePtrs.rend(); ++it) {
+        if (*it) {
+            (*it)->stop();
+        }
+    }
+
+    qDebug() << "[ServiceRegistry] All services stopped.";
 }
 
 // ============================================================================
@@ -32,16 +103,16 @@ void ServiceRegistry::initializeAll() {
 // ============================================================================
 
 void ServiceRegistry::shutdownAll() {
-    qDebug() << "[ServiceRegistry] Shutting down" << m_servicePtrs.size() << "services...";
+    qDebug() << "[ServiceRegistry] Shutting down" << m_lifecyclePtrs.size() << "services...";
 
     // 逆序关闭，确保依赖后创建的服务先销毁
-    for (auto it = m_servicePtrs.rbegin(); it != m_servicePtrs.rend(); ++it) {
+    for (auto it = m_lifecyclePtrs.rbegin(); it != m_lifecyclePtrs.rend(); ++it) {
         if (*it) {
             (*it)->shutdown();
         }
     }
 
-    m_servicePtrs.clear();
+    m_lifecyclePtrs.clear();
     m_services.clear();
 
     qDebug() << "[ServiceRegistry] All services shut down.";

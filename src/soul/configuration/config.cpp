@@ -1,5 +1,6 @@
 #include "soul/configuration/config.h"
 #include "soul/configuration/json_configuration.h"
+#include "soul/configuration/config_schema.h"  // v2.9.0: validate() 实现
 #include "soul/logging/log_macros.h"
 #include "soul/core/error.h"
 #include "soul/utils/json/json_helper.h"
@@ -550,9 +551,13 @@ QString Config::getEnvValue(const QString& key) const {
 }
 
 bool Config::validate(const ConfigSchema& schema, QString* errorMsg) const {
-    Q_UNUSED(schema);
-    Q_UNUSED(errorMsg);
-    return true;
+    // v2.9.0: 实际调用 ConfigSchema::validate()
+    auto allValues = getAll();
+    QVariantMap map;
+    for (auto it = allValues.begin(); it != allValues.end(); ++it) {
+        map.insert(it.key(), it.value());
+    }
+    return schema.validate(map, errorMsg);
 }
 
 }

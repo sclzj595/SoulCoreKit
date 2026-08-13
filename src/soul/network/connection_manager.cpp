@@ -40,7 +40,7 @@ void ConnectionManager::registerConnection(const std::string& name,
         return;
     }
 
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
 
     // 如果已存在同名连接,先清理
     auto it = m_connections.find(name);
@@ -59,7 +59,7 @@ void ConnectionManager::registerConnection(const std::string& name,
 
 void ConnectionManager::unregisterConnection(const std::string& name)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
 
     auto it = m_connections.find(name);
     if (it == m_connections.end()) {
@@ -81,7 +81,7 @@ void ConnectionManager::unregisterConnection(const std::string& name)
 
 void ConnectionManager::connectAll()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     for (auto& pair : m_connections) {
         const std::string& name = pair.first;
         auto& mc = pair.second;
@@ -105,7 +105,7 @@ void ConnectionManager::disconnectAll()
     // 先复制连接名称,避免在迭代中修改容器
     std::vector<std::string> names;
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::lock_guard<std::recursive_mutex> lock(m_mutex);
         names.reserve(m_connections.size());
         for (const auto& pair : m_connections) {
             names.push_back(pair.first);
@@ -119,7 +119,7 @@ void ConnectionManager::disconnectAll()
 
 void ConnectionManager::connect(const std::string& name)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
 
     auto it = m_connections.find(name);
     if (it == m_connections.end()) {
@@ -142,7 +142,7 @@ void ConnectionManager::connect(const std::string& name)
 
 void ConnectionManager::disconnect(const std::string& name)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
 
     auto it = m_connections.find(name);
     if (it == m_connections.end()) {
@@ -166,7 +166,7 @@ void ConnectionManager::disconnect(const std::string& name)
 
 ManagedConnectionState ConnectionManager::state(const std::string& name) const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
 
     auto it = m_connections.find(name);
     if (it == m_connections.end()) {
@@ -178,7 +178,7 @@ ManagedConnectionState ConnectionManager::state(const std::string& name) const
 
 bool ConnectionManager::isConnected(const std::string& name) const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
 
     auto it = m_connections.find(name);
     if (it == m_connections.end()) {
@@ -190,7 +190,7 @@ bool ConnectionManager::isConnected(const std::string& name) const
 
 size_t ConnectionManager::activeConnectionCount() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
 
     return std::count_if(m_connections.begin(), m_connections.end(),
                          [](const auto& pair) {
@@ -200,7 +200,7 @@ size_t ConnectionManager::activeConnectionCount() const
 
 std::vector<std::string> ConnectionManager::connectionNames() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
 
     std::vector<std::string> names;
     names.reserve(m_connections.size());
@@ -257,7 +257,7 @@ void ConnectionManager::stopPolling(const std::string& name)
 
 void ConnectionManager::checkConnection(const std::string& name)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
 
     auto it = m_connections.find(name);
     if (it == m_connections.end()) {
@@ -322,7 +322,7 @@ void ConnectionManager::checkConnection(const std::string& name)
 
 void ConnectionManager::onHeartbeatTimeout(const std::string& name)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
 
     auto it = m_connections.find(name);
     if (it == m_connections.end()) {
@@ -371,10 +371,18 @@ void ConnectionManager::scheduleReconnect(const std::string& name)
         return;
     }
 
+    // [审计] setState 会 emit 信号并调用 m_stateListener, listener 回调中可能
+    // unregisterConnection(name) 导致 m_connections 迭代器失效。因此先拷贝
+    // retryCount/config, setState 后不再使用 it/mc 引用, 避免 UAF。
+    auto retryCount = mc.retryCount;
+    auto config = mc.config;
     setState(name, ManagedConnectionState::Reconnecting);
 
-    auto interval = nextRetryInterval(mc.retryCount, mc.config);
-    mc.retryCount++;
+    auto interval = nextRetryInterval(retryCount, config);
+    it = m_connections.find(name);
+    if (it != m_connections.end()) {
+        it->second.retryCount = retryCount + 1;
+    }
 
     // 延迟执行重连
     QTimer::singleShot(interval, this, [this, name]() {
@@ -384,7 +392,7 @@ void ConnectionManager::scheduleReconnect(const std::string& name)
 
 void ConnectionManager::tryReconnect(const std::string& name)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
 
     auto it = m_connections.find(name);
     if (it == m_connections.end()) {

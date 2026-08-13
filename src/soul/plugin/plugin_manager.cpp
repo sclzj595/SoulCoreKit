@@ -9,6 +9,14 @@
 #include <dlfcn.h>
 #endif
 
+// MinGW: GetProcAddress 返回 FARPROC (long long int (*)()),
+// reinterpret_cast 到 PluginXxxFunc 触发 -Werror=cast-function-type。
+// 这是跨 DLL 边界的标准做法，在所有平台上都是安全的。
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-function-type"
+#endif
+
 #include "soul/plugin/plugin_manager.h"
 #include "soul/logging/logger.h"
 
@@ -34,6 +42,10 @@ PluginManager::PluginHandle::~PluginHandle()
         enabled = false;
     }
     if (libraryHandle) {
+        // [审计] plugin 的删除器可能引用 DLL 内的 pluginDestroy 函数,
+        // 必须 reset shared_ptr 之后再 FreeLibrary, 否则在 DLL 卸载后
+        // 析构 shared_ptr 时调用已卸载的函数指针 → UAF。
+        plugin.reset();
 #if defined(_WIN32)
         FreeLibrary(reinterpret_cast<HMODULE>(libraryHandle));
 #else
@@ -128,9 +140,23 @@ bool PluginManager::loadNativePlugin(const std::string& path)
     if (createFunc) {
         void* pluginInstance = createFunc("IPlugin");
         if (pluginInstance) {
+            // [审计] 删除器必须真正释放插件实例, 原空操作删除器导致每次加载永久泄漏。
+            // 正确方式: 调用 DLL 导出的 pluginDestroy(跨 CRT 安全); 若未导出, 回退到
+            // IPlugin 的虚析构 delete(接口声明了 virtual ~IPlugin(), 亦跨 DLL 安全)。
+            auto destroyFunc = reinterpret_cast<PluginDestroyFunc>(
+#if defined(_WIN32)
+                GetProcAddress(handle, "pluginDestroy")
+#else
+                dlsym(handle, "pluginDestroy")
+#endif
+            );
             handlePtr->plugin = std::shared_ptr<IPlugin>(static_cast<IPlugin*>(pluginInstance),
-                [](IPlugin* p) {
-                    (void)p;
+                [destroyFunc](IPlugin* p) {
+                    if (destroyFunc) {
+                        destroyFunc(p);
+                    } else {
+                        delete p;
+                    }
                 });
         }
     }
@@ -342,3 +368,7 @@ int PluginManager::pluginCount() const
 
 } // namespace plugin
 } // namespace sc
+
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif

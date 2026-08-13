@@ -69,11 +69,11 @@ private:
     QWidget* createEnvPanel();
     QWidget* createThreadDumpPanel();
 
-    void updateHealthPanel(const QJsonObject& data);
-    void updateMetricsPanel(const QJsonObject& data);
-    void updateInfoPanel(const QJsonObject& data);
-    void updateEnvPanel(const QJsonObject& data);
-    void updateThreadDumpPanel(const QJsonObject& data);
+    void updateHealthPanel(const QJsonObject& jsonData);
+    void updateMetricsPanel(const QJsonObject& jsonData);
+    void updateInfoPanel(const QJsonObject& jsonData);
+    void updateEnvPanel(const QJsonObject& jsonData);
+    void updateThreadDumpPanel(const QJsonObject& jsonData);
 
     QString formatJson(const QJsonObject& obj) const;
     void setTableFromJson(QTableWidget* table, const QJsonObject& obj);

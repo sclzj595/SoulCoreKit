@@ -32,45 +32,53 @@
 //       }
 //   };
 
+// v3.0.0: 迁移到 ConfigSnapshot
 #include <string>
 #include <QSqlDatabase>
-#include "soul/core/configuration.h"
+#include "soul/configuration/iconfig_provider.h"
 
 namespace sc {
 
 // ============================================================================
-// 条件装配工具函数
+// 条件装配工具函数 [v3.0.0: 使用 ConfigSnapshot]
 // ============================================================================
 
 /// @brief 当配置属性存在且为指定值时启用
 /// @param key 配置键
 /// @param expectedValue 期望值(默认 true)
-inline bool conditionalOnProperty(const std::string& key, bool expectedValue = true) {
-    return Configuration::instance().get<bool>(key, false) == expectedValue;
+/// @param snapshot 配置快照 (可选，nullptr 时返回 false)
+inline bool conditionalOnProperty(const std::string& key, bool expectedValue = true,
+                                   const ConfigSnapshot* snapshot = nullptr) {
+    if (!snapshot) return false;
+    return snapshot->getBoolOr(QString::fromStdString(key), false) == expectedValue;
 }
 
-/// @brief 当配置属性存在时启用(不关心值)
-/// @param key 配置键
-inline bool conditionalOnPropertyExists(const std::string& key) {
-    return Configuration::instance().contains(key);
+/// @brief 当配置属性存在时启用(不关心值) [v3.0.0]
+inline bool conditionalOnPropertyExists(const std::string& key,
+                                         const ConfigSnapshot* snapshot = nullptr) {
+    if (!snapshot) return false;
+    return snapshot->contains(QString::fromStdString(key));
 }
 
-/// @brief 当配置属性缺失时启用
-/// @param key 配置键
-inline bool conditionalOnMissingProperty(const std::string& key) {
-    return !Configuration::instance().contains(key);
+/// @brief 当配置属性缺失时启用 [v3.0.0]
+inline bool conditionalOnMissingProperty(const std::string& key,
+                                          const ConfigSnapshot* snapshot = nullptr) {
+    if (!snapshot) return true;
+    return !snapshot->contains(QString::fromStdString(key));
 }
 
-/// @brief 当指定 Profile 激活时启用
-/// @param profile Profile 名称
-inline bool conditionalOnProfile(const std::string& profile) {
-    return Configuration::instance().activeProfile() == profile;
+/// @brief 当指定 Profile 激活时启用 [v3.0.0]
+inline bool conditionalOnProfile(const std::string& profile,
+                                  const ConfigSnapshot* snapshot = nullptr) {
+    if (!snapshot) return false;
+    return snapshot->getStringOr("app.profile", "") == QString::fromStdString(profile);
 }
 
-/// @brief 当非指定 Profile 时启用
-/// @param profile Profile 名称
-inline bool conditionalOnNotProfile(const std::string& profile) {
-    return Configuration::instance().activeProfile() != profile;
+/// @brief 当非指定 Profile 时启用 [v3.0.0]
+inline bool conditionalOnNotProfile(const std::string& profile,
+                                     const ConfigSnapshot* snapshot = nullptr) {
+    if (!snapshot) return true;
+    return snapshot->getStringOr("app.profile", "") != QString::fromStdString(profile);
 }
 
 // ============================================================================
@@ -88,8 +96,10 @@ inline bool conditionalOnNotProfile(const std::string& profile) {
 ///     }
 /// };
 /// @endcode
-inline bool conditionalOnDatabase(const std::string& type) {
-    return Configuration::instance().get<std::string>("datasource.type", "") == type;
+inline bool conditionalOnDatabase(const std::string& type,
+                                   const ConfigSnapshot* snapshot = nullptr) {
+    if (!snapshot) return false;
+    return snapshot->getStringOr("datasource.type", "") == QString::fromStdString(type);
 }
 
 /// @brief 当数据源已配置时启用(不关心具体类型)
@@ -102,8 +112,9 @@ inline bool conditionalOnDatabase(const std::string& type) {
 ///     }
 /// };
 /// @endcode
-inline bool datasourceConfigured() {
-    return Configuration::instance().contains("datasource.type");
+inline bool datasourceConfigured(const ConfigSnapshot* snapshot = nullptr) {
+    if (!snapshot) return false;
+    return snapshot->contains("datasource.type");
 }
 
 /// @brief 当指定的数据库驱动可用时启用
@@ -135,23 +146,25 @@ inline bool conditionalOnCsMode() {
 // ============================================================================
 
 /// @brief 获取当前激活的 Profile
-inline std::string activeProfile() {
-    return Configuration::instance().activeProfile();
+/// @param snapshot 配置快照 (可选, nullptr 时返回空字符串)
+inline std::string activeProfile(const ConfigSnapshot* snapshot = nullptr) {
+    if (!snapshot) return "";
+    return snapshot->getStringOr("app.profile", "").toStdString();
 }
 
 /// @brief 检查是否为开发环境
-inline bool isDevProfile() {
-    return activeProfile() == "dev";
+inline bool isDevProfile(const ConfigSnapshot* snapshot = nullptr) {
+    return activeProfile(snapshot) == "dev";
 }
 
 /// @brief 检查是否为生产环境
-inline bool isProdProfile() {
-    return activeProfile() == "prod";
+inline bool isProdProfile(const ConfigSnapshot* snapshot = nullptr) {
+    return activeProfile(snapshot) == "prod";
 }
 
 /// @brief 检查是否为测试环境
-inline bool isTestProfile() {
-    return activeProfile() == "test";
+inline bool isTestProfile(const ConfigSnapshot* snapshot = nullptr) {
+    return activeProfile(snapshot) == "test";
 }
 
 } // namespace sc

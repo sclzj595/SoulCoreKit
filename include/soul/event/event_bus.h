@@ -131,7 +131,7 @@ public:
     /**
      * @brief 析构函数
      */
-    ~DefaultEventBus() override = default;
+    ~DefaultEventBus() override;
 
     /**
      * @brief 禁止拷贝构造
@@ -167,6 +167,9 @@ public:
 private:
     std::unordered_map<std::string, std::vector<std::shared_ptr<Handler>>> m_handlers;
     mutable std::mutex m_mutex;
+    // [审计] 活跃标志: EventBus 析构时置 false, Subscription 在 unsubscribe 时据此
+    // 判断总线是否仍存活, 避免在总线已析构后访问 m_handlers/m_mutex 造成 UAF。
+    std::shared_ptr<std::atomic<bool>> m_alive = std::make_shared<std::atomic<bool>>(true);
 };
 
 }

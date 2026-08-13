@@ -35,6 +35,7 @@ GrpcServer& GrpcServer::instance() {
 }
 
 Result<void> GrpcServer::start(const QString& host, int port) {
+    Q_UNUSED(host);
     std::lock_guard<std::mutex> lock(m_mutex);
     m_port = port;
     m_running = true;

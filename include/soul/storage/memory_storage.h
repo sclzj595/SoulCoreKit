@@ -3,6 +3,7 @@
 
 #include "istorage.h"
 #include <QHash>
+#include <mutex>
 
 namespace sc {
 
@@ -31,6 +32,9 @@ private:
     QHash<QString, QString> m_stringData;
     QHash<QString, QByteArray> m_bytesData;
     bool m_isOpen;
+    // [审计] MemoryStorage 是独立存储组件, 原实现全部方法无锁, 多线程读写
+    // m_stringData/m_bytesData/m_isOpen 构成数据竞争。加内部锁使其线程安全。
+    mutable std::mutex m_mutex;
 };
 
 }

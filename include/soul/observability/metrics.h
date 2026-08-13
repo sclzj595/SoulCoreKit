@@ -311,6 +311,64 @@ private:
     [[nodiscard]] std::size_t findBucket(double value) const noexcept;
 };
 
+// ============================================================================
+// Timer — 便捷计时器 [v2.8.0 新增]
+// ============================================================================
+// Timer 是 Histogram 的语义化封装，专用于延迟/耗时测量。
+// 内部使用 Histogram + 默认延迟分桶，提供 RAII 计时和手动记录两种模式。
+//
+// 用法:
+//   // 手动记录
+//   Timer timer("http_request_duration", "HTTP request latency");
+//   timer.record(42.5);  // 记录 42.5ms
+//
+//   // RAII 计时
+//   {
+//       Timer::Scoped scoped(timer);  // 开始计时
+//       doWork();
+//   }  // 析构时自动 record()
+
+class Timer : public IMetric {
+public:
+    /// @brief RAII 计时作用域
+    class Scoped {
+    public:
+        explicit Scoped(Timer& timer)
+            : m_timer(timer), m_start(std::chrono::steady_clock::now()) {}
+        ~Scoped() {
+            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - m_start);
+            m_timer.record(static_cast<double>(elapsed.count()));
+        }
+        Scoped(const Scoped&) = delete;
+        Scoped& operator=(const Scoped&) = delete;
+    private:
+        Timer& m_timer;
+        std::chrono::steady_clock::time_point m_start;
+    };
+
+    Timer(std::string name, std::string help,
+          HistogramBuckets buckets = HistogramBuckets::defaultLatency())
+        : m_name(std::move(name))
+        , m_help(std::move(help))
+        , m_histogram(m_name + "_histogram", m_help, std::move(buckets)) {}
+
+    /// @brief 记录耗时 (毫秒)
+    void record(double latencyMs) { m_histogram.observe(latencyMs); }
+
+    /// @brief 获取快照
+    [[nodiscard]] HistogramSnapshot snapshot() const { return m_histogram.snapshot(); }
+
+    const std::string& name() const override { return m_name; }
+    const std::string& help() const override { return m_help; }
+    MetricType type() const override { return MetricType::Histogram; }
+
+private:
+    std::string m_name;
+    std::string m_help;
+    Histogram m_histogram;
+};
+
 /**
  * @class MetricsRegistry
  * @brief 指标注册表（单例）

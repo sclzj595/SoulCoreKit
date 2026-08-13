@@ -4,6 +4,7 @@
 #include "soul/logging/i_sink.h"
 #include "soul/logging/log_formatter.h"
 #include <memory>
+#include <mutex>
 #include <string>
 
 namespace sc {
@@ -66,6 +67,9 @@ private:
     std::unique_ptr<LogFormatter> m_formatter;
     FILE* m_file = nullptr;
     size_t m_currentSize = 0;
+    // [审计] FileSink 是独立 ISink 组件, 可能被多线程直接使用(绕过 Logger 外部锁),
+    // 加内部锁保护文件句柄/大小/滚动状态。Logger::log 持不同 mutex 再调 sink, 无死锁。
+    mutable std::mutex m_mutex;
 };
 
 }

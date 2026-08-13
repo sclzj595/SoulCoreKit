@@ -1,4 +1,4 @@
-﻿#include "soul/network/downloader.h"
+#include "soul/network/downloader.h"
 #include "soul/logging/log_macros.h"
 #include <QDir>
 
@@ -28,6 +28,11 @@ void Downloader::pause() {
     if (m_reply && m_isRunning && !m_isPaused) {
         m_reply->abort();
         m_isPaused = true;
+        // [审计] 暂停时必须关闭文件句柄, 否则 resume() 里 startDownload() 再次
+        // m_file.open(Append) 会对已打开的文件重复 open 而失败, 导致无法续传。
+        if (m_file.isOpen()) {
+            m_file.close();
+        }
         SC_INFO("Download paused");
     }
 }

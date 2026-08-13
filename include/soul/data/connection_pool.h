@@ -78,58 +78,61 @@ public:
     Result<std::unique_ptr<IDatabaseDriver>> acquire(int timeoutMs = 0) override {
         std::unique_lock<std::mutex> lock(m_mutex);
 
-        // 尝试从空闲池获取
-        while (!m_idleConnections.empty()) {
-            auto conn = std::move(m_idleConnections.back());
-            m_idleConnections.pop_back();
-            // 健康检查: 确认连接仍有效
-            if (conn && conn->isConnected()) {
-                m_activeCount++;
-                return Result<std::unique_ptr<IDatabaseDriver>>::ok(std::move(conn));
-            }
-            // 连接已断开,丢弃并减少计数
-            if (m_totalCount > 0) m_totalCount--;
-        }
+        auto deadline = (timeoutMs > 0)
+            ? std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs)
+            : std::chrono::steady_clock::time_point::max();
 
-        // 尝试创建新连接
-        if (m_totalCount < m_maxSize) {
-            auto driver = m_factory ? m_factory() : nullptr;
-            if (driver) {
-                if (!driver->isConnected()) {
-                    auto result = driver->open(m_config);
-                    if (!result.isOk()) {
-                        return Error(ErrorCode::DatabaseError, "Failed to create connection");
-                    }
+        // 外层循环避免递归调用丢失超时预算
+        for (;;) {
+            // 1) 优先取空闲连接(含断连清理)
+            while (!m_idleConnections.empty()) {
+                auto conn = std::move(m_idleConnections.back());
+                m_idleConnections.pop_back();
+                if (!m_lastUsedTimes.empty()) m_lastUsedTimes.pop_back();
+                if (conn && conn->isConnected()) {
+                    m_activeCount++;
+                    return Result<std::unique_ptr<IDatabaseDriver>>::ok(std::move(conn));
                 }
-                m_totalCount++;
-                m_activeCount++;
-                return Result<std::unique_ptr<IDatabaseDriver>>::ok(std::move(driver));
+                // 连接已断开,丢弃并减少计数
+                if (m_totalCount > 0) m_totalCount--;
             }
-            return Error(ErrorCode::DatabaseError, "Failed to create connection");
-        }
 
-        // 池满 — 等待空闲连接(支持超时)
-        if (timeoutMs == 0) {
-            // 无限等待
-            m_condVar.wait(lock, [this]() {
-                return !m_idleConnections.empty() || m_totalCount < m_maxSize;
-            });
-            // 递归调用(此时锁已重新获取)
-            lock.unlock();
-            return acquire(0);
-        } else if (timeoutMs > 0) {
-            auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
-            bool available = m_condVar.wait_until(lock, deadline, [this]() {
-                return !m_idleConnections.empty() || m_totalCount < m_maxSize;
-            });
-            if (!available) {
-                return Error(ErrorCode::Timeout, "Connection pool acquire timeout");
+            // 2) 有空位则创建新连接
+            if (m_totalCount < m_maxSize) {
+                auto driver = m_factory ? m_factory() : nullptr;
+                if (driver) {
+                    if (!driver->isConnected()) {
+                        auto result = driver->open(m_config);
+                        if (!result.isOk()) {
+                            return Error(ErrorCode::DatabaseError, "Failed to create connection");
+                        }
+                    }
+                    m_totalCount++;
+                    m_activeCount++;
+                    return Result<std::unique_ptr<IDatabaseDriver>>::ok(std::move(driver));
+                }
+                return Error(ErrorCode::DatabaseError, "Failed to create connection");
             }
-            lock.unlock();
-            return acquire(0);
-        }
 
-        return Error(ErrorCode::ResourceExhausted, "Connection pool exhausted");
+            // 3) 池满 — 等待空闲连接或空位(保留剩余超时)
+            if (deadline == std::chrono::steady_clock::time_point::max()) {
+                m_condVar.wait(lock, [this]() {
+                    return !m_idleConnections.empty() || m_totalCount < m_maxSize;
+                });
+            } else {
+                auto now = std::chrono::steady_clock::now();
+                if (now >= deadline) {
+                    return Error(ErrorCode::Timeout, "Connection pool acquire timeout");
+                }
+                bool available = m_condVar.wait_until(lock, deadline, [this]() {
+                    return !m_idleConnections.empty() || m_totalCount < m_maxSize;
+                });
+                if (!available) {
+                    return Error(ErrorCode::Timeout, "Connection pool acquire timeout");
+                }
+            }
+            // 唤醒后回到循环头重新尝试，不递归，超时预算得以保留
+        }
     }
 
     // ========================================================================
@@ -157,10 +160,17 @@ public:
         m_condVar.notify_one();
     }
 
-    int getPoolSize() const override { return m_totalCount; }
-    int getActiveConnections() const override { return m_activeCount; }
+    int getPoolSize() const override {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_totalCount;
+    }
+    int getActiveConnections() const override {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_activeCount;
+    }
 
     int getIdleConnections() const override {
+        std::lock_guard<std::mutex> lock(m_mutex);
         return static_cast<int>(m_idleConnections.size());
     }
 
@@ -242,7 +252,10 @@ public:
     }
 
     /// @brief 设置空闲连接超时回收时间(ms,0=不回收) [v1.9.2 新增]
-    void setIdleTimeout(int idleTimeoutMs) { m_idleTimeoutMs = idleTimeoutMs; }
+    void setIdleTimeout(int idleTimeoutMs) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_idleTimeoutMs = idleTimeoutMs;
+    }
 
     /// @return 最小连接数
     int minSize() const { return m_minSize; }

@@ -140,8 +140,9 @@ public:
                 vmProp = mappingIt->second;
             }
 
-            QVariant value = reflectiveEntity->getProperty(propName);
-            value = convertValue(propName, value, true);  // toViewModel
+            auto optValue = reflectiveEntity->getProperty(propName);
+            if (!optValue.has_value()) continue;
+            QVariant value = convertValue(propName, optValue.value(), true);  // toViewModel
             viewModel->set(vmProp, value);
         }
 
@@ -266,8 +267,9 @@ void CsDataBinding::syncToViewModel(const Entity& entity) {
             vmProp = mappingIt->second;
         }
 
-        QVariant value = reflectiveEntity->getProperty(propName);
-        value = convertValue(propName, value, true);  // toViewModel
+        auto optValue = reflectiveEntity->getProperty(propName);
+        if (!optValue.has_value()) return;
+        QVariant value = convertValue(propName, optValue.value(), true);  // toViewModel
         m_boundViewModel->set(vmProp, value);
     }
 

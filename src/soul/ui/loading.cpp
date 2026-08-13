@@ -1,7 +1,14 @@
-﻿#include "soul/ui/loading.h"
+#include "soul/ui/loading.h"
 #include <QApplication>
 
 namespace sc {
+
+// [审计] showGlobal/hideGlobal/updateGlobalProgress 原本各自定义独立的
+// static Loading*, hideGlobal 永远找不到 showGlobal 创建的对象→无法关闭。
+// 提取为文件级静态, 三函数共享同一指针。
+namespace {
+    Loading* g_globalLoading = nullptr;
+}
 
 Loading::Loading(QWidget* parent) : QWidget(parent) {
     m_layout = new QVBoxLayout(this);
@@ -42,25 +49,22 @@ void Loading::setIndeterminate(bool indeterminate) {
 }
 
 void Loading::showGlobal(const QString& text) {
-    static Loading* globalLoading = nullptr;
-    if (!globalLoading) {
-        globalLoading = new Loading(qApp->activeWindow());
+    if (!g_globalLoading) {
+        g_globalLoading = new Loading(qApp->activeWindow());
     }
-    globalLoading->setText(text);
-    globalLoading->show();
+    g_globalLoading->setText(text);
+    g_globalLoading->show();
 }
 
 void Loading::hideGlobal() {
-    static Loading* globalLoading = nullptr;
-    if (globalLoading) {
-        globalLoading->hide();
+    if (g_globalLoading) {
+        g_globalLoading->hide();
     }
 }
 
 void Loading::updateGlobalProgress(int value) {
-    static Loading* globalLoading = nullptr;
-    if (globalLoading) {
-        globalLoading->setProgress(value);
+    if (g_globalLoading) {
+        g_globalLoading->setProgress(value);
     }
 }
 

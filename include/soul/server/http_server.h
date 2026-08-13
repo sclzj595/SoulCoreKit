@@ -132,6 +132,22 @@ public:
     QHostAddress peerAddress() const noexcept { return m_peer; }
     void setPeerAddress(QHostAddress addr) { m_peer = std::move(addr); }
 
+    // ========================================================================
+    // 路径参数 — RESTful 路由支持 [v2.7.0 新增]
+    // ========================================================================
+    // 支持 /api/users/:id 和 /api/files/*path 等路径参数提取
+
+    /// @brief 获取路径参数 (如 :id, :name)
+    const QMap<QString, QString>& pathParams() const noexcept { return m_pathParams; }
+    void setPathParams(QMap<QString, QString> params) { m_pathParams = std::move(params); }
+
+    /// @brief 按名称获取路径参数
+    QString pathParam(const QString& name) const { return m_pathParams.value(name); }
+
+    /// @brief 获取通配符匹配的剩余路径
+    QString wildcardPath() const { return m_wildcardPath; }
+    void setWildcardPath(QString path) { m_wildcardPath = std::move(path); }
+
 private:
     HttpMethod              m_method = HttpMethod::Get;
     QString                 m_path;
@@ -140,6 +156,8 @@ private:
     QMap<QString, QString>  m_headers;
     QByteArray              m_body;
     QHostAddress            m_peer;
+    QMap<QString, QString>  m_pathParams;   // v2.7.0: 路径参数
+    QString                 m_wildcardPath;  // v2.7.0: 通配符路径
 };
 
 // ============================================================================
@@ -229,7 +247,10 @@ public:
 
     /// @brief 注册路由
     /// @param method  HTTP 方法
-    /// @param path    路径(精确匹配,如 "/api/health")
+    /// @param path    路径 (支持 RESTful 模式匹配)
+    ///   - 精确匹配: "/api/health"
+    ///   - 路径参数: "/api/users/:id"   — req.pathParam("id") 获取
+    ///   - 通配符:   "/api/files/*path" — req.wildcardPath() 获取
     /// @param handler 处理函数
     void route(HttpMethod method, const QString& path, RouteHandler handler);
 
@@ -251,6 +272,11 @@ public:
     /// @brief 注册 DELETE 路由(便捷方法)
     void del(const QString& path, RouteHandler handler) {
         route(HttpMethod::Delete, path, std::move(handler));
+    }
+
+    /// @brief 注册 PATCH 路由(便捷方法) [v2.7.0 新增]
+    void patch(const QString& path, RouteHandler handler) {
+        route(HttpMethod::Patch, path, std::move(handler));
     }
 
     /// @brief 设置默认 404 处理器
@@ -328,14 +354,28 @@ private:
     ParseStatus parseRequest(QTcpSocket* socket, HttpRequest& req, const QByteArray& data);
 
     /// @brief 查找匹配的路由处理器
-    RouteHandler findRoute(HttpMethod method, const QString& path) const;
+    /// @param[out] pathParams  输出参数，匹配到的路径参数 (如 :id=123) [v2.7.0 新增]
+    RouteHandler findRoute(HttpMethod method, const QString& path,
+                           QMap<QString, QString>* pathParams = nullptr) const;
 
     /// @brief 发送响应并关闭连接
     void sendResponse(QTcpSocket* socket, const HttpResponse& response);
 
+    /// @brief 解析路径模式，返回分段列表 [v2.7.0 新增]
+    static std::vector<QString> splitPath(const QString& path);
+
+    /// @brief 尝试匹配路径模式 [v2.7.0 新增]
+    /// @return 匹配成功则返回 true，pathParams 填入参数
+    static bool matchPattern(const std::vector<QString>& pattern,
+                             const std::vector<QString>& request,
+                             QMap<QString, QString>& pathParams);
+
     QTcpServer*                 m_tcpServer = nullptr;
     mutable std::mutex          m_routeMutex;
     RouteMap                    m_routes;
+    // v2.7.0: 模式路由 (含 :param 或 *wildcard 的路径)
+    // 存储顺序即为匹配优先级 (先注册先匹配)
+    std::vector<std::pair<RouteKey, RouteHandler>> m_patternRoutes;
     RouteHandler                m_notFoundHandler;
     std::atomic<int>            m_connectionTimeoutMs{30000};  ///< v1.9.0: atomic 防止 setConnectionTimeout/onNewConnection 数据竞争
     std::atomic<int>            m_maxConnections{0};          ///< v1.9.1: 最大并发连接数,0=不限制

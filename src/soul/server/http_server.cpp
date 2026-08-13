@@ -225,7 +225,12 @@ quint16 HttpServer::serverPort() const noexcept {
 
 void HttpServer::route(HttpMethod method, const QString& path, RouteHandler handler) {
     std::lock_guard<std::mutex> lock(m_routeMutex);
-    m_routes[{method, path}] = std::move(handler);
+    // v2.7.0: 检测路径参数 (:id) 和通配符 (*path)
+    if (path.contains(':') || path.contains('*')) {
+        m_patternRoutes.push_back({{method, path}, std::move(handler)});
+    } else {
+        m_routes[{method, path}] = std::move(handler);
+    }
 }
 
 void HttpServer::setNotFoundHandler(RouteHandler handler) {
@@ -419,8 +424,13 @@ void HttpServer::onReadyRead() {
 
     // === 路由 Handler(仅在 Before 链全部通过时执行) ===
     if (continueChain) {
-        // 查找路由
-        RouteHandler handler = findRoute(req.method(), req.path());
+        // 查找路由 (v2.7.0: 支持路径参数)
+        QMap<QString, QString> pathParams;
+        RouteHandler handler = findRoute(req.method(), req.path(), &pathParams);
+
+        if (!pathParams.isEmpty()) {
+            req.setPathParams(std::move(pathParams));
+        }
 
         // 读取 404 处理器时加锁拷贝,避免与 setNotFoundHandler 并发数据竞争
         RouteHandler notFoundHandler;
@@ -564,13 +574,89 @@ HttpServer::ParseStatus HttpServer::parseRequest(QTcpSocket* socket, HttpRequest
     return ParseStatus::Ok;
 }
 
-RouteHandler HttpServer::findRoute(HttpMethod method, const QString& path) const {
+RouteHandler HttpServer::findRoute(HttpMethod method, const QString& path,
+                                   QMap<QString, QString>* pathParams) const {
     std::lock_guard<std::mutex> lock(m_routeMutex);
+
+    // 1. 精确匹配优先
     auto it = m_routes.find({method, path});
     if (it != m_routes.end()) {
         return it->second;
     }
+
+    // 2. 模式匹配 (路径参数 :id 和通配符 *path) [v2.7.0]
+    auto reqSegments = splitPath(path);
+    for (const auto& [key, handler] : m_patternRoutes) {
+        if (key.method != method) continue;
+
+        auto patternSegments = splitPath(key.path);
+        QMap<QString, QString> params;
+        if (matchPattern(patternSegments, reqSegments, params)) {
+            if (pathParams) {
+                *pathParams = std::move(params);
+            }
+            return handler;
+        }
+    }
+
     return nullptr;
+}
+
+std::vector<QString> HttpServer::splitPath(const QString& path) {
+    std::vector<QString> segments;
+    if (path.isEmpty() || path == "/") {
+        return segments;
+    }
+
+    QString p = path;
+    if (p.startsWith('/')) p = p.mid(1);
+
+    const auto parts = p.split('/');
+    for (const auto& part : parts) {
+        if (!part.isEmpty()) {
+            segments.push_back(part);
+        }
+    }
+    return segments;
+}
+
+bool HttpServer::matchPattern(const std::vector<QString>& pattern,
+                               const std::vector<QString>& request,
+                               QMap<QString, QString>& pathParams) {
+    size_t pi = 0, ri = 0;
+
+    while (pi < pattern.size() && ri < request.size()) {
+        const auto& pseg = pattern[pi];
+        const auto& rseg = request[ri];
+
+        if (pseg.startsWith('*')) {
+            // 通配符: 匹配剩余所有路径
+            QString wildcard = rseg;
+            for (size_t j = ri + 1; j < request.size(); ++j) {
+                wildcard += "/" + request[j];
+            }
+            pathParams[pseg.mid(1)] = wildcard;
+            return true;
+        }
+
+        if (pseg.startsWith(':')) {
+            // 路径参数
+            pathParams[pseg.mid(1)] = rseg;
+            ++pi;
+            ++ri;
+            continue;
+        }
+
+        if (pseg != rseg) {
+            return false;
+        }
+
+        ++pi;
+        ++ri;
+    }
+
+    // 精确匹配完成 (不含通配符)
+    return pi == pattern.size() && ri == request.size();
 }
 
 void HttpServer::sendResponse(QTcpSocket* socket, const HttpResponse& response) {

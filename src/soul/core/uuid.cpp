@@ -8,9 +8,11 @@
 namespace sc {
 
 std::string Uuid::generate() {
-    static std::random_device rd;
-    static std::mt19937 gen(rd());
-    static std::uniform_int_distribution<> dis(0, 255);
+    // [审计] 原实现用函数级 static mt19937, 多线程并发 dis(gen) 构成数据竞争。
+    // 改用 thread_local: 每线程独立 RNG, 无锁且线程安全。
+    static thread_local std::random_device rd;
+    static thread_local std::mt19937 gen(rd());
+    static thread_local std::uniform_int_distribution<> dis(0, 255);
 
     uint8_t data[16];
     for (int i = 0; i < 16; i++) {

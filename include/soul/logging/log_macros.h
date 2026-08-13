@@ -2,16 +2,29 @@
 #define SOUL_LOGGING_LOG_MACROS_H
 
 #include "soul/logging/logger.h"
+#include "soul/core/request_context.h"  // v2.9.0: Context 自动关联
+
+// ============================================================================
+// v2.9.0: Context 感知格式化辅助
+// ============================================================================
+// 当 RequestContextGuard 存在时，自动附加 requestId / traceId
+#define SC_FORMAT_WITH_CTX(msg) \
+    (sc::RequestContextGuard::hasCurrent() \
+        ? (std::string("[") + \
+           sc::RequestContextGuard::currentRequestId().left(8).toStdString() + ":" + \
+           sc::RequestContextGuard::currentTraceId().left(8).toStdString() + "] " + \
+           std::string(msg)) \
+        : std::string(msg))
 
 // ============================================================================
 // 基础日志宏 — 无模块分类 (兼容旧版)
 // ============================================================================
-#define SC_TRACE(msg)    sc::Logger::instance().trace(msg)
-#define SC_DEBUG(msg)    sc::Logger::instance().debug(msg)
-#define SC_INFO(msg)     sc::Logger::instance().info(msg)
-#define SC_WARN(msg)     sc::Logger::instance().warn(msg)
-#define SC_ERROR(msg)    sc::Logger::instance().error(msg)
-#define SC_FATAL(msg)    sc::Logger::instance().fatal(msg)
+#define SC_TRACE(msg)    sc::Logger::instance().trace(SC_FORMAT_WITH_CTX(msg))
+#define SC_DEBUG(msg)    sc::Logger::instance().debug(SC_FORMAT_WITH_CTX(msg))
+#define SC_INFO(msg)     sc::Logger::instance().info(SC_FORMAT_WITH_CTX(msg))
+#define SC_WARN(msg)     sc::Logger::instance().warn(SC_FORMAT_WITH_CTX(msg))
+#define SC_ERROR(msg)    sc::Logger::instance().error(SC_FORMAT_WITH_CTX(msg))
+#define SC_FATAL(msg)    sc::Logger::instance().fatal(SC_FORMAT_WITH_CTX(msg))
 
 #define SC_TRACE_S(module, op, msg)    sc::Logger::instance().trace(msg, module, op)
 #define SC_DEBUG_S(module, op, msg)    sc::Logger::instance().debug(msg, module, op)

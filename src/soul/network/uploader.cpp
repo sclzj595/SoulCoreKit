@@ -173,8 +173,10 @@ void Uploader::startUpload() {
                        .arg(m_fieldName)
                        .arg(QFileInfo(m_filePath).fileName()));
 
+    // 注意: 不可对值成员 m_file 调用 setParent(multiPart)。multiPart/reply 销毁时会
+    // delete 所有子对象, 若把值对象挂为 parent 会导致双重释放/UAF。
+    // QHttpPart::setBodyDevice 不接管所有权, m_file 生命周期由本对象(值成员)管理。
     filePart.setBodyDevice(&m_file);
-    m_file.setParent(multiPart.get());
 
     multiPart->append(filePart);
 

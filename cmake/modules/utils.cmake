@@ -1,5 +1,7 @@
-# utils.cmake — 工具函数模块 [v2.5.0]
+# utils.cmake — 工具函数集模块 [v2.5.0]
+# Layer: Infrastructure (I12) — 通用基础设施
 # 依赖: core + Qt::Xml + nlohmann_json
+# 职责: Clipboard/Crypto/File/JSON/String/XML/Process/Compress/Datetime/Image 工具函数
 
 add_library(soul_utils STATIC
     src/soul/utils/clipboard/clipboard_utils.cpp
@@ -15,11 +17,11 @@ add_library(soul_utils STATIC
 )
 
 target_include_directories(soul_utils PUBLIC
-    ${CMAKE_SOURCE_DIR}/include
-    ${CMAKE_BINARY_DIR}/include
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
 )
 
-target_link_libraries(soul_utils PUBLIC soul_core Qt6::Xml nlohmann_json::nlohmann_json)
+target_link_libraries(soul_utils PUBLIC soul_core Qt6::Xml nlohmann_json::nlohmann_json PRIVATE Qt6::Gui)
 
 if(ZLIB_FOUND)
     target_link_libraries(soul_utils PRIVATE ZLIB::ZLIB)

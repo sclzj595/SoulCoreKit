@@ -12,6 +12,7 @@
 
 #include "soul/network/network_global.h"
 #include <QString>
+#include <memory>
 #include "soul/core/error.h"
 
 namespace sc {

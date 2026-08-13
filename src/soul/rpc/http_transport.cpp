@@ -132,6 +132,12 @@ bool HttpTransport::isRunning() const {
     return m_running.load(std::memory_order_acquire);
 }
 
+void HttpTransport::setCodec(std::shared_ptr<IRpcCodec> codec) {
+    // HttpTransport uses ISerializer for encoding, setCodec is a no-op
+    // provided for IRpcTransport interface compliance
+    (void)codec;
+}
+
 void HttpTransport::setSerializer(std::shared_ptr<ISerializer> serializer) {
     m_serializer = std::move(serializer);
 }

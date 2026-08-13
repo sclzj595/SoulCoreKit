@@ -26,6 +26,7 @@ DailyFileSink::DailyFileSink(const std::string& basePath, std::unique_ptr<LogFor
     : m_basePath(basePath), m_formatter(std::move(formatter)) {}
 
 void DailyFileSink::log(const LogRecord& record) {
+    std::lock_guard<std::mutex> lock(m_mutex);
     checkAndRotate(record.timestamp);
 
     if (!m_file) return;
@@ -34,6 +35,7 @@ void DailyFileSink::log(const LogRecord& record) {
 }
 
 void DailyFileSink::flush() {
+    std::lock_guard<std::mutex> lock(m_mutex);
     if (m_file) fflush(m_file);
 }
 

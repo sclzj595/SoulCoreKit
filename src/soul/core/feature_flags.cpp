@@ -140,17 +140,28 @@ bool FeatureFlagManager::isEnabled(const QString& key) const {
 
 bool FeatureFlagManager::isEnabled(const QString& key, const FeatureFlagTarget& target) const {
     std::lock_guard<std::mutex> lock(m_mutex);
+    return evaluateEnabledUnlocked(key, target, false);
+}
 
+bool FeatureFlagManager::isEnabled(const QString& key, bool defaultValue) const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return evaluateEnabledUnlocked(key, FeatureFlagTarget{}, defaultValue);
+}
+
+bool FeatureFlagManager::evaluateEnabledUnlocked(const QString& key,
+                                                 const FeatureFlagTarget& target,
+                                                 bool defaultValue) const {
+    // 调用方必须已持有 m_mutex
     // 强制覆盖优先
     auto forceIt = m_forceOverrides.find(key);
     if (forceIt != m_forceOverrides.end()) {
         return forceIt.value();
     }
 
-    if (!m_provider) return false;
+    if (!m_provider) return defaultValue;
 
     auto result = m_provider->getConfig(key);
-    if (result.isErr()) return false;
+    if (result.isErr()) return defaultValue;
 
     const auto& config = result.unwrap();
 
@@ -172,22 +183,6 @@ bool FeatureFlagManager::isEnabled(const QString& key, const FeatureFlagTarget& 
     return config.enabled;
 }
 
-bool FeatureFlagManager::isEnabled(const QString& key, bool defaultValue) const {
-    std::lock_guard<std::mutex> lock(m_mutex);
-
-    auto forceIt = m_forceOverrides.find(key);
-    if (forceIt != m_forceOverrides.end()) {
-        return forceIt.value();
-    }
-
-    if (!m_provider) return defaultValue;
-
-    auto result = m_provider->getConfig(key);
-    if (result.isErr()) return defaultValue;
-
-    return isEnabled(key, FeatureFlagTarget{});
-}
-
 // ============================================================================
 // 批量评估
 // ============================================================================
@@ -207,7 +202,7 @@ QHash<QString, bool> FeatureFlagManager::evaluateAll(const FeatureFlagTarget& ta
 
     const auto& configs = configsResult.unwrap();
     for (auto it = configs.constBegin(); it != configs.constEnd(); ++it) {
-        results.insert(it.key(), isEnabled(it.key(), target));
+        results.insert(it.key(), evaluateEnabledUnlocked(it.key(), target, false));
     }
 
     return results;
@@ -224,7 +219,19 @@ Result<void> FeatureFlagManager::setFlag(const QString& key, const FeatureFlagCo
         return Result<void>::err(Error(ErrorCode::NotConnected, "No provider set"));
     }
 
-    return m_provider->setConfig(key, config);
+    auto result = m_provider->setConfig(key, config);
+    if (result.isOk()) {
+        // 通知 manager 级别的 listeners
+        auto lit = m_listeners.find(key);
+        if (lit != m_listeners.end()) {
+            for (auto& cb : lit.value()) {
+                if (cb) {
+                    cb(key, config.enabled);
+                }
+            }
+        }
+    }
+    return result;
 }
 
 Result<void> FeatureFlagManager::removeFlag(const QString& key) {
@@ -263,7 +270,7 @@ QHash<QString, FeatureFlagSnapshot> FeatureFlagManager::getAllSnapshots() const 
         FeatureFlagSnapshot snapshot;
         snapshot.key = it.key();
         snapshot.config = it.value();
-        snapshot.currentValue = isEnabled(it.key());
+        snapshot.currentValue = evaluateEnabledUnlocked(it.key(), FeatureFlagTarget{}, false);
         snapshot.lastUpdated = QDateTime::currentMSecsSinceEpoch();
         snapshots.insert(it.key(), snapshot);
     }

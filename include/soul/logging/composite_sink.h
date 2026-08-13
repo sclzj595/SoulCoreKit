@@ -2,6 +2,7 @@
 #define SOUL_LOGGING_COMPOSITE_SINK_H
 
 #include "soul/logging/i_sink.h"
+#include <mutex>
 #include <vector>
 #include <memory>
 
@@ -49,6 +50,8 @@ public:
 
 private:
     std::vector<std::shared_ptr<ISink>> m_sinks;
+    // [审计] 保护 m_sinks 向量: addSink/removeSink 与 log/flush 可能在多线程并发。
+    mutable std::mutex m_mutex;
 };
 
 }

@@ -1,6 +1,22 @@
 #ifndef SOUL_RPC_HTTP_TRANSPORT_H
 #define SOUL_RPC_HTTP_TRANSPORT_H
 
+// ============================================================================
+// http_transport.h — HTTP RPC Transport [v2.7.0 增强]
+// ============================================================================
+//
+// v2.7.0 变更:
+//   - 实现 IRpcCodec 接口 (通过 ISerializer 桥接)
+//   - 实现 RpcTransportType::Http
+//   - setCodec() 支持运行时切换编解码器
+//
+// 用法:
+//   auto transport = std::make_shared<HttpTransport>("http://localhost:8080/rpc");
+//   auto codec = std::make_shared<JsonRpcCodec>();
+//   transport->setCodec(codec);
+//   transport->start();
+//   auto result = transport->sendRequest(req);
+
 #include "soul/rpc/irpc_transport.h"
 #include "soul/rpc/iserializer.h"
 #include <QObject>
@@ -12,6 +28,16 @@
 namespace sc {
 namespace rpc {
 
+/// @brief JSON RPC Codec (默认) [v2.7.0 新增]
+class JsonRpcCodec : public IRpcCodec {
+public:
+    QByteArray encodeRequest(const RpcRequest& request) override;
+    QByteArray encodeResponse(const RpcResponse& response) override;
+    Result<RpcRequest> decodeRequest(const QByteArray& data) override;
+    Result<RpcResponse> decodeResponse(const QByteArray& data) override;
+    std::string name() const override { return "JSON"; }
+};
+
 class HttpTransport : public QObject, public IRpcTransport {
     Q_OBJECT
 public:
@@ -20,27 +46,20 @@ public:
                           QObject* parent = nullptr);
     ~HttpTransport() override;
 
+    // IRpcTransport
     Result<RpcResponse> sendRequest(const RpcRequest& request) override;
     void start() override;
     void stop() override;
     bool isRunning() const override;
+    RpcTransportType type() const override { return RpcTransportType::Http; }
+    void setCodec(std::shared_ptr<IRpcCodec> codec) override;
 
+    // HttpTransport 特有
     void setSerializer(std::shared_ptr<ISerializer> serializer);
     std::shared_ptr<ISerializer> getSerializer() const;
 
     void setReadTimeout(int ms);
-
-    /**
-     * @brief 启用或禁用 HTTP/2 多路复用(v1.8.0 新增)
-     * @param enabled true 启用(默认),false 禁用
-     * @details 默认启用 HTTP/2。服务器不支持时 Qt 自动降级到 HTTP/1.1。
-     */
     void setHttp2Enabled(bool enabled);
-
-    /**
-     * @brief 查询 HTTP/2 是否启用
-     * @return true 启用,false 禁用
-     */
     bool isHttp2Enabled() const;
 
 private:
@@ -48,11 +67,10 @@ private:
     QMap<QString, QString> m_headers;
     QNetworkAccessManager* m_manager;
     std::shared_ptr<ISerializer> m_serializer;
+    std::shared_ptr<IRpcCodec> m_codec;  // v2.7.0
     int m_readTimeout = 30000;
-    // TSan-safe: m_running / m_http2Enabled may be set by other threads via
-    // start()/stop()/setHttp2Enabled() while sendRequest() reads them.
     std::atomic<bool> m_running{false};
-    std::atomic<bool> m_http2Enabled{true};  ///< HTTP/2 默认启用(v1.8.0)
+    std::atomic<bool> m_http2Enabled{true};
 };
 
 } // namespace rpc

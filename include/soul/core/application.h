@@ -2,11 +2,12 @@
 #define SOUL_CORE_APPLICATION_H
 
 // ============================================================================
-// application.h — SoulCoreKit 应用启动器 [v2.0.0 增强]
+// application.h — SoulCoreKit 应用启动器 [v3.0.0]
 // ============================================================================
 //
 // 对标 SpringBoot 的 SpringApplication.run()。
-// 提供一键启动: YAML 配置加载 → Profile 激活 → 模块扫描 → DI 初始化 → HTTP Server 启动。
+// 提供一键启动: 配置加载 → Profile 激活 → 模块扫描 → DI 初始化 → HTTP Server 启动。
+// v3.0.0: 迁移到 canonical Configuration (PriorityConfigChain + ConfigSnapshot)
 //
 // 用法:
 //   int main(int argc, char* argv[]) {
@@ -37,6 +38,7 @@ namespace sc {
 
 class ModuleRegistry;
 class Module;
+class ConfigSnapshot;  // v3.0.0: forward declaration
 
 // ============================================================================
 // ApplicationState — 应用状态枚举
@@ -177,6 +179,12 @@ private:
     /// @brief 清理模块(调用 cleanup) [v2.0.0 新增]
     void cleanupModules();
 
+    /// @brief 逆序回滚已初始化模块 [审计新增]
+    bool rollbackInitializedModules();
+
+    /// @brief 逆序回滚已启动/已初始化模块 [审计新增]
+    bool rollbackStartedModules();
+
     /// @brief 启动服务
     void startServices();
 
@@ -194,6 +202,8 @@ private:
     int m_serverPort = -1;
     std::string m_serverHost;
     bool m_autoScanEnabled = true;
+    // v3.0.0: canonical ConfigSnapshot (替代 Configuration::instance())
+    std::shared_ptr<ConfigSnapshot> m_configSnapshot;
 
     // 回调
     std::vector<StartupCallback> m_startupCallbacks;
